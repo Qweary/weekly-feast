@@ -10,7 +10,7 @@ The system tracks your pantry inventory across three tiers (shelf-stable staples
 
 ## Getting Started
 
-1. Download `meal-planner.html`
+1. Download 'weekly-feast.html`
 2. Double-click the file to open it in your browser
 3. That's it — there is no step 3
 
