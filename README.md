@@ -97,8 +97,6 @@ If you modify the template and want to get back to the original, there's a "Rese
 
 This system was designed through a multi-expert iterative process, with separate domain expertise applied at each stage: a meal planning and budget grocery expert defined the core architecture, search strategy, and recipe matching logic; a UX consultant reviewed and refined the interaction design, data model, and terminal-to-Claude interface contract; a prompt engineer optimized the Claude prompt template for search reliability, tool call budgeting, and structured output consistency; and a frontend developer built and iterated the application through several rounds of testing and refinement.
 
-The full architectural planning documents, prompt engineering notes, and expert review artifacts are available in the repository for anyone interested in the design process or building similar Claude-integrated tools.
-
 ## Roadmap
 
 Phase 1 (current) delivers the core loop: pantry tracking, prompt generation, plan import, and shopping list management.
