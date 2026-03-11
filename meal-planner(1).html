@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meal Planner — Phase 1</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#0f1117;--bg2:#161822;--border:#1e2130;--fg:#e2e8f0;--fg2:#94a3b8;--fg3:#64748b;--fg4:#475569;
+--blue:#38bdf8;--green:#34d399;--amber:#fbbf24;--red:#ef4444;
+--font:'JetBrains Mono','Fira Code','Source Code Pro','Cascadia Code','Consolas',monospace;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:13px}
+input,select,textarea,button{font-family:var(--font)}
+a{color:var(--blue);text-decoration:none}
+
+/* Layout */
+#app{display:flex;height:100vh;overflow:hidden}
+#sidebar{width:210px;min-width:210px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 0;overflow-y:auto}
+#sidebar .logo{padding:0 16px 20px;border-bottom:1px solid var(--border);margin-bottom:8px}
+#sidebar .logo h1{font-size:15px;font-weight:700;color:#f1f5f9;letter-spacing:.5px;margin:0}
+#sidebar .logo .sub{font-size:10px;color:var(--fg3);margin-top:2px}
+.nav-btn{display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--fg2);cursor:pointer;font-size:12px;text-align:left;border-left:2px solid transparent;width:100%;font-family:var(--font);min-height:44px}
+.nav-btn:hover{background:#1e293b22}
+.nav-btn.active{background:#1e293b;color:var(--blue);border-left-color:var(--blue)}
+.nav-btn.disabled{color:#334155;cursor:not-allowed}
+.nav-btn .icon{font-size:14px;width:18px;text-align:center;flex-shrink:0}
+.nav-btn .soon{font-size:9px;color:var(--fg4);margin-left:auto}
+#main{flex:1;overflow-y:auto;padding:24px;-webkit-overflow-scrolling:touch}
+
+/* Cards & Components */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px}
+.section-title{margin-bottom:20px}
+.section-title h2{font-size:18px;font-weight:700;color:#f1f5f9;margin:0}
+.section-title .sub{font-size:11px;color:var(--fg3);margin-top:4px}
+.btn{padding:7px 14px;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-family:var(--font);color:var(--fg);transition:background .15s;min-height:44px}
+.btn:disabled{background:#1e293b!important;color:var(--fg4)!important;cursor:not-allowed}
+.btn-default{background:#1e293b}.btn-default:hover:not(:disabled){background:#334155}
+.btn-primary{background:#0369a1}.btn-primary:hover:not(:disabled){background:#0284c7}
+.btn-danger{background:#991b1b}.btn-danger:hover:not(:disabled){background:#b91c1c}
+.btn-success{background:#166534}.btn-success:hover:not(:disabled){background:#15803d}
+.inp{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px 10px;color:var(--fg);font-size:12px;outline:none;width:100%;min-height:36px}
+.inp:focus{border-color:#334155}
+select.inp{appearance:auto}
+textarea.inp{resize:vertical;line-height:1.6}
+
+/* Grid helpers */
+.grid{display:grid;gap:8px}.grid-2{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.grid-3{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.grid-shop{grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+.flex{display:flex}.flex-wrap{flex-wrap:wrap}.gap-4{gap:4px}.gap-6{gap:6px}.gap-8{gap:8px}.gap-10{gap:10px}.gap-12{gap:12px}.gap-16{gap:16px}.gap-24{gap:24px}
+.items-center{align-items:center}.justify-between{justify-content:space-between}.flex-1{flex:1}
+
+/* Tags */
+.tag{padding:3px 10px;border-radius:12px;font-size:11px;display:inline-flex;align-items:center;gap:6px}
+.tag button{background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1}
+
+/* Status badges */
+.status-badge{padding:3px 10px;border-radius:12px;border:none;cursor:pointer;font-size:10px;font-family:var(--font);font-weight:600;text-transform:uppercase;letter-spacing:.5px;min-height:28px}
+
+/* Category badges */
+.cat-badge{font-size:9px;padding:1px 6px;border-radius:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+
+/* Shopping item row */
+.shop-row{display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;border-bottom:1px solid var(--border);min-height:44px}
+.shop-row:last-child{border-bottom:none}
+.shop-row.checked{text-decoration:line-through;opacity:.5}
+.shop-row input[type=checkbox]{accent-color:var(--blue);width:18px;height:18px;flex-shrink:0}
+
+/* Progress bar */
+.progress{display:flex;gap:8px;margin-bottom:20px}
+.progress .bar{flex:1;height:4px;border-radius:2px;background:var(--border);transition:background .3s}
+.progress .bar.active{background:var(--blue)}
+
+/* Toast */
+#toast{position:fixed;top:16px;right:16px;background:#166534;color:#bbf7d0;padding:10px 20px;border-radius:6px;font-size:12px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.4);display:none;max-width:300px}
+#toast.show{display:block;animation:fadeInOut 2.5s ease}
+@keyframes fadeInOut{0%{opacity:0;transform:translateY(-8px)}10%{opacity:1;transform:translateY(0)}80%{opacity:1}100%{opacity:0}}
+
+/* Responsive */
+#bottom-nav{display:none}
+@media(max-width:640px){
+  #sidebar{display:none}
+  #main{padding:16px 12px 80px}
+  #bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);z-index:100;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .bnav-btn{flex:1;min-width:56px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border:none;background:transparent;color:var(--fg2);font-size:9px;font-family:var(--font);cursor:pointer;white-space:nowrap}
+  .bnav-btn.active{color:var(--blue)}
+  .bnav-btn.disabled{color:#334155;cursor:not-allowed}
+  .bnav-btn .icon{font-size:16px}
+  .section-title h2{font-size:16px}
+  .grid-2{grid-template-columns:1fr}
+  .grid-3{grid-template-columns:1fr}
+  .grid-shop{grid-template-columns:1fr}
+  .btn{width:100%}
+  .card{padding:12px}
+}
+
+/* Remove button */
+.rm-btn{background:none;border:none;color:var(--fg4);cursor:pointer;font-size:16px;padding:4px;min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0}
+.rm-btn:hover{color:var(--red);background:#991b1b22}
+</style>
+</head>
+<body>
+<div id="app">
+  <nav id="sidebar"></nav>
+  <main id="main"></main>
+</div>
+<nav id="bottom-nav"></nav>
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA & CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v2',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1'};
+
+const DEFAULT_PANTRY={tier1:[
+{id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",updatedAt:new Date().toISOString()},
+{id:"t1-2",name:"Sugar",category:"sweetener",status:"well-stocked",updatedAt:new Date().toISOString()},
+{id:"t1-3",name:"White rice",category:"grain",status:"well-stocked",updatedAt:new Date().toISOString()},
+{id:"t1-4",name:"Olive oil",category:"oil",status:"well-stocked",updatedAt:new Date().toISOString()},
+{id:"t1-5",name:"Soy sauce",category:"condiment",status:"getting-low",updatedAt:new Date().toISOString()},
+{id:"t1-6",name:"Salt",category:"spice",status:"well-stocked",updatedAt:new Date().toISOString()},
+{id:"t1-7",name:"Black pepper",category:"spice",status:"well-stocked",updatedAt:new Date().toISOString()},
+{id:"t1-8",name:"Garlic powder",category:"spice",status:"well-stocked",updatedAt:new Date().toISOString()},
+{id:"t1-9",name:"Cumin",category:"spice",status:"getting-low",updatedAt:new Date().toISOString()},
+{id:"t1-10",name:"Vinegar",category:"condiment",status:"well-stocked",updatedAt:new Date().toISOString()}
+],tier2:[
+{id:"t2-1",name:"Eggs (dozen)",category:"dairy",have:true},
+{id:"t2-2",name:"Milk (gallon)",category:"dairy",have:true},
+{id:"t2-3",name:"Bread (loaf)",category:"grain",have:false},
+{id:"t2-4",name:"Butter",category:"dairy",have:true},
+{id:"t2-5",name:"Cheddar cheese",category:"dairy",have:false}
+],tier3:[
+{id:"t3-1",name:"Chicken thighs",category:"protein",quantity:"about 3 lbs",updatedAt:new Date().toISOString()},
+{id:"t3-2",name:"Ground beef",category:"protein",quantity:"about 1 lb",updatedAt:new Date().toISOString()},
+{id:"t3-3",name:"Frozen mixed vegetables",category:"frozen",quantity:"half remaining",updatedAt:new Date().toISOString()}
+]};
+
+const DEFAULT_PREFERENCES={allergies:[],dislikes:[],positives:["Mexican food","One-pot meals","Seasonal vegetables"]};
+const DEFAULT_HOUSEHOLD={size:2,mealStructure:"Simple breakfasts and lunches, larger dinners",starterActive:false,walmartThreshold:"only-major",region:"Seattle, WA",planDays:7};
+
+const WALMART_LABELS={"only-major":"Only for major savings (>20%)","moderate":"Moderate savings okay (10-15%)","include-freely":"Include Walmart freely"};
+const WALMART_PROMPT={"only-major":"Only recommend Walmart when savings exceed 20% on enough items to justify a separate trip.","moderate":"Recommend Walmart when savings exceed 10-15% on key items.","include-freely":"Treat Walmart as an equal-priority store."};
+const STATUS_COLORS={"well-stocked":"#22c55e","getting-low":"#f59e0b","out":"#ef4444"};
+const CATEGORY_LABELS={sale:{color:"#34d399",label:"sale"},staple:{color:"#94a3b8",label:"staple"},restock:{color:"#f59e0b",label:"restock"}};
+const STATUS_ORDER=["well-stocked","getting-low","out"];
+
+const NAV_ITEMS=[
+{id:"dashboard",label:"Dashboard",icon:"◉"},
+{id:"pantry",label:"Pantry",icon:"◫"},
+{id:"review",label:"Review",icon:"↻"},
+{id:"generate",label:"Prompt",icon:"⟩"},
+{id:"import",label:"Import",icon:"⇩"},
+{id:"preferences",label:"Prefs",icon:"⚙"},
+{id:"consumption",label:"Log",icon:"📊",disabled:true}
+];
+
+// Production prompt template
+const DEFAULT_PROMPT_TEMPLATE=`You are a budget-conscious meal planning assistant. Your job is to research current grocery deals, find matching recipes, and produce a structured weekly meal plan with a shopping list. You will use web search and web fetch to gather real-time data. Do not guess at prices or recipes — fetch actual current information.
+
+
+HOUSEHOLD CONTEXT
+
+Household size: {{HOUSEHOLD_SIZE}} people.
+Planning for {{PLAN_DAYS}} days starting {{START_DATE}}.
+Region: {{REGION}} (use this for seasonal produce awareness).
+Sourdough starter active: {{STARTER_ACTIVE}}.
+
+
+CURRENT PANTRY STATE
+
+{{PANTRY_STATE}}
+
+
+DIETARY CONSTRAINTS
+
+Hard exclusions (allergies — never include under any circumstances): {{ALLERGIES}}.
+Soft exclusions (dislike — avoid when reasonable, but acceptable if a deal is compelling enough to mention): {{DISLIKES}}.
+Positive preferences: {{PREFERENCES}}.
+
+
+STORE CONFIGURATION
+
+Target stores in priority order: QFC, Kroger, Safeway, Walmart.
+QFC and Kroger share the Kroger backend, so their weekly ads often overlap — use this to your advantage by searching for Kroger deals once and applying findings to both QFC and Kroger.
+All loyalty pricing and digital coupon pricing is available to the household. Factor those prices into your recommendations.
+
+Walmart threshold: {{WALMART_THRESHOLD}}.
+
+
+SPECIAL INSTRUCTIONS FOR THIS WEEK
+
+{{SPECIAL_INSTRUCTIONS}}
+
+
+YOUR RESEARCH TASKS
+
+Important — Research Strategy and Tool Call Budget:
+You have a budget of approximately 15-20 total web search and web fetch calls. Plan your research to maximize information per call. Here is the priority order:
+
+Phase 1 (Ad Research — aim for 4-6 total calls):
+  Start with one or two broad aggregator searches (e.g., "Kroger QFC Safeway weekly ad deals [region] this week") that are likely to surface deal blog summaries or Flipp-style roundups covering multiple stores at once. If the aggregator results are rich enough, you may not need per-store searches. Only escalate to individual store ad page searches for stores that were not covered by the aggregator results. Do not attempt to fetch interactive circular pages unless the simpler approaches returned nothing usable — these rarely yield good text content. Remember that QFC and Kroger share a backend, so one Kroger ad search often covers both.
+
+Phase 2 (Recipe Research — aim for 6-10 total calls):
+  Identify the top 3-4 best sale items from Phase 1 (typically the proteins and high-value produce). Search for recipes featuring those specific items on the preferred recipe sites. You can combine multiple preferred sites into a single search query (e.g., "budget chicken thigh recipe site:gracefullittlehoneybee.com OR site:thepioneerwoman.com"). Only fetch the actual recipe page for recipes you intend to include in the final plan — do not fetch pages for candidates you are just evaluating from search snippets. If the sourdough starter is active, allocate one of your recipe searches to pantrymama.com for a sourdough-based recipe. If the starter is not active, redistribute that search to the other preferred sites.
+
+Phase 3 (Confirmation — aim for 2-4 total calls):
+  Fetch the recipe pages for your final selections to confirm ingredient lists and quantities. If you already fetched a page during Phase 2, do not re-fetch it.
+
+If you find yourself approaching 20 calls and still have gaps, stop searching and work with what you have. Note any gaps in your narrative summary. A slightly less optimal plan delivered completely is better than an exhaustive search that fails to produce output.
+
+
+Preferred Recipe Sites:
+  - Graceful Little Honey Bee (gracefullittlehoneybee.com) — budget homestead meals
+  - Scratch Pantry (scratchpantry.com) — from-scratch staples
+  - Pantry Mama (pantrymama.com) — sourdough and fermentation (search only if starter is active)
+  - Pioneer Woman (thepioneerwoman.com) — hearty comfort food
+
+If a preferred site has no good match for a given sale ingredient, search other reputable scratch-cooking sites and note the substitution in your narrative.
+
+
+STEP 1 — GATHER CURRENT AD DATA
+
+Search for current weekly ad deals from each target store, following the phased strategy above. For each store, note the ad cycle dates (start and end) so the meal plan aligns with currently valid pricing. If you cannot retrieve usable ad data for a store after reasonable effort, note it explicitly in the metadata and fall back to general seasonal pricing estimates for that store, clearly labeling any estimated prices.
+
+If fewer than two stores yield confirmed ad data, state this prominently at the start of your narrative, fall back to seasonal pricing and anchor recipes, and flag the entire plan as lower-confidence.
+
+
+STEP 2 — FIND MATCHING RECIPES
+
+Based on the top sale proteins and produce from Step 1, search the preferred recipe sites for matching recipes. Prefer recipes where the majority of ingredients are either on sale, already in the pantry, or cheap staples. Fetch the actual recipe page to confirm ingredients and quantities for your final selections — do not rely on search snippet summaries alone for recipes you include in the plan.
+
+When evaluating recipes, scale them to {{HOUSEHOLD_SIZE}} servings. Reflect the scaled quantities in both the ingredient list and cost calculations in the final output.
+
+
+STEP 3 — BUILD THE MEAL PLAN
+
+Dinners: Select recipes for each planned dinner night (accounting for any skipped nights from special instructions). Maximize ingredient overlap across the week — buying one bunch of cilantro that serves three recipes is better than three unique herb purchases. Sequence meals by perishability: meals using fresh herbs, delicate greens, and ripe produce go in the first half of the week, while root vegetables, frozen proteins, and pantry-heavy meals go toward the end. For each dinner, calculate approximate cost per serving using confirmed sale prices where available and estimates where not. When two options cost similarly, favor the one using fresh seasonal produce over processed ingredients, and note this choice. Compute actual calendar dates for each day by counting forward from {{START_DATE}}.
+
+Breakfasts and lunches: Provide simple text suggestions (oatmeal, sandwiches, eggs, leftovers, simple salads) without full recipe treatment. These should be low-effort, pantry-driven meals. Reference specific leftovers by name where applicable (e.g., "leftover beef stew from Day 3").
+
+Pantry consumption check: After drafting the full week's plan, review cumulative ingredient usage against the pantry state. If any pantry item categorized as "well-stocked" or "getting low" would be substantially depleted by the week's meals (e.g., the plan uses rice in 5 of 7 dinners, or multiple recipes draw heavily on the same spice), flag it in the pantry_alerts section of the JSON. This helps the household anticipate restock needs before they run out.
+
+
+STEP 4 — GENERATE THE SHOPPING LIST
+
+Consolidate all ingredients across the week's meals. Group by store, with the recommended store for each item based on current pricing. For items not on sale, mark them as "staple — buy at any store" rather than assigning a specific store. If a staple happens to be on sale at a store the household is already visiting, note it as a restock opportunity — especially if the pantry shows it as "getting low." Include quantities for everything. Flag any Walmart recommendations with a brief savings justification.
+
+
+OUTPUT FORMAT
+
+Produce your output in two parts, in this exact order:
+
+PART 1: A JSON code block. Begin the block with \\\`\\\`\\\`json and end it with \\\`\\\`\\\`. This must be valid, parseable JSON conforming to the schema below. Nothing should precede this code block — it must be the very first content in your response.
+
+PART 2: After the JSON code block, insert a markdown horizontal rule (---), then write a narrative summary explaining your reasoning: why you chose these recipes, what deals drove the plan, any tradeoffs between cost and quality, stores with missing ad data, pantry depletion concerns, and any items worth stocking up on due to unusually good sales.
+
+
+JSON SCHEMA
+
+The JSON output must follow this structure exactly. All fields shown are required unless annotated as nullable. Numeric values are plain numbers (not strings). Nullable fields use null, not empty strings.
+
+{
+  "metadata": {
+    "plan_date": "YYYY-MM-DD",
+    "plan_days": 7,
+    "household_size": 4,
+    "stores_searched": ["QFC", "Kroger", "Safeway", "Walmart"],
+    "stores_confirmed": ["QFC", "Kroger", "Safeway"],
+    "stores_estimated": ["Walmart"],
+    "confidence": "normal"
+  },
+  "meal_plan": [ { "day": 1, "date": "YYYY-MM-DD", "breakfast": "...", "lunch": "...", "dinner": { "name": "...", "source_url": "...", "source_site": "...", "servings": 4, "cost_per_serving": 2.85, "perishability_note": "... or null", "quality_note": "... or null", "ingredients": [ { "item": "...", "quantity": "...", "source": "sale | pantry | staple", "store": "store name or null", "price_estimate": 0.00 } ] } } ],
+  "shopping_list": [ { "item": "...", "quantity": "...", "store": "store name or any", "price": 0.00, "price_type": "confirmed | estimated", "category": "sale | staple | restock", "notes": "... or null" } ],
+  "pantry_alerts": [ { "item": "...", "concern": "..." } ],
+  "cost_summary": { "total_estimated": 0.00, "per_person_per_day": 0.00, "by_store": { "StoreName": 0.00 } }
+}
+
+Field notes:
+- "metadata.confidence": Use "normal" when at least two stores have confirmed ad data. Use "low" when fewer than two stores have confirmed data.
+- "source" in ingredients: "pantry" for items on hand (price_estimate and store should be null), "sale" for items on confirmed or estimated sale, "staple" for items bought at regular price.
+- "price_type" in shopping_list: "confirmed" from actual ad/coupon listing, "estimated" from general knowledge.
+- "category" in shopping_list: "sale" for deal-driven purchases, "staple" for regular-price necessities, "restock" for items the pantry shows as low or out.
+- "pantry_alerts": Include entries only when cumulative weekly usage warrants a heads-up. An empty array is fine if no alerts are needed.
+
+
+ANCHOR RECIPES (FALLBACK SET)
+
+If your dynamic recipe search returns sparse results for a given protein or produce category, consult these known-good recipes as fallbacks. Prefer fresh search results when available, but use these to fill gaps rather than leaving the plan incomplete.
+
+{{ANCHOR_RECIPES}}`;
+
+// Mock data
+const MOCK_PLAN={"metadata":{"plan_date":"2026-03-09","plan_days":7,"household_size":2,"stores_searched":["QFC","Kroger","Safeway","Walmart"],"stores_confirmed":["QFC","Safeway"],"stores_estimated":["Walmart"],"confidence":"normal"},"meal_plan":[{"day":1,"date":"2026-03-09","breakfast":"Oatmeal with banana and honey","lunch":"Turkey and cheese sandwiches","dinner":{"name":"One-Pot Chicken Thigh and Rice","source_url":"https://example.com/chicken-rice","source_site":"Budget Bytes","servings":4,"cost_per_serving":1.85,"perishability_note":"Uses fresh cilantro — scheduled early in week","quality_note":null,"ingredients":[{"item":"chicken thighs","quantity":"1.5 lbs","source":"pantry","store":null,"price_estimate":null},{"item":"rice","quantity":"1.5 cups","source":"pantry","store":null,"price_estimate":null},{"item":"onion","quantity":"1","source":"staple","store":"QFC","price_estimate":0.75},{"item":"chicken broth","quantity":"2 cups","source":"sale","store":"QFC","price_estimate":2.49}]}},{"day":2,"date":"2026-03-10","breakfast":"Scrambled eggs with toast","lunch":"Leftover chicken and rice from Day 1","dinner":{"name":"Black Bean Tacos","source_url":"https://example.com/bean-tacos","source_site":"Cookie and Kate","servings":4,"cost_per_serving":2.10,"perishability_note":"Avocados — use within 2 days","quality_note":null,"ingredients":[{"item":"black beans","quantity":"2 cans","source":"sale","store":"QFC","price_estimate":1.78},{"item":"tortillas","quantity":"1 pack","source":"staple","store":"QFC","price_estimate":2.99},{"item":"avocado","quantity":"2","source":"sale","store":"QFC","price_estimate":2.00},{"item":"lime","quantity":"2","source":"staple","store":"QFC","price_estimate":0.60}]}},{"day":3,"date":"2026-03-11","breakfast":"Yogurt with granola","lunch":"PB&J sandwiches","dinner":{"name":"Sheet Pan Italian Sausage and Vegetables","source_url":"https://example.com/sausage-veggies","source_site":"Damn Delicious","servings":4,"cost_per_serving":2.65,"perishability_note":"Uses fresh bell peppers and zucchini — scheduled early in week","quality_note":null,"ingredients":[{"item":"Italian sausage","quantity":"1 lb","source":"sale","store":"Safeway","price_estimate":4.99},{"item":"bell peppers","quantity":"3","source":"sale","store":"Safeway","price_estimate":2.49},{"item":"zucchini","quantity":"2","source":"staple","store":"Safeway","price_estimate":1.98}]}},{"day":4,"date":"2026-03-12","breakfast":"Toast with peanut butter","lunch":"Quesadillas with leftover beans from Day 2","dinner":{"name":"Beef and Broccoli Stir-Fry","source_url":"https://example.com/beef-broccoli","source_site":"RecipeTin Eats","servings":4,"cost_per_serving":2.25,"perishability_note":null,"quality_note":null,"ingredients":[{"item":"ground beef","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null},{"item":"broccoli","quantity":"2 crowns","source":"staple","store":"QFC","price_estimate":2.98},{"item":"soy sauce","quantity":"3 tbsp","source":"pantry","store":null,"price_estimate":null}]}},{"day":5,"date":"2026-03-13","breakfast":"Cereal with milk","lunch":"Leftover stir-fry from Day 4","dinner":{"name":"Baked Potato Bar","source_url":"https://example.com/baked-potato","source_site":"A Couple Cooks","servings":4,"cost_per_serving":1.95,"perishability_note":null,"quality_note":null,"ingredients":[{"item":"russet potatoes","quantity":"4 large","source":"sale","store":"Safeway","price_estimate":2.99},{"item":"sour cream","quantity":"1 tub","source":"staple","store":"Safeway","price_estimate":2.49},{"item":"cheddar cheese","quantity":"1 block","source":"staple","store":"QFC","price_estimate":3.49}]}},{"day":6,"date":"2026-03-14","breakfast":"Oatmeal with berries","lunch":"Grilled cheese sandwiches","dinner":{"name":"Chicken Tortilla Soup","source_url":"https://example.com/tortilla-soup","source_site":"Gimme Some Oven","servings":6,"cost_per_serving":2.05,"perishability_note":null,"quality_note":"Great for using leftover chicken","ingredients":[{"item":"chicken thighs","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null},{"item":"diced tomatoes","quantity":"2 cans","source":"sale","store":"QFC","price_estimate":1.78},{"item":"corn","quantity":"1 can","source":"staple","store":"QFC","price_estimate":0.89},{"item":"tortilla chips","quantity":"1 bag","source":"staple","store":"any","price_estimate":3.49}]}},{"day":7,"date":"2026-03-15","breakfast":"Eggs and toast","lunch":"Soup leftovers from Day 6","dinner":{"name":"Pasta with Meat Sauce","source_url":"https://example.com/meat-sauce","source_site":"Smitten Kitchen","servings":4,"cost_per_serving":1.75,"perishability_note":null,"quality_note":null,"ingredients":[{"item":"spaghetti","quantity":"1 lb","source":"staple","store":"any","price_estimate":1.29},{"item":"crushed tomatoes","quantity":"1 can (28oz)","source":"sale","store":"QFC","price_estimate":2.49},{"item":"ground beef","quantity":"0.5 lb","source":"sale","store":"Safeway","price_estimate":3.49}]}}],"shopping_list":[{"item":"Onion","quantity":"3","store":"QFC","price":2.25,"price_type":"confirmed","category":"staple","notes":null},{"item":"Chicken broth","quantity":"1 carton","store":"QFC","price":2.49,"price_type":"confirmed","category":"sale","notes":null},{"item":"Black beans","quantity":"2 cans","store":"QFC","price":1.78,"price_type":"confirmed","category":"sale","notes":null},{"item":"Tortillas","quantity":"1 pack","store":"QFC","price":2.99,"price_type":"confirmed","category":"staple","notes":null},{"item":"Avocado","quantity":"2","store":"QFC","price":2.00,"price_type":"confirmed","category":"sale","notes":"Use within 2 days"},{"item":"Limes","quantity":"2","store":"QFC","price":0.60,"price_type":"confirmed","category":"staple","notes":null},{"item":"Broccoli","quantity":"2 crowns","store":"QFC","price":2.98,"price_type":"confirmed","category":"staple","notes":null},{"item":"Cheddar cheese","quantity":"1 block","store":"QFC","price":3.49,"price_type":"confirmed","category":"staple","notes":null},{"item":"Diced tomatoes","quantity":"2 cans","store":"QFC","price":1.78,"price_type":"confirmed","category":"sale","notes":null},{"item":"Corn","quantity":"1 can","store":"QFC","price":0.89,"price_type":"confirmed","category":"staple","notes":null},{"item":"Crushed tomatoes","quantity":"1 can (28oz)","store":"QFC","price":2.49,"price_type":"confirmed","category":"sale","notes":null},{"item":"Italian sausage","quantity":"1 lb","store":"Safeway","price":4.99,"price_type":"confirmed","category":"sale","notes":null},{"item":"Bell peppers","quantity":"3","store":"Safeway","price":2.49,"price_type":"confirmed","category":"sale","notes":null},{"item":"Zucchini","quantity":"2","store":"Safeway","price":1.98,"price_type":"confirmed","category":"staple","notes":null},{"item":"Russet potatoes","quantity":"4 large","store":"Safeway","price":2.99,"price_type":"confirmed","category":"sale","notes":null},{"item":"Sour cream","quantity":"1 tub","store":"Safeway","price":2.49,"price_type":"confirmed","category":"staple","notes":null},{"item":"Ground beef","quantity":"0.5 lb","store":"Safeway","price":3.49,"price_type":"estimated","category":"sale","notes":null},{"item":"Tortilla chips","quantity":"1 bag","store":"any","price":3.49,"price_type":"estimated","category":"staple","notes":null},{"item":"Spaghetti","quantity":"1 lb","store":"any","price":1.29,"price_type":"estimated","category":"staple","notes":null},{"item":"Soy sauce","quantity":"1 bottle","store":"any","price":2.99,"price_type":"estimated","category":"restock","notes":"Getting low per pantry. Consider restocking this week."}],"pantry_alerts":[{"item":"rice","concern":"Rice is used heavily this week — plan calls for rice in 3 of 7 dinners. May deplete faster than expected."},{"item":"soy sauce","concern":"Soy sauce is getting low and used in 3 recipes this week. Added to shopping list as a restock item."}],"cost_summary":{"total_estimated":50.29,"per_person_per_day":3.59,"by_store":{"QFC":23.75,"Safeway":18.43,"any":8.11}}};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+function load(key,fallback){try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback}catch{return fallback}}
+function save(key,val){try{localStorage.setItem(key,JSON.stringify(val))}catch(e){console.error('Save failed',e)}}
+const genId=()=>Math.random().toString(36).slice(2,10);
+const todayStr=()=>new Date().toISOString().slice(0,10);
+const esc=s=>s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const n2=(n)=>n!=null?n.toFixed(2):'?';
+
+// Global state
+const S={
+  screen:'dashboard',
+  pantry:load(KEYS.pantry,DEFAULT_PANTRY),
+  prefs:load(KEYS.preferences,DEFAULT_PREFERENCES),
+  household:load(KEYS.household,DEFAULT_HOUSEHOLD),
+  currentPlan:load(KEYS.currentPlan,null),
+  planHistory:load(KEYS.planHistory,[]),
+  promptTemplate:load(KEYS.promptTemplate,DEFAULT_PROMPT_TEMPLATE),
+  anchorRecipes:load(KEYS.anchorRecipes,''),
+  checkedItems:load(KEYS.checkedItems,{}),
+  removedShoppingItems:[],
+  showRemovedItems:false,
+  // Screen-local state
+  pantryTab:'tier1',
+  reviewStep:0,
+  showTemplateEditor:false,
+  showAnchorEditor:false,
+  specialInstructions:'',
+  startDate:todayStr(),
+  importRaw:'',
+  importError:null,
+  importParsed:null,
+  confirmAllergy:null,
+};
+
+function updateState(changes){Object.assign(S,changes);render()}
+function savePantry(){save(KEYS.pantry,S.pantry)}
+function savePrefs(){save(KEYS.preferences,S.prefs)}
+function saveHousehold(){save(KEYS.household,S.household)}
+function savePlan(){save(KEYS.currentPlan,S.currentPlan)}
+function saveHistory(){save(KEYS.planHistory,S.planHistory)}
+function saveTemplate(){save(KEYS.promptTemplate,S.promptTemplate)}
+function saveAnchors(){save(KEYS.anchorRecipes,S.anchorRecipes)}
+function saveCheckedItems(){save(KEYS.checkedItems,S.checkedItems)}
+
+// Debounce for large text field saves
+let _debounceTimers={};
+function debouncedSave(key,fn,delay=400){clearTimeout(_debounceTimers[key]);_debounceTimers[key]=setTimeout(fn,delay)}
+
+let toastTimer;
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='show';
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{t.className=''},2500);
+}
+
+function nav(screen){S.screen=screen;render()}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════════════════════════
+function render(){
+  renderNav();
+  const main=document.getElementById('main');
+  switch(S.screen){
+    case 'dashboard':main.innerHTML=renderDashboard();break;
+    case 'pantry':main.innerHTML=renderPantry();break;
+    case 'review':main.innerHTML=renderReview();break;
+    case 'generate':main.innerHTML=renderGenerate();break;
+    case 'import':main.innerHTML=renderImport();break;
+    case 'preferences':main.innerHTML=renderPreferences();break;
+    case 'consumption':main.innerHTML='<div style="color:var(--fg4);padding:40px;text-align:center">Consumption Log — Coming in Phase 3</div>';break;
+  }
+  bindEvents();
+}
+
+function renderNav(){
+  // Sidebar
+  document.getElementById('sidebar').innerHTML=`
+    <div class="logo"><h1>MEAL PLANNER</h1><div class="sub">Phase 1 · ${todayStr()}</div></div>
+    ${NAV_ITEMS.map(n=>`<button class="nav-btn ${S.screen===n.id?'active':''} ${n.disabled?'disabled':''}" data-nav="${n.id}" ${n.disabled?'disabled':''}><span class="icon">${n.icon}</span><span>${n.label}</span>${n.disabled?'<span class="soon">soon</span>':''}</button>`).join('')}`;
+  // Bottom nav
+  document.getElementById('bottom-nav').innerHTML=
+    NAV_ITEMS.map(n=>`<button class="bnav-btn ${S.screen===n.id?'active':''} ${n.disabled?'disabled':''}" data-nav="${n.id}" ${n.disabled?'disabled':''}><span class="icon">${n.icon}</span>${n.label}</button>`).join('');
+}
+
+// ─── Dashboard ──────────────────────────────────────────────────────────────
+function renderDashboard(){
+  const plan=S.currentPlan;
+  if(!plan){
+    return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;text-align:center">
+      <div style="font-size:48px;margin-bottom:16px;opacity:.3">◉</div>
+      <div class="section-title"><h2>No Meal Plan Yet</h2><div class="sub">Start by reviewing your pantry and generating a prompt for Claude.</div></div>
+      <div class="flex gap-10" style="flex-wrap:wrap;justify-content:center"><button class="btn btn-primary" data-nav="review">Start Weekly Review</button><button class="btn btn-default" data-nav="import">Import Mock Data</button></div></div>`;
+  }
+  const{meal_plan:mp=[],shopping_list:sl=[],cost_summary:cs={},metadata:md={},pantry_alerts:pa=[]}=plan;
+  const byStore={};sl.forEach((item,i)=>{const s=item.store||'Other';if(!byStore[s])byStore[s]=[];byStore[s].push({...item,_gi:i})});
+  const cc=Object.values(S.checkedItems).filter(Boolean).length;
+  const conf=md.stores_confirmed||[],est=md.stores_estimated||[];
+
+  let h=`<div class="section-title"><h2>This Week's Meal Plan</h2><div class="sub">Plan for ${esc(md.plan_date||'this week')} · ${md.household_size||'?'} people · ${md.plan_days||7} days</div></div>`;
+
+  // Low confidence
+  if(md.confidence==='low') h+=`<div class="card" style="border-color:#92400e;background:#1c1206"><div class="flex gap-10" style="align-items:flex-start"><span style="font-size:18px">⚠</span><div><div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:4px">LOW CONFIDENCE PLAN</div><div style="font-size:11px;color:#fde68a;line-height:1.5">This plan relies heavily on estimated pricing because current ad data was limited. Verify prices before shopping.</div></div></div></div>`;
+
+  // Pantry alerts
+  if(pa.length) h+=`<div class="card" style="border-color:#854d0e;background:#1a1506"><div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:8px">⚠ PANTRY ALERTS</div>${pa.map(a=>`<div class="flex gap-8" style="font-size:12px;margin-bottom:6px;line-height:1.5"><span style="color:#f59e0b;font-weight:700;white-space:nowrap;flex-shrink:0">${esc(a.item)}:</span><span style="color:#fde68a">${esc(a.concern)}</span></div>`).join('')}</div>`;
+
+  // Cost summary
+  h+=`<div class="card flex gap-24 items-center flex-wrap">
+    <div><div style="font-size:10px;color:var(--fg3);text-transform:uppercase">Total Estimated</div><div style="font-size:22px;font-weight:700;color:var(--blue)">$${n2(cs.total_estimated)}</div></div>
+    <div><div style="font-size:10px;color:var(--fg3);text-transform:uppercase">Per Person / Day</div><div style="font-size:22px;font-weight:700;color:var(--green)">$${n2(cs.per_person_per_day)}</div></div>
+    ${cs.by_store?Object.entries(cs.by_store).map(([s,a])=>`<div><div style="font-size:10px;color:var(--fg3)">${esc(s)}</div><div style="font-size:14px;font-weight:600;color:var(--fg2)">$${n2(a)}</div></div>`).join(''):''}
+    ${(conf.length||est.length)?`<div style="width:100%;padding-top:6px;border-top:1px solid var(--border);font-size:10px;color:var(--fg3)">${conf.length?'Confirmed: '+esc(conf.join(', ')):''}${conf.length&&est.length?' · ':''}${est.length?'<span style="color:var(--amber)">Estimated: '+esc(est.join(', '))+'</span>':''}</div>`:''}
+  </div>`;
+
+  // Shopping list first on both mobile and desktop — it's the active working area
+  h+=renderShoppingSection(sl,byStore,cc);
+  h+=renderMealCards(mp);
+  return h;
+}
+
+function renderMealCards(mp){
+  return `<div class="grid grid-3" style="margin-bottom:24px">${mp.map(day=>{
+    const d=day.dinner||{};
+    const link=d.source_url?`<a href="${esc(d.source_url)}" target="_blank" rel="noopener">${esc(d.name)} ↗</a>`:esc(d.name);
+    return `<div class="card" style="padding:14px">
+      <div class="flex justify-between" style="margin-bottom:8px"><span style="font-weight:700;color:#f1f5f9">Day ${day.day}</span><span style="font-size:11px;color:var(--fg3)">${esc(day.date)}</span></div>
+      <div style="font-size:11px;color:var(--fg2);margin-bottom:3px"><span style="color:var(--fg3)">B:</span> ${esc(day.breakfast)}</div>
+      <div style="font-size:11px;color:var(--fg2);margin-bottom:6px"><span style="color:var(--fg3)">L:</span> ${esc(day.lunch)}</div>
+      <div style="border-top:1px solid var(--border);padding-top:6px">
+        <div style="font-weight:600;color:var(--blue);font-size:12px">${link}</div>
+        <div style="font-size:10px;color:var(--fg3);margin-top:2px">${esc(d.source_site)} · $${n2(d.cost_per_serving)}/serving · ${d.servings} servings</div>
+        ${d.perishability_note?`<div style="font-size:10px;color:var(--amber);margin-top:3px">⏱ ${esc(d.perishability_note)}</div>`:''}
+        ${d.quality_note?`<div style="font-size:10px;color:#a78bfa;margin-top:3px">★ ${esc(d.quality_note)}</div>`:''}
+      </div></div>`}).join('')}</div>`;
+}
+
+function renderShoppingSection(sl,byStore,cc){
+  let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>Shopping List</h2><div class="sub">${cc} of ${sl.length} items checked</div></div><button class="btn btn-primary" onclick="exportShoppingList()" style="width:auto;min-height:40px;font-size:11px">📋 Export List</button></div>`;
+  h+=`<div class="grid grid-shop">${Object.entries(byStore).map(([store,items])=>`<div class="card">
+    <div style="font-weight:700;color:var(--blue);font-size:13px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">${esc(store)}</div>
+    ${items.map(item=>{
+      const ci=CATEGORY_LABELS[item.category]||CATEGORY_LABELS.staple;
+      const chk=S.checkedItems[item._gi];
+      return `<div class="shop-row ${chk?'checked':''}">
+        <input type="checkbox" ${chk?'checked':''} data-shopcheck="${item._gi}">
+        <span style="flex:1;font-size:12px">${esc(item.item)}${item.notes?` <span style="font-size:9px;color:var(--fg3)">(${esc(item.notes)})</span>`:''}</span>
+        <span class="cat-badge" style="background:${ci.color}18;color:${ci.color}">${ci.label}</span>
+        <span style="font-size:11px;color:var(--fg3);min-width:50px;text-align:right">${esc(item.quantity)}</span>
+        <span style="font-size:11px;color:${item.price_type==='confirmed'?'var(--green)':'var(--amber)'};min-width:60px;text-align:right">$${n2(item.price)}${item.price_type==='estimated'?'<span style="font-size:9px;opacity:.8"> (est.)</span>':''}</span>
+        <button class="rm-btn" onclick="event.stopPropagation();removeShoppingItem(${item._gi})" title="Remove item">×</button>
+      </div>`}).join('')}</div>`).join('')}</div>`;
+  // Removed items section
+  if(S.removedShoppingItems.length){
+    h+=`<div style="margin-top:12px"><button class="btn btn-default" onclick="S.showRemovedItems=!S.showRemovedItems;render()" style="width:auto;font-size:10px;min-height:32px">${S.showRemovedItems?'Hide':'Show'} removed items (${S.removedShoppingItems.length})</button>`;
+    if(S.showRemovedItems){
+      h+=`<div class="card" style="margin-top:8px;opacity:.7">${S.removedShoppingItems.map((item,i)=>`<div class="flex items-center gap-8" style="padding:5px 0;border-bottom:1px solid var(--border);min-height:40px;font-size:12px"><span style="flex:1;text-decoration:line-through;color:var(--fg3)">${esc(item.item)} — ${esc(item.quantity)} — $${n2(item.price)}</span><button class="btn btn-default" onclick="restoreShoppingItem(${i})" style="width:auto;font-size:10px;padding:4px 10px;min-height:28px">Add back</button></div>`).join('')}</div>`;
+    }
+    h+=`</div>`;
+  }
+  return h;
+}
+
+// ─── Pantry ─────────────────────────────────────────────────────────────────
+function renderPantry(){
+  const p=S.pantry,tab=S.pantryTab;
+  const counts={tier1:p.tier1.length,tier2:p.tier2.length,tier3:p.tier3.length};
+  let h=`<div class="section-title"><h2>Pantry Inventory</h2><div class="sub">Manage your kitchen inventory across three tracking tiers</div></div>`;
+  h+=`<div class="flex gap-4" style="margin-bottom:16px;overflow-x:auto">${['tier1','tier2','tier3'].map(t=>`<button class="btn ${tab===t?'btn-primary':'btn-default'}" onclick="S.pantryTab='${t}';render()" style="width:auto;white-space:nowrap;font-size:12px;min-height:36px">Tier ${t[4]} (${counts[t]})</button>`).join('')}</div>`;
+  h+=`<div class="card flex gap-8 items-center flex-wrap"><input class="inp" id="pantry-name" placeholder="Item name" style="flex:2;min-width:140px"><input class="inp" id="pantry-cat" placeholder="Category (optional)" style="flex:1;min-width:100px"><button class="btn btn-primary" onclick="addPantryItem()" style="width:auto">Add</button></div>`;
+  if(tab==='tier1'){
+    h+=`<div class="grid grid-2">${p.tier1.map(i=>`<div class="card flex items-center gap-10" style="padding:10px 14px"><div style="flex:1"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div></div><button class="status-badge" style="background:${STATUS_COLORS[i.status]}22;color:${STATUS_COLORS[i.status]}" onclick="cycleStatus('${i.id}')">${i.status}</button><button class="rm-btn" onclick="removePantryItem('tier1','${i.id}')">×</button></div>`).join('')}</div>`;
+  }else if(tab==='tier2'){
+    h+=`<div class="grid grid-2">${p.tier2.map(i=>`<div class="card flex items-center gap-10" style="padding:10px 14px;cursor:pointer" onclick="toggleTier2('${i.id}')"><input type="checkbox" ${i.have?'checked':''} style="accent-color:var(--blue);width:18px;height:18px;pointer-events:none"><div style="flex:1"><div style="font-weight:600;font-size:12px;opacity:${i.have?1:.6}">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div></div><span style="font-size:10px;color:${i.have?'var(--green)':'var(--fg3)'}">${i.have?'have':'need'}</span><button class="rm-btn" onclick="event.stopPropagation();removePantryItem('tier2','${i.id}')">×</button></div>`).join('')}</div>`;
+  }else{
+    h+=p.tier3.map(i=>`<div class="card flex items-center gap-12 flex-wrap" style="padding:10px 14px"><div style="flex:1;min-width:120px"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div></div><input class="inp" value="${esc(i.quantity)}" placeholder="e.g., about 2 lbs" style="width:180px;max-width:100%" oninput="updateTier3Qty('${i.id}',this.value)"><button class="rm-btn" onclick="removePantryItem('tier3','${i.id}')">×</button></div>`).join('');
+  }
+  return h;
+}
+
+// ─── Weekly Review ──────────────────────────────────────────────────────────
+function renderReview(){
+  const step=S.reviewStep,p=S.pantry;
+  let h=`<div class="section-title"><h2>Weekly Review</h2><div class="sub">Update your pantry state before generating this week's prompt. Should take about 2 minutes.</div></div>`;
+  h+=`<div class="progress">${[0,1,2].map(i=>`<div class="bar ${i<=step?'active':''}"></div>`).join('')}</div>`;
+  h+=`<div class="card">`;
+  if(step===0){
+    h+=`<div style="font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:4px">Step 1: Bulk Items (Tier 3)</div><div style="font-size:11px;color:var(--fg3);margin-bottom:14px">How much do you have left of each bulk item?</div>`;
+    if(!p.tier3.length) h+=`<div style="color:var(--fg3);padding:20px">No bulk items tracked.</div>`;
+    else h+=p.tier3.map(i=>`<div class="card flex items-center gap-12 flex-wrap"><div style="min-width:130px"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">was: ${esc(i.quantity||'?')}</div></div><div class="flex gap-4 flex-wrap">${['barely-touched','used-half','used-most','gone'].map(pr=>`<button class="btn btn-default" onclick="quickAdjust('${i.id}','${pr}')" style="width:auto;font-size:10px;padding:4px 8px;min-height:32px">${pr.replace('-',' ')}</button>`).join('')}</div><input class="inp" value="${esc(i.quantity)}" placeholder="Custom" style="width:150px;max-width:100%" oninput="updateTier3Qty('${i.id}',this.value)"></div>`).join('');
+  }else if(step===1){
+    h+=`<div style="font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:4px">Step 2: Staples Getting Low (Tier 1)</div><div style="font-size:11px;color:var(--fg3);margin-bottom:14px">Did you restock any of these?</div>`;
+    const low=p.tier1.filter(i=>i.status==='getting-low'||i.status==='out');
+    if(!low.length) h+=`<div style="color:var(--fg3)">All staples are well-stocked. Nothing to review here.</div>`;
+    else h+=`<div class="grid grid-2">${low.map(i=>`<div class="card flex items-center gap-10"><div style="flex:1"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:${STATUS_COLORS[i.status]}">${i.status}</div></div><button class="btn btn-success" onclick="restockItem('${i.id}')" style="width:auto;font-size:10px">Restocked</button></div>`).join('')}</div>`;
+  }else{
+    h+=`<div style="font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:4px">Step 3: Weekly Items (Tier 2)</div><div style="font-size:11px;color:var(--fg3);margin-bottom:14px">Check off what you currently have.</div>`;
+    h+=`<button class="btn btn-default" onclick="resetTier2()" style="margin-bottom:12px;font-size:10px;width:auto">Reset All to "Don't Have"</button>`;
+    h+=`<div class="grid grid-2">${p.tier2.map(i=>`<div class="card flex items-center gap-10" style="padding:8px 14px;cursor:pointer" onclick="toggleTier2('${i.id}')"><input type="checkbox" ${i.have?'checked':''} style="accent-color:var(--blue);width:18px;height:18px;pointer-events:none"><span style="font-size:12px;color:${i.have?'var(--fg)':'var(--fg3)'}">${esc(i.name)}</span></div>`).join('')}</div>`;
+  }
+  h+=`</div>`;
+  h+=`<div class="flex justify-between" style="margin-top:16px;flex-wrap:wrap;gap:8px"><button class="btn btn-default" ${step===0?'disabled':''} onclick="S.reviewStep--;render()" style="width:auto">← Previous</button>`;
+  if(step<2) h+=`<button class="btn btn-primary" onclick="S.reviewStep++;render()" style="width:auto">Next →</button>`;
+  else h+=`<button class="btn btn-success" onclick="S.reviewStep=0;showToast('Review complete!');nav('generate')" style="width:auto">Complete & Generate Prompt →</button>`;
+  h+=`</div>`;
+  return h;
+}
+
+// ─── Prompt Generator ───────────────────────────────────────────────────────
+function serializePantry(){
+  const p=S.pantry;
+  const ws=p.tier1.filter(i=>i.status==='well-stocked').map(i=>i.name).join(', ');
+  const gl=p.tier1.filter(i=>i.status==='getting-low').map(i=>i.name).join(', ');
+  const out=p.tier1.filter(i=>i.status==='out').map(i=>i.name).join(', ');
+  const t3=p.tier3.filter(i=>i.quantity).map(i=>`${i.name} (${i.quantity})`).join(', ');
+  const t2=p.tier2.filter(i=>i.have).map(i=>i.name).join(', ');
+  let parts=[];
+  if(ws)parts.push('Well-stocked: '+ws+'.');if(gl)parts.push('Getting low: '+gl+'.');
+  if(out)parts.push('Out: '+out+'.');if(t3)parts.push('Have: '+t3+'.');
+  if(t2)parts.push('Weekly items on hand: '+t2+'.');
+  return parts.join(' ')||'No pantry items tracked.';
+}
+
+function generatePrompt(){
+  let prompt=S.promptTemplate;
+  const r={'{{HOUSEHOLD_SIZE}}':String(S.household.size),'{{PLAN_DAYS}}':String(S.household.planDays||7),'{{START_DATE}}':S.startDate,'{{REGION}}':S.household.region||'Seattle, WA','{{STARTER_ACTIVE}}':S.household.starterActive?'yes':'no','{{PANTRY_STATE}}':serializePantry(),'{{ALLERGIES}}':S.prefs.allergies.length?S.prefs.allergies.join(', '):'None','{{DISLIKES}}':S.prefs.dislikes.length?S.prefs.dislikes.join(', '):'None','{{PREFERENCES}}':S.prefs.positives.length?S.prefs.positives.join(', '):'None','{{WALMART_THRESHOLD}}':WALMART_PROMPT[S.household.walmartThreshold]||WALMART_PROMPT['only-major'],'{{SPECIAL_INSTRUCTIONS}}':S.specialInstructions.trim()||'None','{{ANCHOR_RECIPES}}':S.anchorRecipes.trim()||'None specified'};
+  Object.entries(r).forEach(([k,v])=>{prompt=prompt.replaceAll(k,v)});
+  return prompt;
+}
+
+function renderGenerate(){
+  const prompt=generatePrompt();
+  const tokens=Math.round(prompt.length/4);
+  let h=`<div class="section-title"><h2>Generate Prompt</h2><div class="sub">Review the generated prompt, then copy and paste into Claude</div></div>`;
+  h+=`<div class="flex gap-12 flex-wrap" style="margin-bottom:16px"><div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Start Date</label><input type="date" class="inp" value="${S.startDate}" onchange="S.startDate=this.value;render()" style="width:150px"></div><div style="flex:1;min-width:200px"><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Special Instructions (optional)</label><input class="inp" value="${esc(S.specialInstructions)}" placeholder="e.g., Include at least 2 vegetarian dinners" oninput="S.specialInstructions=this.value"></div></div>`;
+  h+=`<div class="card"><div class="flex justify-between items-center flex-wrap gap-6" style="margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:var(--fg2)">${prompt.length.toLocaleString()} chars · ~${tokens.toLocaleString()} tokens</span><div class="flex gap-6 flex-wrap"><button class="btn btn-default" onclick="S.showAnchorEditor=!S.showAnchorEditor;S.showTemplateEditor=false;render()" style="width:auto;font-size:10px;min-height:36px">${S.showAnchorEditor?'Hide':'Edit'} Anchors</button><button class="btn btn-default" onclick="S.showTemplateEditor=!S.showTemplateEditor;S.showAnchorEditor=false;render()" style="width:auto;font-size:10px;min-height:36px">${S.showTemplateEditor?'Hide':'Edit'} Template</button><button class="btn btn-primary" onclick="copyPrompt()" style="width:auto;min-height:36px">Copy to Clipboard</button></div></div><textarea class="inp" readonly style="min-height:300px;font-size:11px">${esc(prompt)}</textarea></div>`;
+
+  if(S.showAnchorEditor){
+    const cnt=S.anchorRecipes.trim()?S.anchorRecipes.trim().split('\n').filter(l=>l.trim()).length:0;
+    h+=`<div class="card" style="border-color:#0369a133"><div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:4px">Anchor Recipes (Fallback Set)</div><div style="font-size:10px;color:var(--fg3);margin-bottom:10px;line-height:1.5">Fallback recipes Claude uses when dynamic search returns thin results. One per line: Site Name: URL (description).</div><textarea class="inp" style="min-height:150px;font-size:11px" oninput="S.anchorRecipes=this.value;debouncedSave('anchors',saveAnchors)">${esc(S.anchorRecipes)}</textarea><div style="font-size:10px;color:var(--fg3);margin-top:6px">${cnt?cnt+' recipe(s) configured':'No anchor recipes set'}</div></div>`;
+  }
+  if(S.showTemplateEditor){
+    h+=`<div class="card"><div style="font-size:12px;font-weight:600;color:var(--fg2);margin-bottom:8px">Prompt Template (editable)</div><textarea class="inp" style="min-height:250px;font-size:11px" oninput="S.promptTemplate=this.value;debouncedSave('template',saveTemplate)">${esc(S.promptTemplate)}</textarea><button class="btn btn-default" onclick="S.promptTemplate=DEFAULT_PROMPT_TEMPLATE;saveTemplate();showToast('Template reset');render()" style="margin-top:8px;width:auto;font-size:10px;min-height:32px">Reset to Default</button></div>`;
+  }
+  return h;
+}
+
+// ─── Import ─────────────────────────────────────────────────────────────────
+function renderImport(){
+  let h=`<div class="section-title"><h2>Import Claude's Response</h2><div class="sub">Paste the full response or just the JSON block</div></div>`;
+  h+=`<div class="card"><div class="flex justify-between items-center" style="margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:var(--fg2)">Paste Response</span><button class="btn btn-default" onclick="loadMock()" style="width:auto;font-size:10px;min-height:32px">Load Mock Data</button></div><textarea class="inp" id="import-area" style="min-height:250px;font-size:11px" oninput="S.importRaw=this.value;S.importError=null;S.importParsed=null" placeholder="Paste Claude's response here...">${esc(S.importRaw)}</textarea><div class="flex gap-8 flex-wrap" style="margin-top:10px"><button class="btn btn-primary" onclick="parseImport()" ${S.importRaw.trim()?'':'disabled'}>Parse Response</button><button class="btn btn-default" onclick="S.importRaw='';S.importError=null;S.importParsed=null;render()">Clear</button></div></div>`;
+  if(S.importError) h+=`<div class="card" style="border-color:#991b1b;background:#1a0505"><div style="font-size:11px;font-weight:600;color:#fca5a5;margin-bottom:4px">⚠ Parse Error</div><div style="font-size:12px;color:#fecaca">${esc(S.importError)}</div></div>`;
+  if(S.importParsed){
+    const d=S.importParsed;
+    h+=`<div class="card" style="border-color:#166534;background:#051a0f"><div style="font-size:11px;font-weight:600;color:#86efac;margin-bottom:8px">✓ JSON Parsed Successfully</div><div style="font-size:12px;color:#bbf7d0;margin-bottom:6px">Found ${d.meal_plan?.length||0} days, ${d.shopping_list?.length||0} items, ${d.pantry_alerts?.length||0} alert(s), total $${n2(d.cost_summary?.total_estimated)}.${d.metadata?.confidence==='low'?' <span style="color:var(--amber)">⚠ Low confidence</span>':''}</div>${S.currentPlan?'<div style="font-size:11px;color:var(--amber);margin-bottom:10px">Note: importing will replace the current meal plan.</div>':''}<button class="btn btn-success" onclick="doImport()">Import This Meal Plan</button></div>`;
+  }
+  return h;
+}
+
+// ─── Preferences ────────────────────────────────────────────────────────────
+function renderPreferences(){
+  const pr=S.prefs,hh=S.household;
+  function tags(items,list,color){
+    if(!items.length) return '<span style="font-size:11px;color:var(--fg4)">None set</span>';
+    return items.map((t,i)=>`<span class="tag" style="background:${color}18;color:${color};border:1px solid ${color}33">${esc(t)}<button style="color:${color}" onclick="removePrefsItem('${list}',${i})">×</button></span>`).join('');
+  }
+  let h=`<div class="section-title"><h2>Preferences & Configuration</h2><div class="sub">Manage dietary restrictions, household size, and planning preferences</div></div>`;
+
+  // Allergies
+  h+=`<div class="card" style="border-color:#991b1b30"><div class="flex items-center gap-6" style="margin-bottom:8px"><span style="color:var(--red);font-size:14px">⚠</span><span style="font-weight:700;font-size:13px;color:#fca5a5">Allergies (Hard Exclusions)</span></div><div style="font-size:11px;color:var(--fg3);margin-bottom:8px">These ingredients will NEVER appear in any recipe. Adding requires confirmation.</div><div class="flex flex-wrap gap-6" style="margin-bottom:10px">${tags(pr.allergies,'allergies','#ef4444')}</div><div class="flex gap-8 flex-wrap"><input class="inp" id="new-allergy" placeholder="e.g., Peanuts" style="width:200px;max-width:100%"><button class="btn btn-danger" onclick="startAddAllergy()" style="width:auto">Add Allergy</button></div>${S.confirmAllergy?`<div style="margin-top:10px;padding:10px;background:#1a0505;border:1px solid #991b1b;border-radius:6px"><div style="font-size:12px;color:#fca5a5;margin-bottom:8px">Confirm: add "${esc(S.confirmAllergy)}" as a HARD exclusion?</div><div class="flex gap-8"><button class="btn btn-danger" onclick="confirmAllergy()" style="width:auto">Confirm</button><button class="btn btn-default" onclick="S.confirmAllergy=null;render()" style="width:auto">Cancel</button></div></div>`:''}</div>`;
+
+  // Dislikes
+  h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--amber);margin-bottom:6px">Dislikes (Soft Exclusions)</div><div style="font-size:11px;color:var(--fg3);margin-bottom:8px">Avoided when possible but may appear occasionally.</div><div class="flex flex-wrap gap-6" style="margin-bottom:10px">${tags(pr.dislikes,'dislikes','#fbbf24')}</div><div class="flex gap-8 flex-wrap"><input class="inp" id="new-dislike" placeholder="e.g., Mushrooms" style="width:200px;max-width:100%"><button class="btn btn-default" onclick="addDislike()" style="width:auto">Add Dislike</button></div></div>`;
+
+  // Positives
+  h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--green);margin-bottom:6px">Positive Preferences</div><div style="font-size:11px;color:var(--fg3);margin-bottom:8px">Cuisines, styles, or ingredients you enjoy.</div><div class="flex flex-wrap gap-6" style="margin-bottom:10px">${tags(pr.positives,'positives','#34d399')}</div><div class="flex gap-8 flex-wrap"><input class="inp" id="new-pref" placeholder="e.g., Thai food" style="width:200px;max-width:100%"><button class="btn btn-success" onclick="addPositivePref()" style="width:auto">Add Preference</button></div></div>`;
+
+  // Anchor recipes
+  const acnt=S.anchorRecipes.trim()?S.anchorRecipes.trim().split('\n').filter(l=>l.trim()).length:0;
+  h+=`<div class="card" style="border-color:#0369a133"><div style="font-weight:700;font-size:13px;color:var(--blue);margin-bottom:6px">Anchor Recipes (Fallback Set)</div><div style="font-size:11px;color:var(--fg3);margin-bottom:10px;line-height:1.5">Fallback recipes Claude uses when dynamic search returns thin results. Format: Site Name: URL (description), one per line.</div><textarea class="inp" style="min-height:120px;font-size:11px" oninput="S.anchorRecipes=this.value;debouncedSave('anchors',saveAnchors)" placeholder="Graceful Little Honey Bee: https://example.com (description)">${esc(S.anchorRecipes)}</textarea><div style="font-size:10px;color:var(--fg3);margin-top:6px">${acnt?acnt+' recipe(s) configured':'No anchor recipes set'}</div></div>`;
+
+  // Household
+  h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:12px">Household Configuration</div><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px">
+    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Household Size</label><input type="number" class="inp" value="${hh.size}" min="1" max="20" style="width:80px" onchange="S.household.size=parseInt(this.value)||1;saveHousehold();render()"></div>
+    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Region</label><input class="inp" value="${esc(hh.region)}" placeholder="e.g., Seattle, WA" oninput="S.household.region=this.value;saveHousehold()"></div>
+    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Plan Days</label><input type="number" class="inp" value="${hh.planDays||7}" min="1" max="14" style="width:80px" onchange="S.household.planDays=parseInt(this.value)||7;saveHousehold();render()"></div>
+    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Meal Structure</label><input class="inp" value="${esc(hh.mealStructure)}" oninput="S.household.mealStructure=this.value;saveHousehold()"></div>
+    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Sourdough Starter</label><button class="btn ${hh.starterActive?'btn-success':'btn-default'}" onclick="S.household.starterActive=!S.household.starterActive;saveHousehold();render()" style="width:auto">${hh.starterActive?'Active ✓':'Inactive'}</button></div>
+    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Walmart Threshold</label><select class="inp" onchange="S.household.walmartThreshold=this.value;saveHousehold()">${Object.entries(WALMART_LABELS).map(([v,l])=>`<option value="${v}" ${hh.walmartThreshold===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+  </div></div>`;
+
+  // Data Management
+  h+=`<div class="card" style="border-color:var(--border)"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:6px">Data Management</div><div style="font-size:11px;color:var(--fg3);margin-bottom:12px;line-height:1.5">Your data is stored in this browser's local storage. Export regularly to back up your data, or to transfer it to another device or browser.</div><div class="flex gap-8 flex-wrap"><button class="btn btn-primary" onclick="exportAllData()" style="width:auto">Export All Data</button><button class="btn btn-default" onclick="document.getElementById('import-file-input').click()" style="width:auto">Import Data</button><input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importAllData(event)"></div></div>`;
+
+  return h;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EVENT BINDING & ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+function bindEvents(){
+  // Nav buttons (both sidebar and bottom)
+  document.querySelectorAll('[data-nav]').forEach(btn=>{
+    btn.onclick=()=>{if(!btn.disabled)nav(btn.dataset.nav)};
+  });
+  // Shopping checkboxes
+  document.querySelectorAll('[data-shopcheck]').forEach(cb=>{
+    cb.onchange=()=>{S.checkedItems[cb.dataset.shopcheck]=cb.checked;saveCheckedItems();render()};
+  });
+  // Enter keys for preference inputs
+  ['new-allergy','new-dislike','new-pref','pantry-name'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.onkeydown=e=>{
+      if(e.key==='Enter'){
+        if(id==='new-allergy')startAddAllergy();
+        else if(id==='new-dislike')addDislike();
+        else if(id==='new-pref')addPositivePref();
+        else if(id==='pantry-name')addPantryItem();
+      }
+    };
+  });
+}
+
+// Pantry actions
+function addPantryItem(){
+  const nameEl=document.getElementById('pantry-name'),catEl=document.getElementById('pantry-cat');
+  const name=nameEl?.value?.trim(),cat=catEl?.value?.trim()||'other';
+  if(!name)return;
+  const tier=S.pantryTab,id=tier.slice(0,2)+'-'+genId();
+  if(tier==='tier1')S.pantry.tier1.push({id,name,category:cat,status:'well-stocked',updatedAt:new Date().toISOString()});
+  else if(tier==='tier2')S.pantry.tier2.push({id,name,category:cat,have:false});
+  else S.pantry.tier3.push({id,name,category:cat,quantity:'',updatedAt:new Date().toISOString()});
+  savePantry();showToast('Added "'+name+'"');render();
+}
+function removePantryItem(tier,id){S.pantry[tier]=S.pantry[tier].filter(i=>i.id!==id);savePantry();render()}
+function cycleStatus(id){
+  S.pantry.tier1=S.pantry.tier1.map(i=>{if(i.id!==id)return i;const idx=STATUS_ORDER.indexOf(i.status);return{...i,status:STATUS_ORDER[(idx+1)%3],updatedAt:new Date().toISOString()}});
+  savePantry();render();
+}
+function toggleTier2(id){
+  S.pantry.tier2=S.pantry.tier2.map(i=>i.id===id?{...i,have:!i.have}:i);
+  savePantry();render();
+}
+function updateTier3Qty(id,val){
+  S.pantry.tier3=S.pantry.tier3.map(i=>i.id===id?{...i,quantity:val,updatedAt:new Date().toISOString()}:i);
+  savePantry();
+}
+
+// BUG FIX: quickAdjust — use `in` operator instead of || to handle empty string for "gone"
+function quickAdjust(id,preset){
+  const map={'barely-touched':'almost full','used-half':'about half remaining','used-most':'almost gone','gone':'none left'};
+  const newQty=preset in map?map[preset]:null;
+  if(newQty===null)return;
+  S.pantry.tier3=S.pantry.tier3.map(i=>i.id===id?{...i,quantity:newQty,updatedAt:new Date().toISOString()}:i);
+  savePantry();render();
+}
+
+// Review actions
+function resetTier2(){S.pantry.tier2=S.pantry.tier2.map(i=>({...i,have:false}));savePantry();showToast("Weekly items reset");render()}
+function restockItem(id){S.pantry.tier1=S.pantry.tier1.map(i=>i.id===id?{...i,status:'well-stocked',updatedAt:new Date().toISOString()}:i);savePantry();render()}
+
+// Prompt actions
+function copyPrompt(){
+  const prompt=generatePrompt();
+  navigator.clipboard.writeText(prompt).then(()=>showToast('Prompt copied to clipboard!')).catch(()=>showToast('Copy failed — select and copy manually'));
+}
+
+// Import actions
+function loadMock(){S.importRaw=JSON.stringify(MOCK_PLAN,null,2);S.importError=null;S.importParsed=null;render()}
+function parseImport(){
+  S.importError=null;S.importParsed=null;
+  let text=S.importRaw.trim();if(!text){S.importError='Paste something first.';render();return}
+  const jm=text.match(/```json\s*([\s\S]*?)```/);
+  if(jm)text=jm[1].trim();else{const gm=text.match(/```\s*([\s\S]*?)```/);if(gm)text=gm[1].trim()}
+  let data;
+  try{data=JSON.parse(text)}catch(e){
+    const bs=text.indexOf('{'),be=text.lastIndexOf('}');
+    if(bs!==-1&&be>bs){try{data=JSON.parse(text.slice(bs,be+1))}catch{S.importError='JSON parse error: '+e.message;render();return}}
+    else{S.importError='No JSON found: '+e.message;render();return}
+  }
+  const issues=[];
+  if(!data.meal_plan||!Array.isArray(data.meal_plan))issues.push("Missing 'meal_plan' array");
+  if(!data.shopping_list||!Array.isArray(data.shopping_list))issues.push("Missing 'shopping_list' array");
+  if(!data.cost_summary||typeof data.cost_summary!=='object')issues.push("Missing 'cost_summary'");
+  if(!issues.length){for(const day of data.meal_plan){if(day.day===undefined)issues.push('Missing day field');if(!day.dinner)issues.push('Day '+day.day+': missing dinner')}}
+  if(data.pantry_alerts!==undefined){if(!Array.isArray(data.pantry_alerts))issues.push("pantry_alerts not an array")}else data.pantry_alerts=[];
+  if(issues.length){S.importError='Schema issues: '+issues.join('; ');render();return}
+  S.importParsed=data;render();
+}
+function doImport(){
+  if(!S.importParsed)return;
+  const plan=S.importParsed;
+  if(!Array.isArray(plan.pantry_alerts))plan.pantry_alerts=[];
+  S.currentPlan={...plan,importedAt:new Date().toISOString()};
+  S.planHistory=[{date:new Date().toISOString(),plan},...S.planHistory].slice(0,52);
+  S.checkedItems={};S.removedShoppingItems=[];S.showRemovedItems=false;S.importRaw='';S.importError=null;S.importParsed=null;
+  savePlan();saveHistory();saveCheckedItems();showToast('Meal plan imported!');nav('dashboard');
+}
+
+// Preference actions
+function startAddAllergy(){const el=document.getElementById('new-allergy');if(!el||!el.value.trim())return;S.confirmAllergy=el.value.trim();render()}
+function confirmAllergy(){if(!S.confirmAllergy)return;S.prefs.allergies.push(S.confirmAllergy);S.confirmAllergy=null;savePrefs();showToast('Allergy added');render()}
+function addDislike(){const el=document.getElementById('new-dislike');if(!el||!el.value.trim())return;S.prefs.dislikes.push(el.value.trim());savePrefs();render()}
+function addPositivePref(){const el=document.getElementById('new-pref');if(!el||!el.value.trim())return;S.prefs.positives.push(el.value.trim());savePrefs();render()}
+function removePrefsItem(list,idx){S.prefs[list].splice(idx,1);savePrefs();render()}
+
+// Export shopping list
+function exportShoppingList(){
+  const plan=S.currentPlan;if(!plan)return;
+  const{shopping_list:sl=[],cost_summary:cs={},metadata:md={}}=plan;
+  const byStore={};sl.forEach(item=>{const s=item.store||'Other';if(!byStore[s])byStore[s]=[];byStore[s].push(item)});
+  let txt=`Shopping List — Week of ${md.plan_date||todayStr()}\nTotal: $${n2(cs.total_estimated)} ($${n2(cs.per_person_per_day)}/person/day)\n`;
+  Object.entries(byStore).forEach(([store,items])=>{
+    txt+=`\n── ${store} ──\n`;
+    items.forEach(item=>{
+      let line=`[ ] ${item.item}`;
+      if(item.quantity)line+=` — ${item.quantity}`;
+      line+=` — $${n2(item.price)}`;
+      if(item.price_type==='estimated')line+=' (est.)';
+      if(item.category==='restock')line+=' (restock)';
+      if(item.notes)line+=` — ${item.notes}`;
+      txt+=line+'\n';
+    });
+  });
+  navigator.clipboard.writeText(txt).then(()=>showToast('Shopping list copied!')).catch(()=>showToast('Copy failed'));
+}
+
+// Shopping list item removal/restore
+function removeShoppingItem(idx){
+  if(!S.currentPlan)return;
+  const sl=S.currentPlan.shopping_list;
+  if(idx<0||idx>=sl.length)return;
+  const item=sl[idx];
+  // Track for undo
+  S.removedShoppingItems.push({...item});
+  // Update cost summary
+  const cs=S.currentPlan.cost_summary;
+  if(cs&&item.price!=null){
+    cs.total_estimated=(cs.total_estimated||0)-item.price;
+    if(cs.total_estimated<0)cs.total_estimated=0;
+    const days=S.currentPlan.metadata?.plan_days||7;
+    const ppl=S.currentPlan.metadata?.household_size||1;
+    cs.per_person_per_day=cs.total_estimated/(days*ppl);
+    const store=item.store||'Other';
+    if(cs.by_store&&cs.by_store[store]!=null){
+      cs.by_store[store]-=item.price;
+      if(cs.by_store[store]<=0)delete cs.by_store[store];
+    }
+  }
+  // Remove from list and clean up checked state
+  sl.splice(idx,1);
+  // Rebuild checkedItems with shifted indices
+  const newChecked={};
+  Object.keys(S.checkedItems).forEach(k=>{
+    const ki=parseInt(k);
+    if(ki<idx)newChecked[ki]=S.checkedItems[ki];
+    else if(ki>idx)newChecked[ki-1]=S.checkedItems[ki];
+    // ki===idx is the removed item, skip it
+  });
+  S.checkedItems=newChecked;
+  savePlan();saveCheckedItems();render();
+}
+
+function restoreShoppingItem(removedIdx){
+  if(removedIdx<0||removedIdx>=S.removedShoppingItems.length)return;
+  if(!S.currentPlan)return;
+  const item=S.removedShoppingItems.splice(removedIdx,1)[0];
+  S.currentPlan.shopping_list.push(item);
+  // Restore cost summary
+  const cs=S.currentPlan.cost_summary;
+  if(cs&&item.price!=null){
+    cs.total_estimated=(cs.total_estimated||0)+item.price;
+    const days=S.currentPlan.metadata?.plan_days||7;
+    const ppl=S.currentPlan.metadata?.household_size||1;
+    cs.per_person_per_day=cs.total_estimated/(days*ppl);
+    const store=item.store||'Other';
+    if(cs.by_store)cs.by_store[store]=(cs.by_store[store]||0)+item.price;
+  }
+  savePlan();render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Data export/import
+function exportAllData(){
+  const data={
+    _format:'meal-planner-backup',_version:1,_exportedAt:new Date().toISOString(),
+    pantry:S.pantry,preferences:S.prefs,household:S.household,
+    currentPlan:S.currentPlan,planHistory:S.planHistory,
+    promptTemplate:S.promptTemplate,anchorRecipes:S.anchorRecipes,
+    checkedItems:S.checkedItems
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`meal-planner-backup-${todayStr()}.json`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Backup exported!');
+}
+
+function importAllData(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=JSON.parse(e.target.result);
+      // Validate expected keys
+      const required=['pantry','preferences','household'];
+      const missing=required.filter(k=>!(k in data));
+      if(missing.length){showToast('Invalid backup: missing '+missing.join(', '));return}
+      if(!confirm('This will replace ALL current data (pantry, preferences, plans, history) with the backup. Continue?'))return;
+      // Restore state
+      if(data.pantry){S.pantry=data.pantry;savePantry()}
+      if(data.preferences){S.prefs=data.preferences;savePrefs()}
+      if(data.household){S.household=data.household;saveHousehold()}
+      if('currentPlan' in data){S.currentPlan=data.currentPlan;savePlan()}
+      if(data.planHistory){S.planHistory=data.planHistory;saveHistory()}
+      if(data.promptTemplate){S.promptTemplate=data.promptTemplate;saveTemplate()}
+      if('anchorRecipes' in data){S.anchorRecipes=data.anchorRecipes;saveAnchors()}
+      if(data.checkedItems){S.checkedItems=data.checkedItems;saveCheckedItems()}
+      else{S.checkedItems={};saveCheckedItems()}
+      S.removedShoppingItems=[];S.showRemovedItems=false;
+      showToast('Data restored from backup!');render();
+    }catch(err){showToast('Failed to parse backup file: '+err.message)}
+  };
+  reader.readAsText(file);
+  event.target.value=''; // Reset so same file can be re-selected
+}
+
+render();
+</script>
+</body>
+</html>
