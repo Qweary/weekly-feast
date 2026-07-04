@@ -114,7 +114,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v3',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v3',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1'};
 
 const DEFAULT_PANTRY={tier1:[
 {id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",updatedAt:new Date().toISOString()},
@@ -696,6 +696,8 @@ const S={
   importError:null,
   importParsed:null,
   confirmAllergy:null,
+  promptCopied:false,   // session flag: has the Generate prompt been copied this session (Surface 1 step-1 badge)
+  showOnboarding:false, // transient: force the first-run explainer open regardless of the mp:onboarded-v1 flag
 };
 
 function updateState(changes){Object.assign(S,changes);render()}
@@ -757,21 +759,90 @@ function renderNav(){
     NAV_ITEMS.map(n=>`<button class="bnav-btn ${S.screen===n.id?'active':''} ${n.disabled?'disabled':''}" data-nav="${n.id}" ${n.disabled?'disabled':''}><span class="icon">${n.icon}</span>${n.label}</button>`).join('');
 }
 
+// ─── Onboarding / next-step shared components (P0-2 · loop discoverability) ──
+// Step-number badge shared by the Generate next-step panel (Surface 1) and the
+// dashboard explainer (Surface 2), so the two surfaces read as one system. Mirrors
+// the .progress .bar active/inactive logic: pending = blue number, done = green ✓.
+// aria-hidden — the step state is also carried in the adjacent copy, so the badge
+// stays decorative and never doubles up the screen-reader announcement.
+function stepBadge(label,done){
+  const base='display:inline-flex;width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:700;align-items:center;justify-content:center;flex-shrink:0';
+  return done
+    ? `<span aria-hidden="true" style="${base};background:#16653433;color:var(--green)">✓</span>`
+    : `<span aria-hidden="true" style="${base};background:#1e293b;color:var(--blue)">${label}</span>`;
+}
+
+// SURFACE 1 — persistent next-step panel, rendered ALWAYS on the Generate screen
+// below the prompt card. Step 1's badge is the only stateful one: it flips to green ✓
+// once S.promptCopied is set (in copyPrompt). Steps 2–3 stay pending blue.
+function renderNextStepPanel(){
+  const copied=!!S.promptCopied;
+  const step1sub=copied?"Copied ✓ — it's on your clipboard.":"The full prompt is ready — hit Copy to Clipboard.";
+  return `<div class="card" style="border-color:#0369a133">
+    <div style="font-size:14px;font-weight:700;color:#f1f5f9">Next: hand this to Claude</div>
+    <div style="font-size:11px;color:var(--fg3);margin-top:2px;margin-bottom:14px">Three steps to bring your plan back.</div>
+    <div class="flex gap-10" style="align-items:flex-start;margin-bottom:14px">${stepBadge('1',copied)}<div style="flex:1">
+      <div style="font-size:12px;color:var(--fg);font-weight:600">Copy the prompt above.</div>
+      <div style="font-size:11px;color:var(--fg2);margin-top:2px;line-height:1.5">${step1sub}</div>
+    </div></div>
+    <div class="flex gap-10" style="align-items:flex-start;margin-bottom:14px">${stepBadge('2',false)}<div style="flex:1">
+      <div style="font-size:12px;color:var(--fg);font-weight:600">Paste it into Claude and let it finish.</div>
+      <div style="font-size:11px;color:var(--fg2);margin-top:2px;line-height:1.5">Open a new chat at claude.ai, paste, and send. Claude runs 15–20 web searches for this week's real prices — this takes a few minutes. Wait for it to finish.</div>
+      <div style="font-size:11px;color:var(--amber);margin-top:4px;line-height:1.5">⚠ Web search must be on — if it's off, Claude will guess prices instead of looking them up.</div>
+      <a href="https://claude.ai/new" target="_blank" rel="noopener" class="btn btn-default" style="width:auto;min-height:36px;font-size:11px;display:inline-flex;align-items:center;margin-top:8px">Open Claude ↗</a>
+    </div></div>
+    <div class="flex gap-10" style="align-items:flex-start">${stepBadge('3',false)}<div style="flex:1">
+      <div style="font-size:12px;color:var(--fg);font-weight:600">Copy Claude's whole reply, then import it here.</div>
+      <div style="font-size:11px;color:var(--fg2);margin-top:2px;line-height:1.5">Select Claude's entire response, copy it, and bring it back.</div>
+      <button class="btn btn-primary" data-nav="import" style="width:auto;min-height:36px;font-size:11px;margin-top:8px">Go to Import →</button>
+    </div></div>
+  </div>`;
+}
+
+// SURFACE 2 — dismissable first-run explainer. Auto-shows on the empty dashboard
+// until dismissed (persistent mp:onboarded-v1), and re-openable anywhere via
+// "How this works". Same blue info-border + step badges as Surface 1 (one family).
+function renderOnboardingExplainer(){
+  const step=(n,title,body)=>`<div class="flex gap-10" style="align-items:flex-start;margin-bottom:12px">${stepBadge(n,false)}<div style="flex:1;font-size:12px;color:var(--fg2);line-height:1.5"><span style="color:var(--fg);font-weight:600">${title}</span> — ${body}</div></div>`;
+  return `<div class="card" style="border-color:#0369a133">
+    <h2 style="font-size:18px;font-weight:700;color:#f1f5f9;margin:0 0 10px">How weekly-feast works</h2>
+    <p style="color:var(--fg2);line-height:1.6;max-width:640px;font-size:12px;margin-bottom:14px">This app doesn't have an AI inside it. It writes a detailed prompt for <strong style="color:#f1f5f9">Claude</strong> — you run that prompt at claude.ai, then paste Claude's answer back here. You're the courier between two apps: <strong style="color:#f1f5f9">weekly-feast</strong> handles the planning, <strong style="color:#f1f5f9">Claude</strong> does the live grocery-price research.</p>
+    ${step('1','Prep &amp; generate',"Update your pantry, then generate a prompt tuned to what you have and what's on sale.")}
+    ${step('2','Run it in Claude',"Paste the prompt into Claude with web search on. It researches this week's deals and builds your plan. Takes a few minutes.")}
+    ${step('3','Import your plan',"Copy Claude's reply back here. You get a store-by-store shopping list and a week of meals.")}
+    <div style="color:var(--fg3);font-size:11px;line-height:1.6;margin-top:6px;margin-bottom:14px">That's the whole loop — about two minutes of your attention on each end, and Claude does the slow part.</div>
+    <button class="btn btn-default" onclick="dismissOnboarding()" style="width:auto">Got it</button>
+  </div>`;
+}
+
+// Quiet re-entry control — always reachable from the dashboard on desktop AND mobile
+// (rendered in both the empty and populated headers, so it survives the hidden sidebar).
+function reentryBtn(){
+  return `<button class="btn btn-default" onclick="showOnboarding()" style="width:auto;min-height:32px;font-size:10px">? How this works</button>`;
+}
+
 // ─── Dashboard ──────────────────────────────────────────────────────────────
 function renderDashboard(){
   const plan=S.currentPlan;
   if(!plan){
-    return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;text-align:center">
+    // Explainer auto-shows on first run (mp:onboarded-v1 unset); "How this works" forces it via S.showOnboarding.
+    const showExp=S.showOnboarding||!load(KEYS.onboarded,false);
+    let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8" style="margin-bottom:12px"><div style="font-size:11px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px">Dashboard</div>${reentryBtn()}</div>`;
+    if(showExp)h+=renderOnboardingExplainer();
+    h+=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:46vh;text-align:center">
       <div style="font-size:48px;margin-bottom:16px;opacity:.3">◉</div>
       <div class="section-title"><h2>No Meal Plan Yet</h2><div class="sub">Start by reviewing your pantry and generating a prompt for Claude.</div></div>
       <div class="flex gap-10" style="flex-wrap:wrap;justify-content:center"><button class="btn btn-primary" data-nav="review">Start Weekly Review</button><button class="btn btn-default" data-nav="import">Import Mock Data</button></div></div>`;
+    return h;
   }
   const{meal_plan:mp=[],shopping_list:sl=[],cost_summary:cs={},metadata:md={},pantry_alerts:pa=[]}=plan;
   const byStore={};sl.forEach((item,i)=>{const s=item.store||'Other';if(!byStore[s])byStore[s]=[];byStore[s].push({...item,_gi:i})});
   const cc=Object.values(S.checkedItems).filter(Boolean).length;
   const conf=md.stores_confirmed||[],est=md.stores_estimated||[];
 
-  let h=`<div class="section-title"><h2>This Week's Meal Plan</h2><div class="sub">Plan for ${esc(md.plan_date||'this week')} · ${md.household_size||'?'} people · ${md.plan_days||7} days</div></div>`;
+  let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>This Week's Meal Plan</h2><div class="sub">Plan for ${esc(md.plan_date||'this week')} · ${md.household_size||'?'} people · ${md.plan_days||7} days</div></div>${reentryBtn()}</div>`;
+  // Re-openable explainer (via "How this works") also surfaces on the populated dashboard.
+  if(S.showOnboarding)h+=renderOnboardingExplainer();
 
   // Low confidence
   if(md.confidence==='low') h+=`<div class="card" style="border-color:#92400e;background:#1c1206"><div class="flex gap-10" style="align-items:flex-start"><span style="font-size:18px">⚠</span><div><div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:4px">LOW CONFIDENCE PLAN</div><div style="font-size:11px;color:#fde68a;line-height:1.5">This plan relies heavily on estimated pricing because current ad data was limited. Verify prices before shopping.</div></div></div></div>`;
@@ -929,6 +1000,8 @@ function renderGenerate(){
   let h=`<div class="section-title"><h2>Generate Prompt</h2><div class="sub">Review the generated prompt, then copy and paste into Claude</div></div>`;
   h+=`<div class="flex gap-12 flex-wrap" style="margin-bottom:16px"><div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Start Date</label><input type="date" class="inp" value="${S.startDate}" onchange="S.startDate=this.value;render()" style="width:150px"></div><div style="flex:1;min-width:200px"><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Special Instructions (optional)</label><input class="inp" value="${esc(S.specialInstructions)}" placeholder="e.g., Include at least 2 vegetarian dinners" oninput="S.specialInstructions=this.value"></div></div>`;
   h+=`<div class="card"><div class="flex justify-between items-center flex-wrap gap-6" style="margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:var(--fg2)">${prompt.length.toLocaleString()} chars · ~${tokens.toLocaleString()} tokens</span><div class="flex gap-6 flex-wrap"><button class="btn btn-default" onclick="S.showAnchorEditor=!S.showAnchorEditor;S.showTemplateEditor=false;render()" style="width:auto;font-size:10px;min-height:36px">${S.showAnchorEditor?'Hide':'Edit'} Anchors</button><button class="btn btn-default" onclick="S.showTemplateEditor=!S.showTemplateEditor;S.showAnchorEditor=false;render()" style="width:auto;font-size:10px;min-height:36px">${S.showTemplateEditor?'Hide':'Edit'} Template</button><button class="btn btn-primary" onclick="copyPrompt()" style="width:auto;min-height:36px">Copy to Clipboard</button></div></div><textarea class="inp" readonly style="min-height:300px;font-size:11px">${esc(prompt)}</textarea></div>`;
+  // SURFACE 1 — persistent next-step panel: always shown so the loop is discoverable up front.
+  h+=renderNextStepPanel();
 
   if(S.showAnchorEditor){
     const cnt=S.anchorRecipes.trim()?S.anchorRecipes.trim().split('\n').filter(l=>l.trim()).length:0;
@@ -1076,8 +1149,15 @@ function restockItem(id){S.pantry.tier1=S.pantry.tier1.map(i=>i.id===id?{...i,st
 // Prompt actions
 function copyPrompt(){
   const prompt=generatePrompt();
-  navigator.clipboard.writeText(prompt).then(()=>showToast('Prompt copied to clipboard!')).catch(()=>showToast('Copy failed — select and copy manually'));
+  // On success set the session copy flag and re-render so Surface 1 step-1 flips to "Copied ✓".
+  navigator.clipboard.writeText(prompt).then(()=>{S.promptCopied=true;showToast('Prompt copied to clipboard!');render();}).catch(()=>showToast('Copy failed — select and copy manually'));
 }
+
+// Onboarding explainer visibility (P0-2). Dismiss writes the persistent mp:onboarded-v1
+// flag so the first-run explainer never auto-shows again; "How this works" flips the
+// transient S.showOnboarding to re-open it regardless of that persistent flag.
+function dismissOnboarding(){S.showOnboarding=false;save(KEYS.onboarded,true);render();}
+function showOnboarding(){S.showOnboarding=true;render();}
 
 // Import actions
 function loadMock(){S.importRaw=JSON.stringify(MOCK_PLAN,null,2);S.importError=null;S.importParsed=null;render()}
