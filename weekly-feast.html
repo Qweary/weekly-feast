@@ -63,10 +63,11 @@ textarea.inp{resize:vertical;line-height:1.6}
 .cat-badge{font-size:9px;padding:1px 6px;border-radius:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
 
 /* Shopping item row */
-.shop-row{display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;border-bottom:1px solid var(--border);min-height:44px}
+.shop-row{display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;border-bottom:1px solid var(--border);min-height:44px;transition:opacity .12s,background .12s}
 .shop-row:last-child{border-bottom:none}
-.shop-row.checked{text-decoration:line-through;opacity:.5}
-.shop-row input[type=checkbox]{accent-color:var(--blue);width:18px;height:18px;flex-shrink:0}
+.shop-row.checked{opacity:.55;background:var(--bg)}
+.shop-row.checked .shop-name{text-decoration:line-through}
+.shop-row input[type=checkbox]{accent-color:var(--blue);width:18px;height:18px;flex-shrink:0;pointer-events:none}
 
 /* Progress bar */
 .progress{display:flex;gap:8px;margin-bottom:20px}
@@ -706,6 +707,13 @@ function saveHistory(){save(KEYS.planHistory,S.planHistory)}
 function saveTemplate(){save(KEYS.promptTemplate,S.promptTemplate)}
 function saveAnchors(){save(KEYS.anchorRecipes,S.anchorRecipes)}
 function saveCheckedItems(){save(KEYS.checkedItems,S.checkedItems)}
+// Live-update the "N of M items checked" header in place (checkbox toggle skips full render for scroll preservation).
+function updateShopCounter(){
+  const el=document.getElementById('shop-counter');
+  if(!el)return;
+  const cc=Object.values(S.checkedItems).filter(Boolean).length;
+  el.textContent=`${cc} of ${el.dataset.total} items checked`;
+}
 
 // Debounce for large text field saves
 let _debounceTimers={};
@@ -785,33 +793,53 @@ function renderDashboard(){
   return h;
 }
 
+// Non-cook night classifier — leftovers first (common case), then eat-out, else neutral catch-all.
+// Never returns null: every non-cook night gets a glanceable category pill instead of a broken metadata line.
+function noCookPill(name){
+  const s=(name||'').toLowerCase();
+  if(/leftover/.test(s)) return {text:'Leftovers',glyph:'↻'};
+  if(/eat[\s-]?out|take[\s-]?out|takeaway|restaurant|dine|dining|order (in|out)|delivery|pizza night/.test(s)) return {text:'Eat out',glyph:'↗'};
+  return {text:'No cook',glyph:'○'};
+}
 function renderMealCards(mp){
   return `<div class="grid grid-3" style="margin-bottom:24px">${mp.map(day=>{
     const d=day.dinner||{};
-    const su=safeUrl(d.source_url);
-    const link=su?`<a href="${esc(su)}" target="_blank" rel="noopener">${esc(d.name)} ↗</a>`:esc(d.name);
+    // Non-cook night = placeholder dinner shape: no ingredients, no cost, no source.
+    const isNoCook=(!d.ingredients||d.ingredients.length===0)&&d.cost_per_serving==null&&d.source_site==null&&d.source_url==null;
+    let dinnerBlock;
+    if(isNoCook){
+      // Non-cook: title in --fg (blue is reserved for real recipe links), category pill replaces the metadata line.
+      const p=noCookPill(d.name);
+      dinnerBlock=`<div style="font-weight:600;color:var(--fg);font-size:12px">${esc(d.name)}</div>
+        <div style="margin-top:2px"><span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;padding:2px 8px;border-radius:10px;background:#94a3b81a;color:var(--fg2)">${p.glyph} ${esc(p.text)}</span></div>`;
+    }else{
+      // Cook night: unchanged — blue recipe link (if URL) + source · cost · servings metadata line.
+      const su=safeUrl(d.source_url);
+      const link=su?`<a href="${esc(su)}" target="_blank" rel="noopener">${esc(d.name)} ↗</a>`:esc(d.name);
+      dinnerBlock=`<div style="font-weight:600;color:var(--blue);font-size:12px">${link}</div>
+        <div style="font-size:10px;color:var(--fg3);margin-top:2px">${esc(d.source_site)} · $${n2(d.cost_per_serving)}/serving · ${d.servings} servings</div>`;
+    }
     return `<div class="card" style="padding:14px">
       <div class="flex justify-between" style="margin-bottom:8px"><span style="font-weight:700;color:#f1f5f9">Day ${day.day}</span><span style="font-size:11px;color:var(--fg3)">${esc(day.date)}</span></div>
       <div style="font-size:11px;color:var(--fg2);margin-bottom:3px"><span style="color:var(--fg3)">B:</span> ${esc(day.breakfast)}</div>
       <div style="font-size:11px;color:var(--fg2);margin-bottom:6px"><span style="color:var(--fg3)">L:</span> ${esc(day.lunch)}</div>
       <div style="border-top:1px solid var(--border);padding-top:6px">
-        <div style="font-weight:600;color:var(--blue);font-size:12px">${link}</div>
-        <div style="font-size:10px;color:var(--fg3);margin-top:2px">${esc(d.source_site)} · $${n2(d.cost_per_serving)}/serving · ${d.servings} servings</div>
+        ${dinnerBlock}
         ${d.perishability_note?`<div style="font-size:10px;color:var(--amber);margin-top:3px">⏱ ${esc(d.perishability_note)}</div>`:''}
         ${d.quality_note?`<div style="font-size:10px;color:#a78bfa;margin-top:3px">★ ${esc(d.quality_note)}</div>`:''}
       </div></div>`}).join('')}</div>`;
 }
 
 function renderShoppingSection(sl,byStore,cc){
-  let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>Shopping List</h2><div class="sub">${cc} of ${sl.length} items checked</div></div><button class="btn btn-primary" onclick="exportShoppingList()" style="width:auto;min-height:40px;font-size:11px">📋 Export List</button></div>`;
+  let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>Shopping List</h2><div class="sub" id="shop-counter" data-total="${sl.length}">${cc} of ${sl.length} items checked</div></div><button class="btn btn-primary" onclick="exportShoppingList()" style="width:auto;min-height:40px;font-size:11px">📋 Export List</button></div>`;
   h+=`<div class="grid grid-shop">${Object.entries(byStore).map(([store,items])=>`<div class="card">
     <div style="font-weight:700;color:var(--blue);font-size:13px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">${esc(store)}</div>
     ${items.map(item=>{
       const ci=CATEGORY_LABELS[item.category]||CATEGORY_LABELS.staple;
       const chk=S.checkedItems[item._gi];
-      return `<div class="shop-row ${chk?'checked':''}">
-        <input type="checkbox" ${chk?'checked':''} data-shopcheck="${item._gi}">
-        <span style="flex:1;font-size:12px">${esc(item.item)}${item.notes?` <span style="font-size:9px;color:var(--fg3)">(${esc(item.notes)})</span>`:''}</span>
+      return `<div class="shop-row ${chk?'checked':''}" data-shoprow="${item._gi}" role="checkbox" aria-checked="${chk?'true':'false'}" tabindex="0">
+        <input type="checkbox" ${chk?'checked':''} tabindex="-1" aria-hidden="true">
+        <span class="shop-name" style="flex:1;font-size:12px">${esc(item.item)}${item.notes?` <span style="font-size:9px;color:var(--fg3)">(${esc(item.notes)})</span>`:''}</span>
         <span class="cat-badge" style="background:${ci.color}18;color:${ci.color}">${ci.label}</span>
         <span style="font-size:11px;color:var(--fg3);min-width:50px;text-align:right">${esc(item.quantity)}</span>
         <span style="font-size:11px;color:${item.price_type==='confirmed'?'var(--green)':'var(--amber)'};min-width:60px;text-align:right">$${n2(item.price)}${item.price_type==='estimated'?'<span style="font-size:9px;opacity:.8"> (est.)</span>':''}</span>
@@ -970,9 +998,28 @@ function bindEvents(){
   document.querySelectorAll('[data-nav]').forEach(btn=>{
     btn.onclick=()=>{if(!btn.disabled)nav(btn.dataset.nav)};
   });
-  // Shopping checkboxes
-  document.querySelectorAll('[data-shopcheck]').forEach(cb=>{
-    cb.onchange=()=>{S.checkedItems[cb.dataset.shopcheck]=cb.checked;saveCheckedItems();render()};
+  // Shopping rows — whole-row tap toggles the item (checkbox is a pointer-events:none state
+  // indicator; the ×'s event.stopPropagation suppresses this handler so it removes without toggling).
+  // In-place mutation (no full render on toggle) preserves scroll position and keeps checked rows put.
+  document.querySelectorAll('.shop-row[data-shoprow]').forEach(row=>{
+    const toggle=()=>{
+      const gi=row.dataset.shoprow;
+      const now=!S.checkedItems[gi];
+      S.checkedItems[gi]=now;
+      saveCheckedItems();
+      row.classList.toggle('checked',now);
+      row.setAttribute('aria-checked',now?'true':'false'); // keep SR checked-state in sync
+      const cb=row.querySelector('input[type=checkbox]');
+      if(cb)cb.checked=now;
+      updateShopCounter();
+    };
+    row.onclick=toggle;
+    // Keyboard parity (role=checkbox): Enter/Space toggle. Guard e.target===row so a keypress on
+    // the focused × button (which has its own native activation) is not hijacked by the row handler.
+    row.onkeydown=e=>{
+      if(e.target!==row)return;
+      if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){e.preventDefault();toggle();}
+    };
   });
   // Enter keys for preference inputs
   ['new-allergy','new-dislike','new-pref','pantry-name'].forEach(id=>{
