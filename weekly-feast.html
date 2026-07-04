@@ -113,7 +113,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v2',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v3',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1'};
 
 const DEFAULT_PANTRY={tier1:[
 {id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",updatedAt:new Date().toISOString()},
@@ -251,16 +251,57 @@ Consolidate all ingredients across the week's meals. Group by store, with the re
 
 OUTPUT FORMAT
 
-Produce your output in two parts, in this exact order:
+Produce two parts: a machine-readable data block and a human-readable narrative.
+The importer scans your entire response for the data block, so ordinary prose,
+tool-use notes, or reasoning may appear before, between, or after the two parts.
 
-PART 1: A JSON code block. Begin the block with \\\`\\\`\\\`json and end it with \\\`\\\`\\\`. This must be valid, parseable JSON conforming to the schema below. Nothing should precede this code block — it must be the very first content in your response.
+PART A — THE DATA BLOCK:
+Emit the meal plan as a single JSON object wrapped between two sentinel lines. Put
+the exact text BEGIN_WEEKLY_FEAST_JSON on its own line immediately before the JSON,
+and the exact text END_WEEKLY_FEAST_JSON on its own line immediately after it.
+Nothing else goes on those two sentinel lines. Skeleton:
 
-PART 2: After the JSON code block, insert a markdown horizontal rule (---), then write a narrative summary explaining your reasoning: why you chose these recipes, what deals drove the plan, any tradeoffs between cost and quality, stores with missing ad data, pantry depletion concerns, and any items worth stocking up on due to unusually good sales.
+BEGIN_WEEKLY_FEAST_JSON
+{ ...the plan object, conforming to the schema below... }
+END_WEEKLY_FEAST_JSON
+
+Do not wrap the JSON in Markdown code fences or backticks — the sentinel lines are
+the delimiter. The content between the sentinels must be one complete JSON object
+conforming to the schema. Emit the whole object in a single uninterrupted block: do
+not truncate it and do not split it across multiple sentinel blocks.
+
+Emit the COMPLETE data block BEFORE you write the narrative. If you are running low
+on output space, finish the JSON and shorten or omit the narrative — never leave the
+JSON cut off. A complete plan with no narrative is a success; a truncated plan is a
+failure.
+
+PART B — THE NARRATIVE:
+After the data block, write a narrative summary explaining your reasoning: why you
+chose these recipes, what deals drove the plan, any tradeoffs between cost and
+quality, stores with missing ad data, pantry depletion concerns, and any items
+worth stocking up on due to unusually good sales. Separate it from the data block
+with a Markdown horizontal rule (---). This section is for the human reader only.
+
+DATA RULES — apply these when building the JSON:
+- Every numeric value must be a bare JSON number: 2.85, not "2.85", not $2.85, not
+  1,299. No quotes, no currency symbols, no thousands separators. (The importer will
+  try to coerce a stray numeric string, but write bare numbers so nothing is lost.)
+- Use null (unquoted) for any nullable field that does not apply — never "N/A",
+  "none", "-", or an empty string.
+- Every day in meal_plan must include a "dinner" OBJECT, even a leftovers or eat-out
+  night. For those nights set "name" to a short label (e.g. "Leftovers — Day 3
+  stir-fry"), set "ingredients" to [], keep a real "servings" count, and set
+  "cost_per_serving", "source_url", "source_site", and the note fields to null.
+  Do not make "dinner" a bare string.
 
 
 JSON SCHEMA
 
-The JSON output must follow this structure exactly. All fields shown are required unless annotated as nullable. Numeric values are plain numbers (not strings). Nullable fields use null, not empty strings.
+The JSON object between the sentinels must follow this structure. All fields shown
+are required unless annotated as nullable. Numbers are bare numbers; nullable fields
+use null, not empty strings. The importer will coerce a numeric string, wrap a bare
+dinner name into an object, and fill missing optional arrays — but treat that as a
+safety net, not a target: emit the schema exactly.
 
 {
   "metadata": {
@@ -286,6 +327,23 @@ Field notes:
 - "pantry_alerts": Include entries only when cumulative weekly usage warrants a heads-up. An empty array is fine if no alerts are needed.
 
 
+WORKED EXAMPLE (one day shown — output ALL planned days in this exact shape; note
+bare numbers, null usage, and dinner-as-object on the leftovers night):
+
+BEGIN_WEEKLY_FEAST_JSON
+{
+  "metadata": {"plan_date":"2026-03-09","plan_days":7,"household_size":2,"stores_searched":["QFC","Kroger","Safeway","Walmart"],"stores_confirmed":["QFC","Safeway"],"stores_estimated":["Walmart"],"confidence":"normal"},
+  "meal_plan": [
+    {"day":1,"date":"2026-03-09","breakfast":"Oatmeal with banana","lunch":"Turkey sandwiches","dinner":{"name":"One-Pot Chicken and Rice","source_url":"https://example.com/chicken-rice","source_site":"Budget Bytes","servings":2,"cost_per_serving":1.85,"perishability_note":"Uses fresh cilantro — early in week","quality_note":null,"ingredients":[{"item":"chicken thighs","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null},{"item":"onion","quantity":"1","source":"staple","store":"QFC","price_estimate":0.75}]}},
+    {"day":2,"date":"2026-03-10","breakfast":"Eggs and toast","lunch":"Leftover chicken and rice","dinner":{"name":"Leftovers — Day 1 chicken and rice","source_url":null,"source_site":null,"servings":2,"cost_per_serving":null,"perishability_note":null,"quality_note":null,"ingredients":[]}}
+  ],
+  "shopping_list": [{"item":"Onion","quantity":"1","store":"QFC","price":0.75,"price_type":"confirmed","category":"staple","notes":null}],
+  "pantry_alerts": [],
+  "cost_summary": {"total_estimated":18.40,"per_person_per_day":1.31,"by_store":{"QFC":10.20,"Safeway":8.20}}
+}
+END_WEEKLY_FEAST_JSON
+
+
 ANCHOR RECIPES (FALLBACK SET)
 
 If your dynamic recipe search returns sparse results for a given protein or produce category, consult these known-good recipes as fallbacks. Prefer fresh search results when available, but use these to fill gaps rather than leaving the plan incomplete.
@@ -303,7 +361,295 @@ function save(key,val){try{localStorage.setItem(key,JSON.stringify(val))}catch(e
 const genId=()=>Math.random().toString(36).slice(2,10);
 const todayStr=()=>new Date().toISOString().slice(0,10);
 const esc=s=>s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-const n2=(n)=>n!=null?n.toFixed(2):'?';
+const n2=(n)=>{const x=toNum(n);return x==null?'?':x.toFixed(2);};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IMPORT PARSER CORE (pure — no DOM, no S; tested in isolation via markers)
+// ═══════════════════════════════════════════════════════════════════════════
+// ===== PARSER-CORE-START =====
+const WF_SENTINEL_BEGIN='BEGIN_WEEKLY_FEAST_JSON';
+const WF_SENTINEL_END='END_WEEKLY_FEAST_JSON';
+const MSG_EMPTY='Paste a response first.';
+const MSG_NO_JSON='No meal-plan JSON found. Paste the full response — the importer looks for a block wrapped in BEGIN_WEEKLY_FEAST_JSON / END_WEEKLY_FEAST_JSON, a fenced code block, or a bare JSON object.';
+const MSG_TRUNCATED='The response looks cut off — the JSON is incomplete (unbalanced braces/brackets and no closing END_WEEKLY_FEAST_JSON). Re-run the plan and paste the entire response.';
+const MSG_NOT_PLAN='Found JSON, but it does not look like a meal plan (no meal_plan, shopping_list, or cost_summary section). Make sure you pasted the meal-plan response.';
+
+// Coerce anything to a finite number, else null. Handles "$2.85", "1,234.50", "4".
+function toNum(v){
+  if(typeof v==='number')return isFinite(v)?v:null;
+  if(typeof v!=='string')return null;
+  const t=v.replace(/[^0-9.+-]/g,'');
+  if(t===''||/^[+\-.]+$/.test(t))return null;
+  const n=parseFloat(t);
+  return isFinite(n)?n:null;
+}
+
+// Return each TOP-LEVEL balanced {...} substring, ignoring braces inside strings.
+function sliceBalancedObjects(s){
+  const out=[];let depth=0,start=-1,inStr=false,q='',esc=false;
+  for(let i=0;i<s.length;i++){
+    const c=s[i];
+    if(inStr){
+      if(esc){esc=false;continue}
+      if(c==='\\'){esc=true;continue}
+      if(c===q)inStr=false;
+      continue;
+    }
+    if(c==='"'||c==="'"){inStr=true;q=c;continue}
+    if(c==='{'){if(depth===0)start=i;depth++;}
+    else if(c==='}'){if(depth>0){depth--;if(depth===0&&start!==-1){out.push(s.slice(start,i+1));start=-1;}}}
+  }
+  return out;
+}
+
+// True if the string ends with unclosed strings/braces/brackets (i.e. truncated).
+function isTruncated(s){
+  let inStr=false,q='',esc=false,curly=0,square=0;
+  for(let i=0;i<s.length;i++){
+    const c=s[i];
+    if(inStr){
+      if(esc){esc=false;continue}
+      if(c==='\\'){esc=true;continue}
+      if(c===q)inStr=false;
+      continue;
+    }
+    if(c==='"'||c==="'"){inStr=true;q=c;continue}
+    if(c==='{')curly++;else if(c==='}')curly--;
+    else if(c==='[')square++;else if(c===']')square--;
+  }
+  return curly>0||square>0||inStr;
+}
+
+function extractFenced(text){
+  const out=[];const re=/```(?:json|JSON)?[ \t]*\r?\n?([\s\S]*?)```/g;let m;
+  while((m=re.exec(text))!==null){const s=(m[1]||'').trim();if(s)out.push(s);}
+  return out;
+}
+function stripFence(block){
+  const m=block.match(/```(?:json|JSON)?[ \t]*\r?\n?([\s\S]*?)```/);
+  return m?m[1]:block;
+}
+
+// Best-effort JSON repair: unicode quotes, single-quoted strings, comments,
+// unquoted keys, trailing commas, python literals. Only invoked after strict fails.
+function repairJSON(s){
+  s=s.replace(/[“”„‟″]/g,'"')
+     .replace(/[‘’‚′]/g,"'")
+     .replace(/[﻿​]/g,'');
+  // Structural fixes (bare-key quoting, trailing-comma strip, python literals) apply
+  // ONLY to text OUTSIDE double-quoted string literals, so a value like "None Pizza
+  // with Left Beef" or "A True crowd-pleaser" is never silently rewritten.
+  function fixStruct(t){
+    return t
+      .replace(/([{,]\s*)([A-Za-z_$][\w$]*)(\s*:)/g,'$1"$2"$3') // quote bare keys
+      .replace(/,(\s*[}\]])/g,'$1')                             // trailing commas
+      .replace(/\bNone\b/g,'null').replace(/\bTrue\b/g,'true').replace(/\bFalse\b/g,'false');
+  }
+  let out='';let struct='';let i=0;const n=s.length;
+  while(i<n){
+    const c=s[i];
+    if(c==='"'){ // copy a double-quoted string verbatim; flush structural text before it
+      out+=fixStruct(struct);struct='';
+      let lit=c;i++;
+      while(i<n){const d=s[i];lit+=d;i++;if(d==='\\'){if(i<n){lit+=s[i];i++;}continue}if(d==='"')break;}
+      out+=lit;continue;
+    }
+    if(c==="'"){ // convert single-quoted string to a double-quoted string literal
+      out+=fixStruct(struct);struct='';
+      i++;let buf='';
+      while(i<n){const d=s[i];
+        if(d==='\\'){buf+=d+(i+1<n?s[i+1]:'');i+=2;continue}
+        if(d==="'"){i++;break}
+        if(d==='"'){buf+='\\"'}else buf+=d;
+        i++;
+      }
+      out+='"'+buf+'"';continue;
+    }
+    if(c==='/'&&s[i+1]==='/'){i+=2;while(i<n&&s[i]!=='\n')i++;continue}
+    if(c==='/'&&s[i+1]==='*'){i+=2;while(i<n&&!(s[i]==='*'&&s[i+1]==='/'))i++;i+=2;continue}
+    struct+=c;i++;
+  }
+  out+=fixStruct(struct);
+  return out;
+}
+
+// Strict parse, else detect truncation (fatal), else repair-then-parse.
+function parseCandidate(str){
+  const s=(str==null?'':String(str)).trim();
+  if(!s)return{ok:false,error:MSG_NOT_PLAN};
+  try{return{ok:true,data:JSON.parse(s),repaired:false}}catch(e0){}
+  if(isTruncated(s))return{ok:false,error:MSG_TRUNCATED,truncated:true};
+  const fixed=repairJSON(s);
+  try{return{ok:true,data:JSON.parse(fixed),repaired:true}}catch(e1){
+    if(isTruncated(fixed))return{ok:false,error:MSG_TRUNCATED,truncated:true};
+    return{ok:false,error:'Could not parse the meal-plan JSON, even after cleanup: '+e1.message};
+  }
+}
+
+function normalizeIngredient(ing){
+  if(ing==null)return null;
+  if(typeof ing==='string')return{item:ing,quantity:'',source:'staple',store:null,price_estimate:null};
+  if(typeof ing!=='object')return null;
+  return{
+    item: ing.item!=null?String(ing.item):'',
+    quantity: ing.quantity!=null?String(ing.quantity):'',
+    source: (ing.source==='sale'||ing.source==='pantry'||ing.source==='staple')?ing.source:'staple',
+    store: ing.store!=null?String(ing.store):null,
+    price_estimate: toNum(ing.price_estimate)
+  };
+}
+function normalizeDay(day,idx){
+  if(day==null||typeof day!=='object')return null;
+  let dn=day.dinner;
+  if(typeof dn==='string'){
+    dn={name:dn,source_url:null,source_site:null,servings:null,cost_per_serving:null,perishability_note:null,quality_note:null,ingredients:[]};
+  }else if(dn&&typeof dn==='object'){
+    dn={
+      name: dn.name!=null?String(dn.name):'Dinner',
+      source_url: dn.source_url!=null?String(dn.source_url):null,
+      source_site: dn.source_site!=null?String(dn.source_site):null,
+      servings: toNum(dn.servings),
+      cost_per_serving: toNum(dn.cost_per_serving),
+      perishability_note: dn.perishability_note!=null?String(dn.perishability_note):null,
+      quality_note: dn.quality_note!=null?String(dn.quality_note):null,
+      ingredients: Array.isArray(dn.ingredients)?dn.ingredients.map(normalizeIngredient).filter(Boolean):[]
+    };
+  }else{
+    dn={name:'Dinner',source_url:null,source_site:null,servings:null,cost_per_serving:null,perishability_note:null,quality_note:null,ingredients:[]};
+  }
+  return{
+    day: toNum(day.day)!=null?toNum(day.day):(idx+1),
+    date: day.date!=null?String(day.date):null,
+    breakfast: day.breakfast!=null?String(day.breakfast):'',
+    lunch: day.lunch!=null?String(day.lunch):'',
+    dinner: dn
+  };
+}
+function normalizeShopItem(it){
+  if(it==null)return null;
+  if(typeof it==='string')return{item:it,quantity:'',store:'any',price:null,price_type:'estimated',category:'staple',notes:null};
+  if(typeof it!=='object')return null;
+  return{
+    item: it.item!=null?String(it.item):'',
+    quantity: it.quantity!=null?String(it.quantity):'',
+    store: it.store!=null?String(it.store):'any',
+    price: toNum(it.price),
+    price_type: it.price_type==='confirmed'?'confirmed':'estimated',
+    category: (it.category==='sale'||it.category==='staple'||it.category==='restock')?it.category:'staple',
+    notes: it.notes!=null?String(it.notes):null
+  };
+}
+// Coerce any parsed object into the exact renderable plan shape.
+function normalizePlan(data){
+  const d=(data&&typeof data==='object'&&!Array.isArray(data))?data:{};
+  const md=(d.metadata&&typeof d.metadata==='object')?d.metadata:{};
+  const metadata={
+    plan_date: md.plan_date!=null?String(md.plan_date):null,
+    plan_days: toNum(md.plan_days)!=null?toNum(md.plan_days):7,
+    household_size: toNum(md.household_size),
+    stores_searched: Array.isArray(md.stores_searched)?md.stores_searched.map(String):[],
+    stores_confirmed: Array.isArray(md.stores_confirmed)?md.stores_confirmed.map(String):[],
+    stores_estimated: Array.isArray(md.stores_estimated)?md.stores_estimated.map(String):[],
+    confidence: md.confidence==='low'?'low':'normal'
+  };
+  const meal_plan=Array.isArray(d.meal_plan)?d.meal_plan.map(normalizeDay).filter(Boolean):[];
+  const shopping_list=Array.isArray(d.shopping_list)?d.shopping_list.map(normalizeShopItem).filter(Boolean):[];
+  const pantry_alerts=Array.isArray(d.pantry_alerts)?d.pantry_alerts.map(function(a){
+    return{item:String(a&&a.item!=null?a.item:''),concern:String(a&&a.concern!=null?a.concern:'')};
+  }):[];
+  const cs=(d.cost_summary&&typeof d.cost_summary==='object')?d.cost_summary:{};
+  const by_store={};
+  if(cs.by_store&&typeof cs.by_store==='object'){
+    for(const k of Object.keys(cs.by_store)){const v=toNum(cs.by_store[k]);if(v!=null)by_store[k]=v;}
+  }
+  const cost_summary={
+    total_estimated: toNum(cs.total_estimated),
+    per_person_per_day: toNum(cs.per_person_per_day),
+    by_store: by_store
+  };
+  return{metadata:metadata,meal_plan:meal_plan,shopping_list:shopping_list,pantry_alerts:pantry_alerts,cost_summary:cost_summary};
+}
+
+// How plan-like is a parsed object (0 = narrative noise, 3 = full plan)?
+function planScore(d){
+  if(!d||typeof d!=='object'||Array.isArray(d))return 0;
+  let s=0;
+  if(Array.isArray(d.meal_plan))s++;
+  if(Array.isArray(d.shopping_list))s++;
+  if(d.cost_summary&&typeof d.cost_summary==='object')s++;
+  return s;
+}
+
+// Ordered extraction chain -> array of candidate JSON strings (priority order).
+function extractPlanJSON(raw){
+  const text=(raw==null?'':String(raw));
+  const cands=[];
+  const bi=text.indexOf(WF_SENTINEL_BEGIN);
+  if(bi!==-1){
+    const after=bi+WF_SENTINEL_BEGIN.length;
+    const ei=text.indexOf(WF_SENTINEL_END,after);
+    let block=(ei!==-1?text.slice(after,ei):text.slice(after));
+    block=stripFence(block).trim();
+    const objs=sliceBalancedObjects(block);
+    if(objs.length)for(const o of objs)cands.push(o);
+    else if(block)cands.push(block);
+  }
+  for(const f of extractFenced(text)){
+    const objs=sliceBalancedObjects(f);
+    if(objs.length)for(const o of objs)cands.push(o);
+    else if(f.trim())cands.push(f.trim());
+  }
+  for(const o of sliceBalancedObjects(text))cands.push(o);
+  const seen={},uniq=[];
+  for(const c of cands){const k=c.trim();if(k&&!seen[k]){seen[k]=1;uniq.push(k);}}
+  return uniq;
+}
+
+// Orchestrate extract -> parse -> normalize -> validate. Pure: {ok,plan}|{ok,error}.
+function parsePlanResponse(raw){
+  const text=(raw==null?'':String(raw)).trim();
+  if(!text)return{ok:false,error:MSG_EMPTY};
+  const cands=extractPlanJSON(text);
+  if(!cands.length)return{ok:false,error:MSG_NO_JSON};
+  let parseErr=null,best=null,bestScore=0;
+  for(const cand of cands){
+    const pc=parseCandidate(cand);
+    if(!pc.ok){if(parseErr==null||pc.truncated)parseErr=pc.error;continue}
+    const score=planScore(pc.data);
+    if(score===0)continue;
+    if(score>bestScore){best=pc.data;bestScore=score;}
+    if(score>=3)break;
+  }
+  if(best!=null)return{ok:true,plan:normalizePlan(best)};
+  if(parseErr)return{ok:false,error:parseErr};
+  return{ok:false,error:MSG_NOT_PLAN};
+}
+// ===== PARSER-CORE-END =====
+
+// ── One-time template migration to the v3 sentinel contract (Deliverable 4) ──
+let _pendingUpgradeToast=null;
+(function migrateTemplateV3(){
+  try{
+    const DONE='mp:migrated-template-v3';
+    if(localStorage.getItem(DONE))return;
+    const V2='mp:prompt-template-v2',V3=KEYS.promptTemplate;
+    const oldV2=localStorage.getItem(V2);
+    const hasV3=localStorage.getItem(V3)!=null;
+    if(oldV2!=null&&!hasV3){
+      let parsed;try{parsed=JSON.parse(oldV2)}catch(e){parsed=oldV2}
+      const oldText=typeof parsed==='string'?parsed:'';
+      if(oldText&&oldText.indexOf(WF_SENTINEL_BEGIN)===-1){
+        // stale (pre-sentinel) contract: back it up, adopt the new v3 default
+        try{localStorage.setItem('mp:prompt-template-v2-backup',oldV2)}catch(e){}
+        _pendingUpgradeToast='Prompt template upgraded to the new import format. Your previous template was backed up.';
+      }else if(oldText){
+        try{localStorage.setItem(V3,oldV2)}catch(e){} // already sentinel-aware: carry forward
+      }
+    }
+    try{localStorage.removeItem(V2)}catch(e){}
+    localStorage.setItem(DONE,'1');
+  }catch(e){/* migration is best-effort */}
+})();
 
 // Global state
 const S={
@@ -668,24 +1014,10 @@ function copyPrompt(){
 // Import actions
 function loadMock(){S.importRaw=JSON.stringify(MOCK_PLAN,null,2);S.importError=null;S.importParsed=null;render()}
 function parseImport(){
-  S.importError=null;S.importParsed=null;
-  let text=S.importRaw.trim();if(!text){S.importError='Paste something first.';render();return}
-  const jm=text.match(/```json\s*([\s\S]*?)```/);
-  if(jm)text=jm[1].trim();else{const gm=text.match(/```\s*([\s\S]*?)```/);if(gm)text=gm[1].trim()}
-  let data;
-  try{data=JSON.parse(text)}catch(e){
-    const bs=text.indexOf('{'),be=text.lastIndexOf('}');
-    if(bs!==-1&&be>bs){try{data=JSON.parse(text.slice(bs,be+1))}catch{S.importError='JSON parse error: '+e.message;render();return}}
-    else{S.importError='No JSON found: '+e.message;render();return}
-  }
-  const issues=[];
-  if(!data.meal_plan||!Array.isArray(data.meal_plan))issues.push("Missing 'meal_plan' array");
-  if(!data.shopping_list||!Array.isArray(data.shopping_list))issues.push("Missing 'shopping_list' array");
-  if(!data.cost_summary||typeof data.cost_summary!=='object')issues.push("Missing 'cost_summary'");
-  if(!issues.length){for(const day of data.meal_plan){if(day.day===undefined)issues.push('Missing day field');if(!day.dinner)issues.push('Day '+day.day+': missing dinner')}}
-  if(data.pantry_alerts!==undefined){if(!Array.isArray(data.pantry_alerts))issues.push("pantry_alerts not an array")}else data.pantry_alerts=[];
-  if(issues.length){S.importError='Schema issues: '+issues.join('; ');render();return}
-  S.importParsed=data;render();
+  const res=parsePlanResponse(S.importRaw);
+  if(res.ok){S.importParsed=res.plan;S.importError=null;}
+  else{S.importParsed=null;S.importError=res.error;}
+  render();
 }
 function doImport(){
   if(!S.importParsed)return;
@@ -819,12 +1151,18 @@ function importAllData(event){
       if(data.household){S.household=data.household;saveHousehold()}
       if('currentPlan' in data){S.currentPlan=data.currentPlan;savePlan()}
       if(data.planHistory){S.planHistory=data.planHistory;saveHistory()}
-      if(data.promptTemplate){S.promptTemplate=data.promptTemplate;saveTemplate()}
+      let _tplUpgraded=false;
+      if(typeof data.promptTemplate==='string'){
+        // D4 field-level guard: keep a sentinel-aware template as-is; upgrade a stale one.
+        if(data.promptTemplate.includes('BEGIN_WEEKLY_FEAST_JSON')){S.promptTemplate=data.promptTemplate;}
+        else{S.promptTemplate=DEFAULT_PROMPT_TEMPLATE;_tplUpgraded=true;}
+        saveTemplate();
+      }
       if('anchorRecipes' in data){S.anchorRecipes=data.anchorRecipes;saveAnchors()}
       if(data.checkedItems){S.checkedItems=data.checkedItems;saveCheckedItems()}
       else{S.checkedItems={};saveCheckedItems()}
       S.removedShoppingItems=[];S.showRemovedItems=false;
-      showToast('Data restored from backup!');render();
+      showToast(_tplUpgraded?'Data restored — upgraded an old prompt template to the new import format.':'Data restored from backup!');render();
     }catch(err){showToast('Failed to parse backup file: '+err.message)}
   };
   reader.readAsText(file);
@@ -832,6 +1170,7 @@ function importAllData(event){
 }
 
 render();
+if(_pendingUpgradeToast){showToast(_pendingUpgradeToast);_pendingUpgradeToast=null;}
 </script>
 </body>
 </html>
