@@ -937,6 +937,7 @@ const S={
   showRemovedItems:false,
   // Screen-local state
   pantryTab:'tier1',
+  pantryNumOpen:{}, // ephemeral per-item numeric-disclosure UI state (NOT persisted, NOT in KEYS, never written by savePantry)
   reviewStep:0,
   showTemplateEditor:false,
   showAnchorEditor:false,
@@ -1239,18 +1240,70 @@ function renderShoppingSection(sl,byStore,cc){
 }
 
 // ─── Pantry ─────────────────────────────────────────────────────────────────
+// Shared numeric-disclosure row for all three tiers. Collapsed = quiet chip; open = amount inputs.
+// blank ⇒ delete key ⇒ absent (never 0). tier2 emits stopPropagation so editing a number can't flip `have`.
+function pantryNumRow(tier,i){
+  if(tier==='tier2' && !i.have) return '';                       // amount only meaningful when 'have'
+  const hasNum=(typeof i.onHand==='number')||(tier==='tier1'&&typeof i.par==='number');
+  const open=hasNum||S.pantryNumOpen[i.id];
+  const stop=tier==='tier2'?'event.stopPropagation();':'';        // tier2 card is click-to-toggle
+  if(!open){
+    const label=tier==='tier3'?'+ exact amount':'+ amount';
+    return `<div style="margin-top:6px" ${tier==='tier2'?'onclick="event.stopPropagation()"':''}>`
+      +`<button onclick="${stop}togglePantryNum('${i.id}')" style="background:transparent;border:none;`
+      +`color:var(--fg4);font-size:10px;cursor:pointer;padding:2px 0;min-height:28px;font-family:var(--font)">${label}</button></div>`;
+  }
+  const numField=(field,val,lab,tip)=>`<div style="display:flex;flex-direction:column;gap:2px">`
+    +`<label title="${tip||''}" style="font-size:9px;color:var(--fg3);text-transform:uppercase;letter-spacing:.4px">${lab}</label>`
+    +`<input class="inp" inputmode="decimal" aria-label="${lab}" value="${typeof val==='number'?val:''}" placeholder="—" `
+    +`style="width:72px" oninput="updatePantryNum('${tier}','${i.id}','${field}',this.value)"></div>`;
+  let fields=numField('onHand',i.onHand,'on hand','');
+  if(tier==='tier1') fields+=numField('par',i.par,'par','minimum to keep stocked');
+  fields+=`<div style="display:flex;flex-direction:column;gap:2px">`
+    +`<label style="font-size:9px;color:var(--fg3);text-transform:uppercase;letter-spacing:.4px">unit</label>`
+    +`<input class="inp" list="wf-units" aria-label="unit" value="${esc(i.unit||'')}" placeholder="unit" `
+    +`style="width:92px" oninput="updatePantryUnit('${tier}','${i.id}',this.value)"></div>`;
+  // collapse control only while open-but-empty; once data exists the row stays put (never hide live data)
+  const collapse=!hasNum?`<button onclick="${stop}togglePantryNum('${i.id}')" style="background:transparent;`
+    +`border:none;color:var(--fg4);font-size:10px;cursor:pointer;align-self:flex-end;min-height:28px;`
+    +`padding:2px 4px;font-family:var(--font)">hide</button>`:'';
+  return `<div class="flex flex-wrap gap-8" ${tier==='tier2'?'onclick="event.stopPropagation()"':''} `
+    +`style="margin-top:6px;align-items:flex-end">${fields}${collapse}</div>`;
+}
 function renderPantry(){
   const p=S.pantry,tab=S.pantryTab;
   const counts={tier1:p.tier1.length,tier2:p.tier2.length,tier3:p.tier3.length};
   let h=`<div class="section-title"><h2>Pantry Inventory</h2><div class="sub">Manage your kitchen inventory across three tracking tiers</div></div>`;
   h+=`<div class="flex gap-4" style="margin-bottom:16px;overflow-x:auto">${['tier1','tier2','tier3'].map(t=>`<button class="btn ${tab===t?'btn-primary':'btn-default'}" onclick="S.pantryTab='${t}';render()" style="width:auto;white-space:nowrap;font-size:12px;min-height:36px">Tier ${t[4]} (${counts[t]})</button>`).join('')}</div>`;
+  // Shared unit suggestions for every numeric-row unit input (native datalist — degrades to free-text).
+  h+=`<datalist id="wf-units"><option value="lb"><option value="oz"><option value="count"><option value="each"><option value="bottle"><option value="jar"><option value="can"><option value="box"><option value="bag"><option value="gallon"><option value="quart"><option value="cup"><option value="dozen"><option value="bunch"><option value="loaf"><option value="block"><option value="container"><option value="pack"></datalist>`;
   h+=`<div class="card flex gap-8 items-center flex-wrap"><input class="inp" id="pantry-name" placeholder="Item name" style="flex:2;min-width:140px"><input class="inp" id="pantry-cat" placeholder="Category (optional)" style="flex:1;min-width:100px"><button class="btn btn-primary" onclick="addPantryItem()" style="width:auto">Add</button></div>`;
+  // Per-tier "amounts are optional" helper line — once, under the add-item card, reinforces blank-is-absent.
+  const helper={tier1:'Amounts are optional — leave a field blank to plan by status alone.',tier2:'Amounts are optional — leave a field blank to plan by have / need alone.',tier3:'Amounts are optional — leave a field blank to plan by the rough note alone.'};
+  h+=`<div style="font-size:10px;color:var(--fg3);margin:2px 0 12px">${helper[tab]}</div>`;
   if(tab==='tier1'){
-    h+=`<div class="grid grid-2">${p.tier1.map(i=>`<div class="card flex items-center gap-10" style="padding:10px 14px"><div style="flex:1"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div></div><button class="status-badge" style="background:${STATUS_COLORS[i.status]}22;color:${STATUS_COLORS[i.status]}" onclick="cycleStatus('${i.id}')">${i.status}</button><button class="rm-btn" onclick="removePantryItem('tier1','${i.id}')">×</button></div>`).join('')}</div>`;
+    h+=`<div class="grid grid-2">${p.tier1.map(i=>`<div class="card" style="padding:10px 14px"><div class="flex items-center gap-10"><div style="flex:1"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div></div><button class="status-badge" style="background:${STATUS_COLORS[i.status]}22;color:${STATUS_COLORS[i.status]}" onclick="cycleStatus('${i.id}')">${i.status}</button><button class="rm-btn" onclick="removePantryItem('tier1','${i.id}')">×</button></div>${pantryNumRow('tier1',i)}</div>`).join('')}</div>`;
   }else if(tab==='tier2'){
-    h+=`<div class="grid grid-2">${p.tier2.map(i=>`<div class="card flex items-center gap-10" style="padding:10px 14px;cursor:pointer" onclick="toggleTier2('${i.id}')"><input type="checkbox" ${i.have?'checked':''} style="accent-color:var(--blue);width:18px;height:18px;pointer-events:none"><div style="flex:1"><div style="font-weight:600;font-size:12px;opacity:${i.have?1:.6}">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div></div><span style="font-size:10px;color:${i.have?'var(--green)':'var(--fg3)'}">${i.have?'have':'need'}</span><button class="rm-btn" onclick="event.stopPropagation();removePantryItem('tier2','${i.id}')">×</button></div>`).join('')}</div>`;
+    h+=`<div class="grid grid-2">${p.tier2.map(i=>`<div class="card" style="padding:10px 14px;cursor:pointer" onclick="toggleTier2('${i.id}')"><div class="flex items-center gap-10"><input type="checkbox" ${i.have?'checked':''} style="accent-color:var(--blue);width:18px;height:18px;pointer-events:none"><div style="flex:1"><div style="font-weight:600;font-size:12px;opacity:${i.have?1:.6}">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div></div><span style="font-size:10px;color:${i.have?'var(--green)':'var(--fg3)'}">${i.have?'have':'need'}</span><button class="rm-btn" onclick="event.stopPropagation();removePantryItem('tier2','${i.id}')">×</button></div>${pantryNumRow('tier2',i)}</div>`).join('')}</div>`;
   }else{
-    h+=p.tier3.map(i=>`<div class="card flex items-center gap-12 flex-wrap" style="padding:10px 14px"><div style="flex:1;min-width:120px"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div></div><input class="inp" value="${esc(i.quantity)}" placeholder="e.g., about 2 lbs" style="width:180px;max-width:100%" oninput="updateTier3Qty('${i.id}',this.value)"><button class="rm-btn" onclick="removePantryItem('tier3','${i.id}')">×</button></div>`).join('');
+    h+=p.tier3.map(i=>{
+      const authoritative=typeof i.onHand==='number';
+      return `<div class="card" style="padding:10px 14px">
+    <div class="flex items-center gap-12 flex-wrap">
+      <div style="flex:1;min-width:120px">
+        <div style="font-weight:600;font-size:12px">${esc(i.name)}${authoritative?' <span style="font-size:9px;color:var(--green);border:1px solid var(--green);border-radius:8px;padding:1px 6px;vertical-align:middle;text-transform:uppercase;letter-spacing:.4px">exact</span>':''}</div>
+        <div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;${authoritative?'opacity:.6':''}">
+        ${authoritative?'<label style="font-size:9px;color:var(--fg3);text-transform:uppercase;letter-spacing:.4px">note</label>':''}
+        <input class="inp" value="${esc(i.quantity)}" placeholder="${authoritative?'estimate note':'e.g., about 2 lbs'}" style="width:180px;max-width:100%" oninput="updateTier3Qty('${i.id}',this.value)">
+      </div>
+      <button class="rm-btn" onclick="removePantryItem('tier3','${i.id}')">×</button>
+    </div>
+    ${pantryNumRow('tier3',i)}
+    ${authoritative?'<div style="font-size:9px;color:var(--fg3);margin-top:3px">Exact amount is used for the shopping list; the note is just a reminder.</div>':''}
+  </div>`;
+    }).join('');
   }
   return h;
 }
@@ -1480,6 +1533,36 @@ function updateTier3Qty(id,val){
   S.pantry.tier3=S.pantry.tier3.map(i=>i.id===id?{...i,quantity:val,updatedAt:new Date().toISOString()}:i);
   savePantry();
 }
+
+// Numeric on-hand / par. oninput → mutate in place → save, NO render (focus-safe).
+// blank / non-finite / negative  ⇒  DELETE the field  ⇒  serializes as ABSENT, never 0.
+function updatePantryNum(tier,id,field,value){        // field ∈ {'onHand','par'}
+  const t=String(value).trim();
+  S.pantry[tier]=S.pantry[tier].map(i=>{
+    if(i.id!==id) return i;
+    const next={...i,updatedAt:new Date().toISOString()};
+    if(t===''){ delete next[field]; }                 // ← blank ⇒ absent (THE contract)
+    else { const num=parseFloat(t);
+           if(Number.isFinite(num)&&num>=0) next[field]=num; else delete next[field]; }
+    return next;
+  });
+  savePantry();                                       // NO render
+}
+
+// Shared unit string. Empty ⇒ delete. NO render.
+function updatePantryUnit(tier,id,value){
+  const t=String(value).trim();
+  S.pantry[tier]=S.pantry[tier].map(i=>{
+    if(i.id!==id) return i;
+    const next={...i,updatedAt:new Date().toISOString()};
+    if(t==='') delete next.unit; else next.unit=t;
+    return next;
+  });
+  savePantry();                                       // NO render
+}
+
+// Disclosure toggle — a deliberate click, so render() is fine here.
+function togglePantryNum(id){ S.pantryNumOpen[id]=!S.pantryNumOpen[id]; render(); }
 
 // BUG FIX: quickAdjust — use `in` operator instead of || to handle empty string for "gone"
 function quickAdjust(id,preset){
