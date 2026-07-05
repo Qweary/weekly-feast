@@ -114,7 +114,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v4',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v5',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
 
 const DEFAULT_PANTRY={tier1:[
 {id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",onHand:4,unit:"lb",par:2,updatedAt:new Date().toISOString()},
@@ -257,16 +257,64 @@ freeze_by (if it will be frozen on day 0) to the actual calendar date; leave bot
 shelf-stable items. These tiers follow USDA FSIS / FoodSafety.gov cold-storage guidance — do not invent
 shorter or longer windows.
 
-After building the week, fill nutrition_summary: list the distinct protein sources used, the vegetable
-subgroups represented (dark-green; red/orange; beans/peas/lentils; starchy; other), and whether produce
-fills about half the plate across the week on average — following MyPlate's plate-level frame extended
-to the week, not per-meal. This is general healthy-eating guidance, not medical nutrition therapy.
-
 Breakfasts and lunches: Provide simple text suggestions (oatmeal, sandwiches, eggs, leftovers, simple salads) without full recipe treatment. These should be low-effort, pantry-driven meals. Reference specific leftovers by name where applicable (e.g., "leftover beef stew from Day 3").
 
 Pantry consumption check: After drafting the full week's plan, review cumulative ingredient usage against the pantry state. If any pantry item categorized as "well-stocked" or "getting low" would be substantially depleted by the week's meals (e.g., the plan uses rice in 5 of 7 dinners, or multiple recipes draw heavily on the same spice), flag it in the pantry_alerts section of the JSON. This helps the household anticipate restock needs before they run out.
 
 Single-use audit: in the same pass, walk every fresh or perishable ingredient the plan buys and flag any that only one meal uses — especially a Tier-0 or Tier-1 bunch or multi-serving item whose remainder will spoil before a second occasion. Prefer to fix each one in place (add a second meal that uses the remainder, downsize the purchase to the amount actually needed, or substitute a longer-life pantry alternative) rather than leave a stranded remainder. If a single-use perishable purchase is genuinely unavoidable, say so explicitly in the narrative and name what happens to the leftover, so the waste is a visible choice and not an accident.
+
+
+STEP 3.5 — WEEKLY NUTRITION BALANCE (apply while placing the STEP 3 meals, before the shopping list)
+
+Nutrition here is a WEEKLY variety constraint layered on top of the cost- and perishability-optimized
+plan you just built — not a new primary objective, and not a per-meal rule. A carb-heavy lunch or a
+single-vegetable dinner is fine as long as the WEEK balances. Do NOT re-open the sale-anchored,
+depletion-reconciled plan and make it more expensive to chase a nutrition number. Instead, as you settle
+which recipes fill each still-open night, steer those choices so that ACROSS THE WEEK the plan lands
+these targets:
+
+1. Protein rotation — use at least THREE distinct protein sources across the week (for example poultry, a
+   bean/lentil dinner, eggs, canned or fresh fish, limited red meat). Do not use the same protein every
+   night.
+2. Seafood — aim for about TWO seafood servings across the week. Canned tuna or salmon and frozen fish
+   count and are budget-friendly ways to hit this.
+3. Vegetable variety — draw produce from at least THREE of the five MyPlate vegetable subgroups across the
+   week: dark-green; red/orange; beans/peas/lentils; starchy; other. Do not lean on a single subgroup
+   (e.g. all potatoes/corn).
+4. Produce volume — across the week on average, produce (vegetables + fruit) should fill about half the
+   plate. This is MyPlate's plate frame extended to the week, not a per-meal rule.
+5. Whole grains — make at least some of the week's grains whole (brown rice, whole-wheat pasta, oats).
+
+Reconcile against cost — do NOT fight it. Nutrition variety and cheap eating pull the SAME direction far
+more often than they conflict: the cheapest proteins per gram (dried and canned legumes, eggs, canned
+fish, chicken thighs) are also the ones that ADD rotation. So reach variety by moving DOWN the protein
+cost ladder, not up it. Prefer budget-neutral swaps — when two candidate dinners cost about the same per
+serving, choose the one that adds a missing protein source, vegetable subgroup, or a seafood/whole-grain
+serving. Only when a genuine conflict remains — the only affordable sale protein is a single item, seafood
+is not on sale and buying it would break the household budget, or the week's affordable produce is one
+subgroup — does cost win. When cost wins, you FLAG the shortfall (below); you do NOT silently pass it off
+as balanced, and you do NOT blow the budget to erase it.
+
+Flag-on-shortfall self-check — REQUIRED before you emit the JSON. Tally the plan you actually built (not
+what you intended) and fill nutrition_summary from the real week:
+- protein_sources: the distinct protein sources actually used.
+- veg_subgroups: the MyPlate vegetable subgroups actually represented.
+- seafood_servings: the actual number of seafood servings.
+- produce_half_plate: true ONLY if produce really fills about half the plate across the week; else false.
+- shortfalls: for EVERY target (1–5) the finished plan does NOT meet, add ONE honest entry that names the
+  gap AND the cost/availability reason it could not be met this week. Examples: "Protein monotony —
+  chicken is the only protein source; it was the week's sale anchor and no comparably priced second
+  protein was available to rotate in." / "Vegetable subgroups — only starchy represented; the affordable
+  produce this week was potatoes and corn." / "No seafood — none was on sale and fresh fish would break
+  the budget." / "Produce under half-plate — the budget went to protein and staples." If the plan meets
+  every target, shortfalls is an empty array []. Do NOT omit a real shortfall to make the plan look
+  balanced — an honestly flagged shortfall is the correct output; a silently monotone week is the defect.
+- notes: brief positive commentary if useful (for example a legume-plus-grain vegetarian night that also
+  cut cost), or null.
+
+This is general healthy-eating guidance for weekly variety, not medical nutrition therapy. A diagnosed
+condition, a therapeutic or clinical diet, or allergy management with anaphylaxis risk requires a
+Registered Dietitian — do not present this pass as clinical dieting.
 
 
 STEP 4 — GENERATE THE SHOPPING LIST (DEPLETION-RECONCILED)
@@ -385,7 +433,7 @@ safety net, not a target: emit the schema exactly.
   "shopping_list": [ { "item": "...", "quantity": "...", "store": "store name or any", "price": 0.00, "price_type": "confirmed | estimated", "category": "sale | staple | restock", "notes": "... or null", "meals_spanned": 2 } ],
   "pantry_alerts": [ { "item": "...", "concern": "..." } ],
   "cost_summary": { "total_estimated": 0.00, "per_person_per_day": 0.00, "by_store": { "StoreName": 0.00 } },
-  "nutrition_summary": { "protein_sources": ["..."], "veg_subgroups": ["..."], "seafood_servings": 0, "produce_half_plate": true, "notes": "... or null" },
+  "nutrition_summary": { "protein_sources": ["..."], "veg_subgroups": ["..."], "seafood_servings": 0, "produce_half_plate": true, "shortfalls": ["... one entry per unmet weekly target, or empty array []"], "notes": "... or null" },
   "overlap_map": { "item name": [1, 3, 5] }
 }
 
@@ -398,7 +446,7 @@ Field notes:
 - "shelf_life_tier" (ingredient): integer 0-3 per USDA FSIS cold-storage tiers — 0 = 1-2 day (ground meat/poultry, fish, soft herbs, tender greens, berries, ripe avocado), 1 = 3-5 day (large raw cuts, broccoli, peppers, mushrooms, leftovers), 2 = 1-2 week (carrots, cabbage, citrus, apples, hard cheese, eggs), 3 = weeks-plus / shelf-stable / frozen. null if not applicable.
 - "cook_by"/"freeze_by" (ingredient): calendar date the item must be cooked (Tier-0/1) or frozen if offloaded day-0. Both null for shelf-stable items.
 - "meals_spanned" (shopping_list): count of meals a purchased item feeds. A perishable with meals_spanned = 1 is a stranded-remainder risk (single-use audit).
-- "nutrition_summary" (top-level): weekly-level MyPlate check — protein sources used, vegetable subgroups represented, seafood servings, whether produce ~half-fills the plate. General healthy-eating guidance, not medical nutrition therapy. May be null.
+- "nutrition_summary" (top-level): weekly-level MyPlate balance result (see STEP 3.5) — the protein sources actually used, vegetable subgroups represented, seafood servings, and whether produce ~half-fills the plate across the week. "shortfalls" is an array of honest entries, one per weekly target the budget-optimal plan could not meet (protein rotation ≥3, ~2 seafood servings, ≥3 of 5 veg subgroups, ~half-plate produce), each naming the gap and its cost/availability reason; an empty array [] means every target was met. General healthy-eating guidance for weekly variety, not medical nutrition therapy. May be null.
 - "overlap_map" (top-level): optional map of item -> list of day numbers that use it. May be null.
 
 
@@ -415,7 +463,7 @@ BEGIN_WEEKLY_FEAST_JSON
   "shopping_list": [{"item":"Onion","quantity":"1","store":"QFC","price":0.75,"price_type":"confirmed","category":"staple","notes":null,"meals_spanned":2}],
   "pantry_alerts": [],
   "cost_summary": {"total_estimated":18.40,"per_person_per_day":1.31,"by_store":{"QFC":10.20,"Safeway":8.20}},
-  "nutrition_summary": {"protein_sources":["chicken","eggs"],"veg_subgroups":["starchy"],"seafood_servings":0,"produce_half_plate":false,"notes":"Short worked example — real weeks should rotate more protein and produce."},
+  "nutrition_summary": {"protein_sources":["chicken","eggs"],"veg_subgroups":["starchy"],"seafood_servings":0,"produce_half_plate":false,"shortfalls":["Vegetable subgroups — only starchy represented; a real week should span at least three of the five subgroups.","No seafood — aim for about two servings a week (canned tuna/salmon count and are cheap)."],"notes":"Short worked example — a real week should rotate more protein and produce."},
   "overlap_map": {"Onion":[1]}
 }
 END_WEEKLY_FEAST_JSON
@@ -715,6 +763,7 @@ function normalizePlan(data){
     veg_subgroups: Array.isArray(ns.veg_subgroups)?ns.veg_subgroups.map(String):[],
     seafood_servings: toNum(ns.seafood_servings),
     produce_half_plate: ns.produce_half_plate===true,
+    shortfalls: Array.isArray(ns.shortfalls)?ns.shortfalls.map(String):[],
     notes: ns.notes!=null?String(ns.notes):null
   } : null;
   let overlap_map=null;
@@ -840,6 +889,35 @@ function _djb2(str){let x=5381;for(let i=0;i<str.length;i++){x=((x<<5)+x+str.cha
       }
     }
     try{localStorage.removeItem(V3)}catch(e){}
+    localStorage.setItem(DONE,'1');
+  }catch(e){/* migration is best-effort */}
+})();
+
+// ── One-time template migration v4 → v5 (S5 STEP 3.5 weekly-nutrition-balance pass) ──
+// Same contract as migrateTemplateV4: exact-equality test against the pristine v4 default via djb2.
+// A non-customizing user (stored v4 === pristine v4 default) is force-upgraded to the STEP 3.5
+// template; a user who hand-edited their template is carried forward untouched under the new key and
+// can re-pull via the editor. The hash test can only ever false-PRESERVE, never false-REPLACE.
+const PREV_TEMPLATE_V4_HASH=2342717482; // djb2 of the pristine v4 DEFAULT_PROMPT_TEMPLATE
+(function migrateTemplateV5(){
+  try{
+    const DONE='mp:migrated-template-v5';
+    if(localStorage.getItem(DONE))return;
+    const V4='mp:prompt-template-v4',V5=KEYS.promptTemplate;
+    const oldV4=localStorage.getItem(V4);
+    const hasV5=localStorage.getItem(V5)!=null;
+    if(oldV4!=null&&!hasV5){
+      let parsed;try{parsed=JSON.parse(oldV4)}catch(e){parsed=oldV4}
+      const oldText=typeof parsed==='string'?parsed:'';
+      if(oldText&&_djb2(oldText)===PREV_TEMPLATE_V4_HASH){
+        // pristine v4 default: adopt the new v5 nutrition-balance default (no user edits to preserve)
+        _pendingUpgradeToast='Prompt template upgraded — it now balances weekly nutrition variety and flags shortfalls.';
+      }else if(oldText){
+        // hand-edited: carry the user's template forward under the new key, untouched
+        try{localStorage.setItem(V5,JSON.stringify(oldText))}catch(e){}
+      }
+    }
+    try{localStorage.removeItem(V4)}catch(e){}
     localStorage.setItem(DONE,'1');
   }catch(e){/* migration is best-effort */}
 })();
@@ -1085,7 +1163,9 @@ function renderDashboard(){
     if(Array.isArray(ns.veg_subgroups)&&ns.veg_subgroups.length)bits.push('Veg groups: '+esc(ns.veg_subgroups.join(', ')));
     if(ns.seafood_servings!=null)bits.push('Seafood: '+esc(String(ns.seafood_servings))+'/wk');
     bits.push('Produce ~half the plate: '+(ns.produce_half_plate?'yes':'no'));
-    h+=`<div class="card" style="padding:12px 16px"><div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Weekly nutrition (MyPlate frame — general guidance)</div><div style="font-size:11px;color:var(--fg2);line-height:1.6">${bits.join(' · ')}${ns.notes?`<div style="color:var(--fg3);margin-top:3px">${esc(ns.notes)}</div>`:''}</div></div>`;
+    const sf=Array.isArray(ns.shortfalls)?ns.shortfalls.filter(x=>x!=null&&String(x).trim()):[];
+    const sfHtml=sf.length?`<div style="color:var(--amber);font-weight:600;margin-top:6px">⚠ Nutrition shortfalls this week:</div>${sf.map(x=>`<div style="color:#fde68a;margin-top:2px">• ${esc(String(x))}</div>`).join('')}`:'';
+    h+=`<div class="card" style="padding:12px 16px"><div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Weekly nutrition (MyPlate frame — general guidance)</div><div style="font-size:11px;color:var(--fg2);line-height:1.6">${bits.join(' · ')}${sfHtml}${ns.notes?`<div style="color:var(--fg3);margin-top:3px">${esc(ns.notes)}</div>`:''}</div></div>`;
   }
 
   // Shopping list first on both mobile and desktop — it's the active working area
