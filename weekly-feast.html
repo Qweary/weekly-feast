@@ -247,6 +247,21 @@ STEP 3 — BUILD THE MEAL PLAN
 
 Dinners: Select recipes for each planned dinner night (accounting for any skipped nights from special instructions). Maximize ingredient overlap across the week, and enforce it as a hard rule rather than an aspiration: any perishable bought in a bunch or multi-serving format that a single meal cannot finish (a bunch of cilantro or scallions, a head of cabbage, a bag of greens, a tub of sour cream, a block of cheese) MUST be routed to at least two — ideally three — meals scheduled close enough together to use it before it decays (one bunch of cilantro → tacos, a grain bowl, and a soup garnish within four days). Use cascade cooking to build that overlap on purpose: cook a base once and redeploy it across days (a roast chicken → sliced for dinner day 1, shredded into wraps or a salad day 2, the carcass into soup or stock day 3; one pot of grains or one tray of roasted vegetables fanned across several meals as a shared component). Planned leftovers and shared components are a design choice that cuts cost and waste at once — build them in deliberately. Sequence meals by perishability as a descending staircase, not a coarse first-half/second-half split. Place the most perishable ingredients earliest and pin them tightly: Tier-0 items with a 1-2 day refrigerated life (fresh fish and shellfish, fresh ground meat and ground poultry, delicate soft herbs like cilantro and basil, tender salad greens, fresh berries, ripe avocado) MUST be cooked on day 1 or day 2 — this is the first-48 rule: highly perishable meat and produce is cooked or frozen within 48 hours of purchase. Schedule Tier-1 items with a 3-5 day life (large raw cuts of beef and pork, broccoli, asparagus, green beans, mushrooms, bell peppers) on days 2-4. Spread Tier-2 items with a 1-2 week life (carrots, celery, cabbage, citrus, apples, hard cheeses, eggs) across the mid-to-late week. Backfill the last days (day 5 onward) with Tier-3, frozen, and pantry-stable items (potatoes, onions, winter squash, canned and dried goods, anything frozen). Read the finished week top to bottom: perishability should fall, never rise, from the first dinner to the last. Freezer offload is the pressure valve — if the plan or a sale-driven bulk buy brings in more Tier-0 or Tier-1 protein than can be cooked within its refrigerated window (common for a small household buying a family pack), direct the household to portion and freeze the surplus on day 0, the shopping day, dated and rotated first-in-first-out, and pull it to a back-half night. Freezing pauses the decay clock and suits proteins, cooked components, and stock; do not freeze high-water raw produce or tender greens for fresh use. Call out each freeze-on-day-0 action in that day's perishability_note and in the narrative so the household actually freezes it in time. For each dinner, calculate approximate cost per serving using confirmed sale prices where available and estimates where not, and judge value on cost per serving actually eaten rather than sticker or shelf-unit price. When comparing package sizes or a bulk buy, use spoilage-adjusted unit cost: divide the price by the quantity the household will realistically consume before it spoils, not the quantity printed on the label — a larger, cheaper-per-ounce pack is only cheaper if it is fully used, and for a small household a family-size perishable is often more expensive per serving eaten once the spoiled remainder is priced in. When cost and perishability conflict, favor the plan that is fully consumed. When two options cost similarly, favor the one using fresh seasonal produce over processed ingredients, and note this choice. Compute actual calendar dates for each day by counting forward from {{START_DATE}}.
 
+For each ingredient, also record its shelf-life tier and, for any Tier-0 or Tier-1 perishable, the
+date by which it must be cooked or frozen: shelf_life_tier is 0 (fish/shellfish, ground meat/poultry,
+soft herbs, tender greens, berries, ripe avocado — 1-2 days), 1 (large raw beef/pork cuts, broccoli,
+asparagus, green beans, mushrooms, bell peppers, cooked leftovers — 3-5 days), 2 (carrots, celery,
+cabbage, citrus, apples, hard cheese, eggs — 1-2 weeks), or 3 (onions, potatoes, winter squash, canned,
+dried grains/pasta/legumes, oils, anything frozen — weeks to months). Set cook_by (Tier-0/1) or
+freeze_by (if it will be frozen on day 0) to the actual calendar date; leave both null for Tier-2/3
+shelf-stable items. These tiers follow USDA FSIS / FoodSafety.gov cold-storage guidance — do not invent
+shorter or longer windows.
+
+After building the week, fill nutrition_summary: list the distinct protein sources used, the vegetable
+subgroups represented (dark-green; red/orange; beans/peas/lentils; starchy; other), and whether produce
+fills about half the plate across the week on average — following MyPlate's plate-level frame extended
+to the week, not per-meal. This is general healthy-eating guidance, not medical nutrition therapy.
+
 Breakfasts and lunches: Provide simple text suggestions (oatmeal, sandwiches, eggs, leftovers, simple salads) without full recipe treatment. These should be low-effort, pantry-driven meals. Reference specific leftovers by name where applicable (e.g., "leftover beef stew from Day 3").
 
 Pantry consumption check: After drafting the full week's plan, review cumulative ingredient usage against the pantry state. If any pantry item categorized as "well-stocked" or "getting low" would be substantially depleted by the week's meals (e.g., the plan uses rice in 5 of 7 dinners, or multiple recipes draw heavily on the same spice), flag it in the pantry_alerts section of the JSON. This helps the household anticipate restock needs before they run out.
@@ -366,10 +381,12 @@ safety net, not a target: emit the schema exactly.
     "stores_estimated": ["Walmart"],
     "confidence": "normal"
   },
-  "meal_plan": [ { "day": 1, "date": "YYYY-MM-DD", "breakfast": "...", "lunch": "...", "dinner": { "name": "...", "source_url": "...", "source_site": "...", "servings": 4, "cost_per_serving": 2.85, "perishability_note": "... or null", "quality_note": "... or null", "ingredients": [ { "item": "...", "quantity": "...", "source": "sale | pantry | staple", "store": "store name or null", "price_estimate": 0.00 } ] } } ],
-  "shopping_list": [ { "item": "...", "quantity": "...", "store": "store name or any", "price": 0.00, "price_type": "confirmed | estimated", "category": "sale | staple | restock", "notes": "... or null" } ],
+  "meal_plan": [ { "day": 1, "date": "YYYY-MM-DD", "breakfast": "...", "lunch": "...", "dinner": { "name": "...", "source_url": "...", "source_site": "...", "servings": 4, "cost_per_serving": 2.85, "perishability_note": "... or null", "quality_note": "... or null", "ingredients": [ { "item": "...", "quantity": "...", "source": "sale | pantry | staple", "store": "store name or null", "price_estimate": 0.00, "shelf_life_tier": 0, "cook_by": "YYYY-MM-DD or null", "freeze_by": "YYYY-MM-DD or null" } ] } } ],
+  "shopping_list": [ { "item": "...", "quantity": "...", "store": "store name or any", "price": 0.00, "price_type": "confirmed | estimated", "category": "sale | staple | restock", "notes": "... or null", "meals_spanned": 2 } ],
   "pantry_alerts": [ { "item": "...", "concern": "..." } ],
-  "cost_summary": { "total_estimated": 0.00, "per_person_per_day": 0.00, "by_store": { "StoreName": 0.00 } }
+  "cost_summary": { "total_estimated": 0.00, "per_person_per_day": 0.00, "by_store": { "StoreName": 0.00 } },
+  "nutrition_summary": { "protein_sources": ["..."], "veg_subgroups": ["..."], "seafood_servings": 0, "produce_half_plate": true, "notes": "... or null" },
+  "overlap_map": { "item name": [1, 3, 5] }
 }
 
 Field notes:
@@ -378,6 +395,11 @@ Field notes:
 - "price_type" in shopping_list: "confirmed" from actual ad/coupon listing, "estimated" from general knowledge.
 - "category" in shopping_list: "sale" for deal-driven purchases, "staple" for regular-price necessities, "restock" for items the pantry shows as low or out.
 - "pantry_alerts": Include entries only when cumulative weekly usage warrants a heads-up. An empty array is fine if no alerts are needed.
+- "shelf_life_tier" (ingredient): integer 0-3 per USDA FSIS cold-storage tiers — 0 = 1-2 day (ground meat/poultry, fish, soft herbs, tender greens, berries, ripe avocado), 1 = 3-5 day (large raw cuts, broccoli, peppers, mushrooms, leftovers), 2 = 1-2 week (carrots, cabbage, citrus, apples, hard cheese, eggs), 3 = weeks-plus / shelf-stable / frozen. null if not applicable.
+- "cook_by"/"freeze_by" (ingredient): calendar date the item must be cooked (Tier-0/1) or frozen if offloaded day-0. Both null for shelf-stable items.
+- "meals_spanned" (shopping_list): count of meals a purchased item feeds. A perishable with meals_spanned = 1 is a stranded-remainder risk (single-use audit).
+- "nutrition_summary" (top-level): weekly-level MyPlate check — protein sources used, vegetable subgroups represented, seafood servings, whether produce ~half-fills the plate. General healthy-eating guidance, not medical nutrition therapy. May be null.
+- "overlap_map" (top-level): optional map of item -> list of day numbers that use it. May be null.
 
 
 WORKED EXAMPLE (one day shown — output ALL planned days in this exact shape; note
@@ -387,12 +409,14 @@ BEGIN_WEEKLY_FEAST_JSON
 {
   "metadata": {"plan_date":"2026-03-09","plan_days":7,"household_size":2,"stores_searched":["QFC","Kroger","Safeway","Walmart"],"stores_confirmed":["QFC","Safeway"],"stores_estimated":["Walmart"],"confidence":"normal"},
   "meal_plan": [
-    {"day":1,"date":"2026-03-09","breakfast":"Oatmeal with banana","lunch":"Turkey sandwiches","dinner":{"name":"One-Pot Chicken and Rice","source_url":"https://example.com/chicken-rice","source_site":"Budget Bytes","servings":2,"cost_per_serving":1.85,"perishability_note":"Uses fresh cilantro — early in week","quality_note":null,"ingredients":[{"item":"chicken thighs","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null},{"item":"onion","quantity":"1","source":"staple","store":"QFC","price_estimate":0.75}]}},
+    {"day":1,"date":"2026-03-09","breakfast":"Oatmeal with banana","lunch":"Turkey sandwiches","dinner":{"name":"One-Pot Chicken and Rice","source_url":"https://example.com/chicken-rice","source_site":"Budget Bytes","servings":2,"cost_per_serving":1.85,"perishability_note":"Uses fresh cilantro — early in week","quality_note":null,"ingredients":[{"item":"chicken thighs","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null,"shelf_life_tier":0,"cook_by":"2026-03-10","freeze_by":null},{"item":"onion","quantity":"1","source":"staple","store":"QFC","price_estimate":0.75,"shelf_life_tier":3,"cook_by":null,"freeze_by":null}]}},
     {"day":2,"date":"2026-03-10","breakfast":"Eggs and toast","lunch":"Leftover chicken and rice","dinner":{"name":"Leftovers — Day 1 chicken and rice","source_url":null,"source_site":null,"servings":2,"cost_per_serving":null,"perishability_note":null,"quality_note":null,"ingredients":[]}}
   ],
-  "shopping_list": [{"item":"Onion","quantity":"1","store":"QFC","price":0.75,"price_type":"confirmed","category":"staple","notes":null}],
+  "shopping_list": [{"item":"Onion","quantity":"1","store":"QFC","price":0.75,"price_type":"confirmed","category":"staple","notes":null,"meals_spanned":2}],
   "pantry_alerts": [],
-  "cost_summary": {"total_estimated":18.40,"per_person_per_day":1.31,"by_store":{"QFC":10.20,"Safeway":8.20}}
+  "cost_summary": {"total_estimated":18.40,"per_person_per_day":1.31,"by_store":{"QFC":10.20,"Safeway":8.20}},
+  "nutrition_summary": {"protein_sources":["chicken","eggs"],"veg_subgroups":["starchy"],"seafood_servings":0,"produce_half_plate":false,"notes":"Short worked example — real weeks should rotate more protein and produce."},
+  "overlap_map": {"Onion":[1]}
 }
 END_WEEKLY_FEAST_JSON
 
@@ -602,14 +626,17 @@ function parseCandidate(str){
 
 function normalizeIngredient(ing){
   if(ing==null)return null;
-  if(typeof ing==='string')return{item:ing,quantity:'',source:'staple',store:null,price_estimate:null};
+  if(typeof ing==='string')return{item:ing,quantity:'',source:'staple',store:null,price_estimate:null,shelf_life_tier:null,cook_by:null,freeze_by:null};
   if(typeof ing!=='object')return null;
   return{
     item: ing.item!=null?String(ing.item):'',
     quantity: ing.quantity!=null?String(ing.quantity):'',
     source: (ing.source==='sale'||ing.source==='pantry'||ing.source==='staple')?ing.source:'staple',
     store: ing.store!=null?String(ing.store):null,
-    price_estimate: toNum(ing.price_estimate)
+    price_estimate: toNum(ing.price_estimate),
+    shelf_life_tier: ([0,1,2,3].includes(ing.shelf_life_tier))?ing.shelf_life_tier:null,
+    cook_by: (typeof ing.cook_by==='string'&&ing.cook_by.trim())?ing.cook_by:null,
+    freeze_by: (typeof ing.freeze_by==='string'&&ing.freeze_by.trim())?ing.freeze_by:null
   };
 }
 function normalizeDay(day,idx){
@@ -641,7 +668,7 @@ function normalizeDay(day,idx){
 }
 function normalizeShopItem(it){
   if(it==null)return null;
-  if(typeof it==='string')return{item:it,quantity:'',store:'any',price:null,price_type:'estimated',category:'staple',notes:null};
+  if(typeof it==='string')return{item:it,quantity:'',store:'any',price:null,price_type:'estimated',category:'staple',notes:null,meals_spanned:null};
   if(typeof it!=='object')return null;
   return{
     item: it.item!=null?String(it.item):'',
@@ -650,7 +677,8 @@ function normalizeShopItem(it){
     price: toNum(it.price),
     price_type: it.price_type==='confirmed'?'confirmed':'estimated',
     category: (it.category==='sale'||it.category==='staple'||it.category==='restock')?it.category:'staple',
-    notes: it.notes!=null?String(it.notes):null
+    notes: it.notes!=null?String(it.notes):null,
+    meals_spanned: (function(){const n=toNum(it.meals_spanned);return (n!=null&&n>=1)?Math.floor(n):null;})()
   };
 }
 // Coerce any parsed object into the exact renderable plan shape.
@@ -681,7 +709,24 @@ function normalizePlan(data){
     per_person_per_day: toNum(cs.per_person_per_day),
     by_store: by_store
   };
-  return{metadata:metadata,meal_plan:meal_plan,shopping_list:shopping_list,pantry_alerts:pantry_alerts,cost_summary:cost_summary};
+  const ns=(d.nutrition_summary&&typeof d.nutrition_summary==='object'&&!Array.isArray(d.nutrition_summary))?d.nutrition_summary:null;
+  const nutrition_summary= ns? {
+    protein_sources: Array.isArray(ns.protein_sources)?ns.protein_sources.map(String):[],
+    veg_subgroups: Array.isArray(ns.veg_subgroups)?ns.veg_subgroups.map(String):[],
+    seafood_servings: toNum(ns.seafood_servings),
+    produce_half_plate: ns.produce_half_plate===true,
+    notes: ns.notes!=null?String(ns.notes):null
+  } : null;
+  let overlap_map=null;
+  if(d.overlap_map&&typeof d.overlap_map==='object'&&!Array.isArray(d.overlap_map)){
+    overlap_map={};
+    for(const k of Object.keys(d.overlap_map)){
+      const v=d.overlap_map[k];
+      if(Array.isArray(v)){const arr=v.map(x=>toNum(x)).filter(x=>x!=null); if(arr.length)overlap_map[k]=arr;}
+    }
+    if(!Object.keys(overlap_map).length)overlap_map=null;
+  }
+  return{metadata:metadata,meal_plan:meal_plan,shopping_list:shopping_list,pantry_alerts:pantry_alerts,cost_summary:cost_summary,nutrition_summary:nutrition_summary,overlap_map:overlap_map};
 }
 
 // How plan-like is a parsed object (0 = narrative noise, 3 = full plan)?
@@ -1009,7 +1054,7 @@ function renderDashboard(){
       <div class="flex gap-10" style="flex-wrap:wrap;justify-content:center"><button class="btn btn-primary" data-nav="review">Start Weekly Review</button><button class="btn btn-default" data-nav="import">Import Mock Data</button></div></div>`;
     return h;
   }
-  const{meal_plan:mp=[],shopping_list:sl=[],cost_summary:cs={},metadata:md={},pantry_alerts:pa=[]}=plan;
+  const{meal_plan:mp=[],shopping_list:sl=[],cost_summary:cs={},metadata:md={},pantry_alerts:pa=[],nutrition_summary:ns=null}=plan;
   const byStore={};sl.forEach((item,i)=>{const s=item.store||'Other';if(!byStore[s])byStore[s]=[];byStore[s].push({...item,_gi:i})});
   const cc=Object.values(S.checkedItems).filter(Boolean).length;
   const conf=md.stores_confirmed||[],est=md.stores_estimated||[];
@@ -1031,6 +1076,17 @@ function renderDashboard(){
     ${cs.by_store?Object.entries(cs.by_store).map(([s,a])=>`<div><div style="font-size:10px;color:var(--fg3)">${esc(s)}</div><div style="font-size:14px;font-weight:600;color:var(--fg2)">$${n2(a)}</div></div>`).join(''):''}
     ${(conf.length||est.length)?`<div style="width:100%;padding-top:6px;border-top:1px solid var(--border);font-size:10px;color:var(--fg3)">${conf.length?'Confirmed: '+esc(conf.join(', ')):''}${conf.length&&est.length?' · ':''}${est.length?'<span style="color:var(--amber)">Estimated: '+esc(est.join(', '))+'</span>':''}</div>`:''}
   </div>`;
+
+  // Weekly nutrition — plain informational line (MyPlate weekly frame). Minimal by
+  // design: a designed affect-bearing quality strip is a deferred, Marshaling-gated item.
+  if(ns){
+    const bits=[];
+    if(Array.isArray(ns.protein_sources)&&ns.protein_sources.length)bits.push('Proteins: '+esc(ns.protein_sources.join(', ')));
+    if(Array.isArray(ns.veg_subgroups)&&ns.veg_subgroups.length)bits.push('Veg groups: '+esc(ns.veg_subgroups.join(', ')));
+    if(ns.seafood_servings!=null)bits.push('Seafood: '+esc(String(ns.seafood_servings))+'/wk');
+    bits.push('Produce ~half the plate: '+(ns.produce_half_plate?'yes':'no'));
+    h+=`<div class="card" style="padding:12px 16px"><div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Weekly nutrition (MyPlate frame — general guidance)</div><div style="font-size:11px;color:var(--fg2);line-height:1.6">${bits.join(' · ')}${ns.notes?`<div style="color:var(--fg3);margin-top:3px">${esc(ns.notes)}</div>`:''}</div></div>`;
+  }
 
   // Shopping list first on both mobile and desktop — it's the active working area
   h+=renderShoppingSection(sl,byStore,cc);
@@ -1071,6 +1127,7 @@ function renderMealCards(mp){
       <div style="border-top:1px solid var(--border);padding-top:6px">
         ${dinnerBlock}
         ${d.perishability_note?`<div style="font-size:10px;color:var(--amber);margin-top:3px">⏱ ${esc(d.perishability_note)}</div>`:''}
+        ${(()=>{const cbs=(d.ingredients||[]).map(x=>x&&x.cook_by).filter(Boolean).sort();return cbs.length?`<div style="font-size:10px;color:var(--fg3);margin-top:3px">🍳 cook by ${esc(cbs[0])}</div>`:'';})()}
         ${d.quality_note?`<div style="font-size:10px;color:#a78bfa;margin-top:3px">★ ${esc(d.quality_note)}</div>`:''}
       </div></div>`}).join('')}</div>`;
 }
@@ -1084,7 +1141,7 @@ function renderShoppingSection(sl,byStore,cc){
       const chk=S.checkedItems[item._gi];
       return `<div class="shop-row ${chk?'checked':''}" data-shoprow="${item._gi}" role="checkbox" aria-checked="${chk?'true':'false'}" tabindex="0">
         <input type="checkbox" ${chk?'checked':''} tabindex="-1" aria-hidden="true">
-        <span class="shop-name" style="flex:1;font-size:12px">${esc(item.item)}${item.notes?` <span style="font-size:9px;color:var(--fg3)">(${esc(item.notes)})</span>`:''}</span>
+        <span class="shop-name" style="flex:1;font-size:12px">${esc(item.item)}${item.notes?` <span style="font-size:9px;color:var(--fg3)">(${esc(item.notes)})</span>`:''}${item.meals_spanned!=null?` <span style="font-size:9px;color:var(--fg4)">· feeds ${item.meals_spanned} meal${item.meals_spanned===1?'':'s'}</span>`:''}</span>
         <span class="cat-badge" style="background:${ci.color}18;color:${ci.color}">${ci.label}</span>
         <span style="font-size:11px;color:var(--fg3);min-width:50px;text-align:right">${esc(item.quantity)}</span>
         <span style="font-size:11px;color:${item.price_type==='confirmed'?'var(--green)':'var(--amber)'};min-width:60px;text-align:right">$${n2(item.price)}${item.price_type==='estimated'?'<span style="font-size:9px;opacity:.8"> (est.)</span>':''}</span>
