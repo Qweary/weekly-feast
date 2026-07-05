@@ -155,6 +155,7 @@ const NAV_ITEMS=[
 {id:"generate",label:"Prompt",icon:"⟩"},
 {id:"import",label:"Import",icon:"⇩"},
 {id:"preferences",label:"Prefs",icon:"⚙"},
+{id:"pricewatch",label:"Prices",icon:"⇅"},
 {id:"consumption",label:"Log",icon:"📊",disabled:true}
 ];
 
@@ -1097,6 +1098,181 @@ function showToast(msg){
 function nav(screen){S.screen=screen;render()}
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PRICE WATCH (PRISM-08) — read-only projection over S.planHistory
+// ═══════════════════════════════════════════════════════════════════════════
+// A pure reader: computes a fresh in-memory band/trend model from the household's
+// OWN confirmed prices each call and returns an HTML string. ZERO writes — never
+// mutates S.*, localStorage, or checkedItems (no new KEYS entry, no template/key
+// bump). The sparse-history floor holds on its own: 0 / 1-2 weeks / <3-confirmed /
+// all-estimated / mixed-vintage (pre-shelf_life_tier) / malformed history all render
+// gracefully, never throw, never render min==max as a trend. Band math + stock-up
+// gate per Becquerel (median=lower-of-two, pooled cross-store band with store-on-low,
+// tier-3-only stock-up, most-recent non-null tier join); latest-vs-typical delta
+// colours per Lens's dead-band thresholds. Every pasted item/store name goes through
+// esc() before insertion (names are untrusted pasted-Claude JSON).
+function pwNorm(s){return String(s==null?'':s).trim().toLowerCase();}
+
+// Lower-of-two median (Becquerel 1b: a real observed price, deterministic, safe delta
+// direction). Odd count → the single central value.
+function pwMedian(nums){
+  const a=nums.slice().sort((x,y)=>x-y);const n=a.length;
+  if(n===0)return null;
+  return (n%2===1)?a[(n-1)/2]:a[n/2-1];
+}
+
+// Latest-vs-typical delta → {color,caret,phrase,mag} (Lens §4c dead-band, first-match
+// order). Direction is carried by the caret AND the phrase, never colour alone. Green
+// is rationed to the exact recorded floor; the ±2% dead-band only softens neutral/amber.
+function pwDelta(latest,min,max,median){
+  const pctBelow=Math.round(100*(median-latest)/median);
+  const pctAbove=Math.round(100*(latest-median)/median);
+  if(max-min<=0.005) return {color:'var(--fg)',caret:'–',phrase:'steady — no change yet',mag:''};
+  if(latest<=min+0.005) return {color:'var(--green)',caret:'▾',phrase:'your lowest recorded price',mag:(pctBelow>=1?`(${pctBelow}% below typical)`:'')};
+  if(latest>median*1.02) return {color:'var(--amber)',caret:'▴',phrase:'above your typical',mag:`(${pctAbove}% above typical)`};
+  if(latest<median*0.98) return {color:'var(--fg)',caret:'▾',phrase:'below your typical',mag:`(${pctBelow}% below typical)`};
+  return {color:'var(--fg)',caret:'–',phrase:'right around your typical',mag:''};
+}
+
+// Stock-up gate (Becquerel Ruling 3, verbatim): fire iff at the recorded floor AND
+// provably shelf-stable (tier===3). meals_spanned/category NEVER enter the gate;
+// unknown/absent tier → suppress (the Number.isInteger guard).
+function pwStockUp(latest,min,tier){return (latest<=min+0.005)&&Number.isInteger(tier)&&tier===3;}
+
+// Build the read-only model from S.planHistory (newest-first; index 0 = most recent).
+// Returns {weeksRecorded, ranked:[…≥3 confirmed weeks, sorted best-deal-first],
+// building:[…1-2 confirmed weeks]}. Every field read is guarded — old vintages lack
+// meals_spanned / shelf_life_tier / metadata, and pasted history may be malformed.
+function pwBuildModel(){
+  const hist=Array.isArray(S.planHistory)?S.planHistory:[];
+  // Shelf-life-tier join: MOST-RECENT non-null wins (newest-first iteration → first
+  // seen is freshest; captures a later tier correction, ignores stale/null vintages).
+  const tierMap={};
+  for(let wi=0;wi<hist.length;wi++){
+    const e=hist[wi];
+    const mp=(e&&e.plan&&Array.isArray(e.plan.meal_plan))?e.plan.meal_plan:[];
+    for(const day of mp){
+      const ings=(day&&day.dinner&&Array.isArray(day.dinner.ingredients))?day.dinner.ingredients:[];
+      for(const ing of ings){
+        if(!ing||typeof ing!=='object')continue;
+        const t=ing.shelf_life_tier;
+        if(Number.isInteger(t)&&t>=0&&t<=3){const k=pwNorm(ing.item);if(k&&!(k in tierMap))tierMap[k]=t;}
+      }
+    }
+  }
+  // Flatten confirmed observations (drop estimated/null-price entirely), group by norm name.
+  const groups={};
+  for(let wi=0;wi<hist.length;wi++){
+    const e=hist[wi];
+    const sl=(e&&e.plan&&Array.isArray(e.plan.shopping_list))?e.plan.shopping_list:[];
+    for(const it of sl){
+      if(!it||typeof it!=='object')continue;
+      const price=toNum(it.price);
+      if(price==null||!Number.isFinite(price)||it.price_type!=='confirmed')continue;
+      const key=pwNorm(it.item);if(!key)continue;
+      let g=groups[key];
+      if(!g){g=groups[key]={key,points:[],weeks:new Set(),display:String(it.item==null?'':it.item),displayWi:wi};}
+      g.points.push({price,wi,store:(it.store!=null?String(it.store):'')});
+      g.weeks.add(wi);
+      if(wi<g.displayWi){g.displayWi=wi;g.display=String(it.item==null?'':it.item);} // freshest label wins
+    }
+  }
+  const ranked=[],building=[];
+  for(const key of Object.keys(groups)){
+    const g=groups[key];
+    const prices=g.points.map(p=>p.price);
+    const weeks=g.weeks.size;
+    if(weeks>=3){
+      const min=Math.min(...prices),max=Math.max(...prices),median=pwMedian(prices);
+      const smWi=g.displayWi; // smallest (newest) week index in the group
+      const latest=Math.min(...g.points.filter(p=>p.wi===smWi).map(p=>p.price)); // best price that week
+      let lowStore='',lowWi=Infinity;
+      for(const p of g.points){if(p.price===min&&p.wi<lowWi){lowWi=p.wi;lowStore=p.store;}} // most-recent low's store
+      const tier=tierMap[key];
+      const delta=pwDelta(latest,min,max,median);
+      ranked.push({key,display:g.display,weeks,min,max,median,latest,lowStore,tier,delta,
+        signal:(median-latest)/median,
+        fireStockUp:pwStockUp(latest,min,tier) && (max-min>0.005),
+        freshNote:(latest<=min+0.005)&&Number.isInteger(tier)&&tier<3&&(max-min>0.005)});
+    }else{ // 1-2 confirmed weeks — building history: NEVER a band/colour/trend
+      building.push({key,display:g.display,weeks,min:Math.min(...prices),max:Math.max(...prices)});
+    }
+  }
+  ranked.sort((a,b)=>(b.signal-a.signal)||(b.weeks-a.weeks)||(a.display<b.display?-1:a.display>b.display?1:0));
+  building.sort((a,b)=>(b.weeks-a.weeks)||(a.display<b.display?-1:a.display>b.display?1:0));
+  return {weeksRecorded:hist.length,ranked,building};
+}
+
+// One muted building-history row (1-2 weeks; never a band, colour, or stock-up note).
+function pwBuildingRow(b){
+  if(b.weeks===1) return `<div style="font-size:12px;color:var(--fg3);padding:4px 0"><span style="color:var(--fg2)">${esc(b.display)}</span> · first recorded price $${n2(b.min)}</div>`;
+  return `<div style="font-size:12px;color:var(--fg3);padding:4px 0"><span style="color:var(--fg2)">${esc(b.display)}</span> · $${n2(b.min)}–$${n2(b.max)} over 2 weeks · not enough for a trend yet</div>`;
+}
+
+// One ranked watch card (§4b-4e). No coloured border, ever; colour appears only on the
+// delta line and the band-bar dot (which reuses the same delta colour so they agree).
+function pwCard(m){
+  const d=m.delta;
+  const bandBar=(m.max>m.min)
+    ? `<div style="position:relative;height:4px;border-radius:2px;background:var(--border);max-width:220px;margin-top:8px"><div style="position:absolute;top:-2px;width:8px;height:8px;border-radius:50%;background:${d.color};left:${Math.round(((m.latest-m.min)/(m.max-m.min))*100)}%;transform:translateX(-50%)"></div></div>`
+    : '';
+  let note='';
+  if(m.fireStockUp){
+    note=`<div style="font-size:11px;line-height:1.5;color:var(--fg2);margin-top:8px"><span style="color:var(--green)">●</span> Cheapest you've recorded — stock up if it keeps.</div>`;
+  }else if(m.freshNote){
+    note=`<div style="font-size:11px;color:var(--fg3);margin-top:8px">Good week to buy it fresh.</div>`;
+  }
+  return `<div class="card" style="padding:14px;max-width:640px">
+    <div class="flex justify-between items-center">
+      <span style="font-weight:600;color:var(--fg);font-size:13px">${esc(m.display)}</span>
+      <span style="font-size:11px;color:var(--fg3);white-space:nowrap">${m.weeks} weeks</span>
+    </div>
+    <div style="margin-top:6px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+      <span style="font-size:16px;font-weight:700;color:${d.color}">${d.caret} $${n2(m.latest)}</span>
+      <span style="font-size:12px;color:${d.color}">${d.phrase}</span>
+      ${d.mag?`<span style="font-size:11px;color:var(--fg3)">${d.mag}</span>`:''}
+    </div>
+    <div style="font-size:11px;color:var(--fg3);margin-top:8px">low $${n2(m.min)}${m.lowStore?` <span style="color:var(--fg4)">(${esc(m.lowStore)})</span>`:''} · typ $${n2(m.median)} · high $${n2(m.max)}</div>
+    ${bandBar}
+    ${note}
+  </div>`;
+}
+
+// The Price Watch view (States A/B/D). Always renders the header first, then branches;
+// wrapped by render()'s try/catch, but the sparse floor holds on its own (§6 AC-13).
+function renderPriceWatch(){
+  const weeks=Array.isArray(S.planHistory)?S.planHistory.length:0;
+  const s=weeks===1?'':'s';
+  // State A — 0 entries: full empty state mirroring the dashboard no-plan idiom.
+  if(weeks===0){
+    return `<div class="section-title"><h2>Price Watch</h2><div class="sub">Your price record is empty.</div></div>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:46vh;text-align:center">
+      <div style="font-size:48px;margin-bottom:16px;opacity:.3">⇅</div>
+      <div class="section-title"><h2>No price history yet</h2>
+        <div class="sub">Price trends appear once you've imported a few weeks. Import this week's plan to start your price record — trends get useful around 3–4 weeks in.</div></div>
+      <div class="flex gap-10" style="flex-wrap:wrap;justify-content:center">
+        <button class="btn btn-primary" data-nav="review">Start Weekly Review</button>
+        <button class="btn btn-default" data-nav="import">Import Mock Data</button>
+      </div>
+    </div>`;
+  }
+  const model=pwBuildModel();
+  const header=`<div class="section-title"><h2>Price Watch</h2><div class="sub">Trends from your household's own confirmed prices · ${weeks} week${s} recorded</div></div>`;
+  // State B — history exists but no item has ≥3 confirmed weeks yet.
+  if(model.ranked.length===0){
+    const panel=`<div class="card"><div style="font-size:12px;color:var(--fg2);line-height:1.6">You've imported <b style="color:var(--fg)">${weeks}</b> week${s} so far. A price trend and any stock-up hint appear once an item has a confirmed price in <b style="color:var(--fg)">3 different weeks</b> — usually around 3–4 weeks in.</div></div>`;
+    const rows=model.building.length?`<div class="card">${model.building.map(pwBuildingRow).join('')}</div>`:'';
+    return header+panel+rows;
+  }
+  // State D — populated: quiet legend, ranked cards, then any building-history tail.
+  const legend=`<div style="font-size:10px;color:var(--fg3);margin:-8px 0 16px;display:flex;gap:14px;flex-wrap:wrap"><span style="color:var(--green)">▾ at/below your low</span><span>▾ below typical</span><span style="color:var(--amber)">▴ above typical</span></div>`;
+  const cards=model.ranked.map(pwCard).join('');
+  const buildingBlock=model.building.length
+    ? `<div class="section-title" style="margin-top:20px"><h2 style="font-size:14px">Building your record</h2><div class="sub">Items with fewer than 3 confirmed weeks — no trend yet.</div></div><div class="card">${model.building.map(pwBuildingRow).join('')}</div>`
+    : '';
+  return header+legend+cards+buildingBlock;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // RENDERING
 // ═══════════════════════════════════════════════════════════════════════════
 // Error boundary: one malformed field in state/plan must not brick the whole app.
@@ -1113,6 +1289,7 @@ function render(){
       case 'generate':main.innerHTML=renderGenerate();break;
       case 'import':main.innerHTML=renderImport();break;
       case 'preferences':main.innerHTML=renderPreferences();break;
+      case 'pricewatch':main.innerHTML=renderPriceWatch();break;
       case 'consumption':main.innerHTML='<div style="color:var(--fg4);padding:40px;text-align:center">Consumption Log — Coming in Phase 3</div>';break;
     }
     bindEvents();
