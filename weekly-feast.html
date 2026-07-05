@@ -114,7 +114,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v3',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v3',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
 
 const DEFAULT_PANTRY={tier1:[
 {id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",updatedAt:new Date().toISOString()},
@@ -683,16 +683,16 @@ const S={
   promptTemplate:load(KEYS.promptTemplate,DEFAULT_PROMPT_TEMPLATE),
   anchorRecipes:load(KEYS.anchorRecipes,''),
   checkedItems:load(KEYS.checkedItems,{}),
-  removedShoppingItems:[],
+  removedShoppingItems:load(KEYS.removedShoppingItems,[]),
   showRemovedItems:false,
   // Screen-local state
   pantryTab:'tier1',
   reviewStep:0,
   showTemplateEditor:false,
   showAnchorEditor:false,
-  specialInstructions:'',
-  startDate:todayStr(),
-  importRaw:'',
+  specialInstructions:load(KEYS.specialInstructions,''),
+  startDate:load(KEYS.startDate,todayStr()),
+  importRaw:load(KEYS.importRaw,''),
   importError:null,
   importParsed:null,
   confirmAllergy:null,
@@ -709,6 +709,10 @@ function saveHistory(){save(KEYS.planHistory,S.planHistory)}
 function saveTemplate(){save(KEYS.promptTemplate,S.promptTemplate)}
 function saveAnchors(){save(KEYS.anchorRecipes,S.anchorRecipes)}
 function saveCheckedItems(){save(KEYS.checkedItems,S.checkedItems)}
+function saveSpecialInstructions(){save(KEYS.specialInstructions,S.specialInstructions)}
+function saveStartDate(){save(KEYS.startDate,S.startDate)}
+function saveImportRaw(){save(KEYS.importRaw,S.importRaw)}
+function saveRemovedItems(){save(KEYS.removedShoppingItems,S.removedShoppingItems)}
 // Live-update the "N of M items checked" header in place (checkbox toggle skips full render for scroll preservation).
 function updateShopCounter(){
   const el=document.getElementById('shop-counter');
@@ -998,7 +1002,7 @@ function renderGenerate(){
   const prompt=generatePrompt();
   const tokens=Math.round(prompt.length/4);
   let h=`<div class="section-title"><h2>Generate Prompt</h2><div class="sub">Review the generated prompt, then copy and paste into Claude</div></div>`;
-  h+=`<div class="flex gap-12 flex-wrap" style="margin-bottom:16px"><div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Start Date</label><input type="date" class="inp" value="${S.startDate}" onchange="S.startDate=this.value;render()" style="width:150px"></div><div style="flex:1;min-width:200px"><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Special Instructions (optional)</label><input class="inp" value="${esc(S.specialInstructions)}" placeholder="e.g., Include at least 2 vegetarian dinners" oninput="S.specialInstructions=this.value"></div></div>`;
+  h+=`<div class="flex gap-12 flex-wrap" style="margin-bottom:16px"><div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Start Date</label><input type="date" class="inp" value="${S.startDate}" onchange="S.startDate=this.value;debouncedSave('startDate',saveStartDate);render()" style="width:150px"></div><div style="flex:1;min-width:200px"><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Special Instructions (optional)</label><input class="inp" value="${esc(S.specialInstructions)}" placeholder="e.g., Include at least 2 vegetarian dinners" oninput="S.specialInstructions=this.value;debouncedSave('specialInstructions',saveSpecialInstructions)"></div></div>`;
   h+=`<div class="card"><div class="flex justify-between items-center flex-wrap gap-6" style="margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:var(--fg2)">${prompt.length.toLocaleString()} chars · ~${tokens.toLocaleString()} tokens</span><div class="flex gap-6 flex-wrap"><button class="btn btn-default" onclick="S.showAnchorEditor=!S.showAnchorEditor;S.showTemplateEditor=false;render()" style="width:auto;font-size:10px;min-height:36px">${S.showAnchorEditor?'Hide':'Edit'} Anchors</button><button class="btn btn-default" onclick="S.showTemplateEditor=!S.showTemplateEditor;S.showAnchorEditor=false;render()" style="width:auto;font-size:10px;min-height:36px">${S.showTemplateEditor?'Hide':'Edit'} Template</button><button class="btn btn-primary" onclick="copyPrompt()" style="width:auto;min-height:36px">Copy to Clipboard</button></div></div><textarea class="inp" readonly style="min-height:300px;font-size:11px">${esc(prompt)}</textarea></div>`;
   // SURFACE 1 — persistent next-step panel: always shown so the loop is discoverable up front.
   h+=renderNextStepPanel();
@@ -1016,7 +1020,7 @@ function renderGenerate(){
 // ─── Import ─────────────────────────────────────────────────────────────────
 function renderImport(){
   let h=`<div class="section-title"><h2>Import Claude's Response</h2><div class="sub">Paste the full response or just the JSON block</div></div>`;
-  h+=`<div class="card"><div class="flex justify-between items-center" style="margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:var(--fg2)">Paste Response</span><button class="btn btn-default" onclick="loadMock()" style="width:auto;font-size:10px;min-height:32px">Load Mock Data</button></div><textarea class="inp" id="import-area" style="min-height:250px;font-size:11px" oninput="S.importRaw=this.value;S.importError=null;S.importParsed=null" placeholder="Paste Claude's response here...">${esc(S.importRaw)}</textarea><div class="flex gap-8 flex-wrap" style="margin-top:10px"><button class="btn btn-primary" onclick="parseImport()">Parse Response</button><button class="btn btn-default" onclick="S.importRaw='';S.importError=null;S.importParsed=null;render()">Clear</button></div></div>`;
+  h+=`<div class="card"><div class="flex justify-between items-center" style="margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:var(--fg2)">Paste Response</span><button class="btn btn-default" onclick="loadMock()" style="width:auto;font-size:10px;min-height:32px">Load Mock Data</button></div><textarea class="inp" id="import-area" style="min-height:250px;font-size:11px" oninput="S.importRaw=this.value;S.importError=null;S.importParsed=null;debouncedSave('importRaw',saveImportRaw)" placeholder="Paste Claude's response here...">${esc(S.importRaw)}</textarea><div class="flex gap-8 flex-wrap" style="margin-top:10px"><button class="btn btn-primary" onclick="parseImport()">Parse Response</button><button class="btn btn-default" onclick="S.importRaw='';S.importError=null;S.importParsed=null;saveImportRaw();render()">Clear</button></div></div>`;
   if(S.importError) h+=`<div class="card" style="border-color:#991b1b;background:#1a0505"><div style="font-size:11px;font-weight:600;color:#fca5a5;margin-bottom:4px">⚠ Parse Error</div><div style="font-size:12px;color:#fecaca">${esc(S.importError)}</div></div>`;
   if(S.importParsed){
     const d=S.importParsed;
@@ -1146,11 +1150,17 @@ function quickAdjust(id,preset){
 function resetTier2(){S.pantry.tier2=S.pantry.tier2.map(i=>({...i,have:false}));savePantry();showToast("Weekly items reset");render()}
 function restockItem(id){S.pantry.tier1=S.pantry.tier1.map(i=>i.id===id?{...i,status:'well-stocked',updatedAt:new Date().toISOString()}:i);savePantry();render()}
 
+// Robust clipboard write. On file:// (Firefox/mobile) navigator.clipboard is undefined and
+// navigator.clipboard.writeText would throw synchronously past any .catch — guard it, and fall
+// back to the legacy execCommand path. Returns a Promise<boolean> that never throws.
+function _execCopy(str){try{const ta=document.createElement('textarea');ta.value=str;ta.style.position='fixed';ta.style.top='0';ta.style.left='-9999px';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();const ok=document.execCommand('copy');document.body.removeChild(ta);return !!ok}catch(e){return false}}
+function copyText(str){return new Promise(resolve=>{try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(str).then(()=>resolve(true)).catch(()=>resolve(_execCopy(str)))}else{resolve(_execCopy(str))}}catch(e){resolve(_execCopy(str))}})}
+
 // Prompt actions
 function copyPrompt(){
   const prompt=generatePrompt();
   // On success set the session copy flag and re-render so Surface 1 step-1 flips to "Copied ✓".
-  navigator.clipboard.writeText(prompt).then(()=>{S.promptCopied=true;showToast('Prompt copied to clipboard!');render();}).catch(()=>showToast('Copy failed — select and copy manually'));
+  copyText(prompt).then(ok=>{if(ok){S.promptCopied=true;showToast('Prompt copied to clipboard!');render();}else showToast('Copy failed — select and copy manually');});
 }
 
 // Onboarding explainer visibility (P0-2). Dismiss writes the persistent mp:onboarded-v1
@@ -1160,7 +1170,7 @@ function dismissOnboarding(){S.showOnboarding=false;save(KEYS.onboarded,true);re
 function showOnboarding(){S.showOnboarding=true;render();}
 
 // Import actions
-function loadMock(){S.importRaw=JSON.stringify(MOCK_PLAN,null,2);S.importError=null;S.importParsed=null;render()}
+function loadMock(){S.importRaw=JSON.stringify(MOCK_PLAN,null,2);S.importError=null;S.importParsed=null;saveImportRaw();render()}
 function parseImport(){
   const res=parsePlanResponse(S.importRaw);
   if(res.ok){S.importParsed=res.plan;S.importError=null;}
@@ -1174,7 +1184,7 @@ function doImport(){
   S.currentPlan={...plan,importedAt:new Date().toISOString()};
   S.planHistory=[{date:new Date().toISOString(),plan},...S.planHistory].slice(0,52);
   S.checkedItems={};S.removedShoppingItems=[];S.showRemovedItems=false;S.importRaw='';S.importError=null;S.importParsed=null;
-  savePlan();saveHistory();saveCheckedItems();showToast('Meal plan imported!');nav('dashboard');
+  savePlan();saveHistory();saveCheckedItems();saveRemovedItems();saveImportRaw();showToast('Meal plan imported!');nav('dashboard');
 }
 
 // Preference actions
@@ -1202,7 +1212,7 @@ function exportShoppingList(){
       txt+=line+'\n';
     });
   });
-  navigator.clipboard.writeText(txt).then(()=>showToast('Shopping list copied!')).catch(()=>showToast('Copy failed'));
+  copyText(txt).then(ok=>showToast(ok?'Shopping list copied!':'Copy failed — select and copy manually'));
 }
 
 // Shopping list item removal/restore
@@ -1238,7 +1248,7 @@ function removeShoppingItem(idx){
     // ki===idx is the removed item, skip it
   });
   S.checkedItems=newChecked;
-  savePlan();saveCheckedItems();render();
+  savePlan();saveCheckedItems();saveRemovedItems();render();
 }
 
 function restoreShoppingItem(removedIdx){
@@ -1256,7 +1266,7 @@ function restoreShoppingItem(removedIdx){
     const store=item.store||'Other';
     if(cs.by_store)cs.by_store[store]=(cs.by_store[store]||0)+item.price;
   }
-  savePlan();render();
+  savePlan();saveRemovedItems();render();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1309,7 +1319,7 @@ function importAllData(event){
       if('anchorRecipes' in data){S.anchorRecipes=data.anchorRecipes;saveAnchors()}
       if(data.checkedItems){S.checkedItems=data.checkedItems;saveCheckedItems()}
       else{S.checkedItems={};saveCheckedItems()}
-      S.removedShoppingItems=[];S.showRemovedItems=false;
+      S.removedShoppingItems=[];S.showRemovedItems=false;saveRemovedItems();
       showToast(_tplUpgraded?'Data restored — upgraded an old prompt template to the new import format.':'Data restored from backup!');render();
     }catch(err){showToast('Failed to parse backup file: '+err.message)}
   };
