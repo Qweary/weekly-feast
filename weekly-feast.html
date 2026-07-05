@@ -114,7 +114,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v6',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v7',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
 
 const DEFAULT_PANTRY={tier1:[
 {id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",onHand:4,unit:"lb",par:2,updatedAt:new Date().toISOString()},
@@ -140,7 +140,7 @@ const DEFAULT_PANTRY={tier1:[
 ]};
 
 const DEFAULT_PREFERENCES={allergies:[],dislikes:[],positives:["Mexican food","One-pot meals","Seasonal vegetables"]};
-const DEFAULT_HOUSEHOLD={size:2,mealStructure:"Simple breakfasts and lunches, larger dinners",starterActive:false,walmartThreshold:"only-major",region:"Seattle, WA",planDays:7};
+const DEFAULT_HOUSEHOLD={size:2,mealStructure:"Simple breakfasts and lunches, larger dinners",starterActive:false,walmartThreshold:"only-major",region:"Seattle, WA",planDays:7,stores:"QFC, Kroger, Safeway, Walmart"};
 
 const WALMART_LABELS={"only-major":"Only for major savings (>20%)","moderate":"Moderate savings okay (10-15%)","include-freely":"Include Walmart freely"};
 const WALMART_PROMPT={"only-major":"Only recommend Walmart when savings exceed 20% on enough items to justify a separate trip.","moderate":"Recommend Walmart when savings exceed 10-15% on key items.","include-freely":"Treat Walmart as an equal-priority store."};
@@ -191,11 +191,15 @@ Positive preferences: {{PREFERENCES}}.
 
 STORE CONFIGURATION
 
-Target stores in priority order: QFC, Kroger, Safeway, Walmart.
-QFC and Kroger share the Kroger backend, so their weekly ads often overlap — use this to your advantage by searching for Kroger deals once and applying findings to both QFC and Kroger.
+Target stores in priority order: {{STORES}}.
+Many regional grocery chains share a corporate parent and a loyalty/ad backend (for example
+QFC and Kroger both run on the Kroger backend, as do other Kroger-family banners like King
+Soopers, Fred Meyer, and Ralphs), so their weekly ads overlap heavily. When two of the stores
+above share such a backend, search that backend's ad once and apply the findings to both — it
+saves search calls and surfaces the same deals.
 All loyalty pricing and digital coupon pricing is available to the household. Factor those prices into your recommendations.
 
-Walmart threshold: {{WALMART_THRESHOLD}}.
+{{WALMART_BLOCK}}
 
 
 SPECIAL INSTRUCTIONS FOR THIS WEEK
@@ -990,12 +994,49 @@ const PREV_TEMPLATE_V5_HASH=2002962832; // djb2 of the pristine v5 DEFAULT_PROMP
   }catch(e){/* migration is best-effort */}
 })();
 
+// ── One-time template migration v6 → v7 (S6 configurable store list + decoupled Walmart block) ──
+// Same contract as migrateTemplateV6: exact-equality test against the pristine v6 default via djb2.
+// A non-customizing user (stored v6 === pristine v6 default) is force-upgraded to the v7 STORE
+// CONFIGURATION default ({{STORES}} + generalized backend hint + {{WALMART_BLOCK}}); a user who
+// hand-edited their template is carried forward untouched under the new key and can re-pull via the
+// editor. The hash test can only ever false-PRESERVE (a drifted/edited template is kept), never
+// false-REPLACE. Chains after the v5→v6 guard above (which removed the v5 key first).
+const PREV_TEMPLATE_V6_HASH=1247868438; // djb2 of the pristine v6 DEFAULT_PROMPT_TEMPLATE (pre-store-config)
+(function migrateTemplateV7(){
+  try{
+    const DONE='mp:migrated-template-v7';
+    if(localStorage.getItem(DONE))return;
+    const V6='mp:prompt-template-v6',V7=KEYS.promptTemplate;
+    const oldV6=localStorage.getItem(V6);
+    const hasV7=localStorage.getItem(V7)!=null;
+    if(oldV6!=null&&!hasV7){
+      let parsed;try{parsed=JSON.parse(oldV6)}catch(e){parsed=oldV6}
+      const oldText=typeof parsed==='string'?parsed:'';
+      if(oldText&&_djb2(oldText)===PREV_TEMPLATE_V6_HASH){
+        // pristine v6 default: adopt the new v7 configurable-store default (no user edits to preserve)
+        _pendingUpgradeToast='Prompt template upgraded — your store list is now configurable in Preferences.';
+      }else if(oldText){
+        // hand-edited: carry the user's template forward under the new key, untouched
+        try{localStorage.setItem(V7,JSON.stringify(oldText))}catch(e){}
+      }
+    }
+    try{localStorage.removeItem(V6)}catch(e){}
+    localStorage.setItem(DONE,'1');
+  }catch(e){/* migration is best-effort */}
+})();
+
+// Store-list helpers (S6 P1-6). Ordered, comma-separated, empty-entry-filtered — feeds both the
+// Prefs Stores field and the {{STORES}}/{{WALMART_BLOCK}} template placeholders. filter(Boolean)
+// drops empty entries so a trailing/double comma cannot leak a blank store into the prompt.
+function storesList(hh){return String((hh&&hh.stores)||'').split(',').map(s=>s.trim()).filter(Boolean);}
+function hasWalmartStore(hh){return storesList(hh).some(s=>s.toLowerCase()==='walmart');}
+
 // Global state
 const S={
   screen:'dashboard',
   pantry:normalizePantry(load(KEYS.pantry,DEFAULT_PANTRY)),
   prefs:load(KEYS.preferences,DEFAULT_PREFERENCES),
-  household:load(KEYS.household,DEFAULT_HOUSEHOLD),
+  household:{...DEFAULT_HOUSEHOLD,...load(KEYS.household,{})}, // merge defaults under stored (S6 P1-6): injects `stores` for pre-existing households, future-proofs later scalar fields
   currentPlan:load(KEYS.currentPlan,null),
   planHistory:load(KEYS.planHistory,[]),
   promptTemplate:load(KEYS.promptTemplate,DEFAULT_PROMPT_TEMPLATE),
@@ -1491,7 +1532,7 @@ function serializePantry(){
 
 function generatePrompt(){
   let prompt=S.promptTemplate;
-  const r={'{{HOUSEHOLD_SIZE}}':String(S.household.size),'{{PLAN_DAYS}}':String(S.household.planDays||7),'{{START_DATE}}':S.startDate,'{{REGION}}':S.household.region||'Seattle, WA','{{STARTER_ACTIVE}}':S.household.starterActive?'yes':'no','{{PANTRY_STATE}}':serializePantry(),'{{ALLERGIES}}':S.prefs.allergies.length?S.prefs.allergies.join(', '):'None','{{DISLIKES}}':S.prefs.dislikes.length?S.prefs.dislikes.join(', '):'None','{{PREFERENCES}}':S.prefs.positives.length?S.prefs.positives.join(', '):'None','{{WALMART_THRESHOLD}}':WALMART_PROMPT[S.household.walmartThreshold]||WALMART_PROMPT['only-major'],'{{SPECIAL_INSTRUCTIONS}}':S.specialInstructions.trim()||'None','{{ANCHOR_RECIPES}}':S.anchorRecipes.trim()||'None specified'};
+  const r={'{{HOUSEHOLD_SIZE}}':String(S.household.size),'{{PLAN_DAYS}}':String(S.household.planDays||7),'{{START_DATE}}':S.startDate,'{{REGION}}':S.household.region||'Seattle, WA','{{STARTER_ACTIVE}}':S.household.starterActive?'yes':'no','{{PANTRY_STATE}}':serializePantry(),'{{ALLERGIES}}':S.prefs.allergies.length?S.prefs.allergies.join(', '):'None','{{DISLIKES}}':S.prefs.dislikes.length?S.prefs.dislikes.join(', '):'None','{{PREFERENCES}}':S.prefs.positives.length?S.prefs.positives.join(', '):'None','{{STORES}}':storesList(S.household).join(', ')||'QFC, Kroger, Safeway, Walmart','{{WALMART_BLOCK}}':hasWalmartStore(S.household)?'Walmart threshold: '+(WALMART_PROMPT[S.household.walmartThreshold]||WALMART_PROMPT['only-major'])+'.':'','{{SPECIAL_INSTRUCTIONS}}':S.specialInstructions.trim()||'None','{{ANCHOR_RECIPES}}':S.anchorRecipes.trim()||'None specified'};
   Object.entries(r).forEach(([k,v])=>{prompt=prompt.replaceAll(k,v)});
   return prompt;
 }
@@ -1553,10 +1594,14 @@ function renderPreferences(){
   h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:12px">Household Configuration</div><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px">
     <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Household Size</label><input type="number" class="inp" value="${hh.size}" min="1" max="20" style="width:80px" onchange="S.household.size=parseInt(this.value)||1;saveHousehold();render()"></div>
     <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Region</label><input class="inp" value="${esc(hh.region)}" placeholder="e.g., Seattle, WA" oninput="S.household.region=this.value;saveHousehold()"></div>
+    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Stores (priority order)</label>
+      <input class="inp" value="${esc(hh.stores)}" placeholder="e.g., QFC, Kroger, Safeway, Walmart"
+        onchange="S.household.stores=this.value;saveHousehold();render()">
+      <div style="font-size:10px;color:var(--fg3);margin-top:3px;line-height:1.4">Comma-separated, most-preferred first. Claude searches these stores' weekly ads.</div></div>
     <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Plan Days</label><input type="number" class="inp" value="${hh.planDays||7}" min="1" max="14" style="width:80px" onchange="S.household.planDays=parseInt(this.value)||7;saveHousehold();render()"></div>
     <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Meal Structure</label><input class="inp" value="${esc(hh.mealStructure)}" oninput="S.household.mealStructure=this.value;saveHousehold()"></div>
     <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Sourdough Starter</label><button class="btn ${hh.starterActive?'btn-success':'btn-default'}" onclick="S.household.starterActive=!S.household.starterActive;saveHousehold();render()" style="width:auto">${hh.starterActive?'Active ✓':'Inactive'}</button></div>
-    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Walmart Threshold</label><select class="inp" onchange="S.household.walmartThreshold=this.value;saveHousehold()">${Object.entries(WALMART_LABELS).map(([v,l])=>`<option value="${v}" ${hh.walmartThreshold===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+    ${hasWalmartStore(hh)?`<div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Walmart Threshold</label><select class="inp" onchange="S.household.walmartThreshold=this.value;saveHousehold()">${Object.entries(WALMART_LABELS).map(([v,l])=>`<option value="${v}" ${hh.walmartThreshold===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>`:''}
   </div></div>`;
 
   // Data Management
