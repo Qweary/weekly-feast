@@ -114,29 +114,29 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v3',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v4',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
 
 const DEFAULT_PANTRY={tier1:[
-{id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",updatedAt:new Date().toISOString()},
-{id:"t1-2",name:"Sugar",category:"sweetener",status:"well-stocked",updatedAt:new Date().toISOString()},
-{id:"t1-3",name:"White rice",category:"grain",status:"well-stocked",updatedAt:new Date().toISOString()},
-{id:"t1-4",name:"Olive oil",category:"oil",status:"well-stocked",updatedAt:new Date().toISOString()},
-{id:"t1-5",name:"Soy sauce",category:"condiment",status:"getting-low",updatedAt:new Date().toISOString()},
-{id:"t1-6",name:"Salt",category:"spice",status:"well-stocked",updatedAt:new Date().toISOString()},
+{id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",onHand:4,unit:"lb",par:2,updatedAt:new Date().toISOString()},
+{id:"t1-2",name:"Sugar",category:"sweetener",status:"well-stocked",onHand:3,unit:"lb",par:1,updatedAt:new Date().toISOString()},
+{id:"t1-3",name:"White rice",category:"grain",status:"well-stocked",onHand:5,unit:"lb",par:2,updatedAt:new Date().toISOString()},
+{id:"t1-4",name:"Olive oil",category:"oil",status:"well-stocked",onHand:1,unit:"bottle",par:1,updatedAt:new Date().toISOString()},
+{id:"t1-5",name:"Soy sauce",category:"condiment",status:"getting-low",onHand:0.5,unit:"bottle",par:1,updatedAt:new Date().toISOString()},
+{id:"t1-6",name:"Salt",category:"spice",status:"well-stocked",onHand:1,unit:"box",par:1,updatedAt:new Date().toISOString()},
 {id:"t1-7",name:"Black pepper",category:"spice",status:"well-stocked",updatedAt:new Date().toISOString()},
 {id:"t1-8",name:"Garlic powder",category:"spice",status:"well-stocked",updatedAt:new Date().toISOString()},
 {id:"t1-9",name:"Cumin",category:"spice",status:"getting-low",updatedAt:new Date().toISOString()},
 {id:"t1-10",name:"Vinegar",category:"condiment",status:"well-stocked",updatedAt:new Date().toISOString()}
 ],tier2:[
-{id:"t2-1",name:"Eggs (dozen)",category:"dairy",have:true},
+{id:"t2-1",name:"Eggs (dozen)",category:"dairy",have:true,onHand:6,unit:"count",openedAt:null},
 {id:"t2-2",name:"Milk (gallon)",category:"dairy",have:true},
 {id:"t2-3",name:"Bread (loaf)",category:"grain",have:false},
 {id:"t2-4",name:"Butter",category:"dairy",have:true},
 {id:"t2-5",name:"Cheddar cheese",category:"dairy",have:false}
 ],tier3:[
-{id:"t3-1",name:"Chicken thighs",category:"protein",quantity:"about 3 lbs",updatedAt:new Date().toISOString()},
-{id:"t3-2",name:"Ground beef",category:"protein",quantity:"about 1 lb",updatedAt:new Date().toISOString()},
-{id:"t3-3",name:"Frozen mixed vegetables",category:"frozen",quantity:"half remaining",updatedAt:new Date().toISOString()}
+{id:"t3-1",name:"Chicken thighs",category:"protein",quantity:"about 3 lbs",onHand:3,unit:"lb",openedAt:null,updatedAt:new Date().toISOString()},
+{id:"t3-2",name:"Ground beef",category:"protein",quantity:"about 1 lb",onHand:1,unit:"lb",openedAt:null,updatedAt:new Date().toISOString()},
+{id:"t3-3",name:"Frozen mixed vegetables",category:"frozen",quantity:"half remaining",onHand:0.5,unit:"bag",openedAt:null,updatedAt:new Date().toISOString()}
 ]};
 
 const DEFAULT_PREFERENCES={allergies:[],dislikes:[],positives:["Mexican food","One-pot meals","Seasonal vegetables"]};
@@ -171,6 +171,13 @@ Sourdough starter active: {{STARTER_ACTIVE}}.
 
 
 CURRENT PANTRY STATE
+
+The block below is the household's starting inventory. Treat "on hand: N unit" as the exact quantity
+already owned and subtract it from recipe demand before buying (STEP 4). "par: N unit" on a staple is
+the minimum to keep stocked — reorder that staple only if the week would drop it below par. Lines that
+say "quantity not tracked" have no number: reason about them qualitatively from their status, and do not
+assume a numeric quantity. Items opened/aging or shown under a "use first" flag should be scheduled into
+the earliest meals.
 
 {{PANTRY_STATE}}
 
@@ -247,9 +254,52 @@ Pantry consumption check: After drafting the full week's plan, review cumulative
 Single-use audit: in the same pass, walk every fresh or perishable ingredient the plan buys and flag any that only one meal uses — especially a Tier-0 or Tier-1 bunch or multi-serving item whose remainder will spoil before a second occasion. Prefer to fix each one in place (add a second meal that uses the remainder, downsize the purchase to the amount actually needed, or substitute a longer-life pantry alternative) rather than leave a stranded remainder. If a single-use perishable purchase is genuinely unavoidable, say so explicitly in the narrative and name what happens to the leftover, so the waste is a visible choice and not an accident.
 
 
-STEP 4 — GENERATE THE SHOPPING LIST
+STEP 4 — GENERATE THE SHOPPING LIST (DEPLETION-RECONCILED)
 
-Consolidate all ingredients across the week's meals. Group by store, with the recommended store for each item based on current pricing. For items not on sale, mark them as "staple — buy at any store" rather than assigning a specific store. If a staple happens to be on sale at a store the household is already visiting, note it as a restock opportunity — especially if the pantry shows it as "getting low." Apply stock-up economics to non-perishable and freezer-stable staples: when a shelf-stable or freezer-stable item is at an unusually low "trough" price (a loss-leader or deep sale well below its normal shelf price), recommend buying deeper than the week needs to ride out until the next such sale — but only up to what the household can store and rotate before it expires, never past its storage or freezer capacity. Do not stock up on Tier-0 or Tier-1 perishables this way unless the surplus is frozen on day 0. Flag any such deeper buy in that item's notes so the household understands it is a deliberate stock-up, not this week's need. Include quantities for everything. Flag any Walmart recommendations with a brief savings justification.
+Do NOT list the raw sum of the recipe ingredients. The shopping list is the POSITIVE REMAINDER after
+subtracting what the household already owns. For every ingredient the week's meals require, compute:
+
+    to_buy = max(0, total_demand_across_all_meals − on_hand_from_the_pantry_state)
+
+Use the CURRENT PANTRY STATE block above as your starting inventory. Run this reconciliation pass:
+
+1. Build the demand table. Sum each ingredient's quantity across every meal that uses it (convert to a
+   common unit per ingredient — e.g. total pounds of chicken thighs across all dinners).
+
+2. Debit against on-hand in consumption order. Walk the meals in day order and subtract each
+   ingredient's demand from a running on-hand balance. This surfaces CONFLICTS: if two meals both draw
+   on the same limited on-hand quantity and the running balance would go negative, the shortfall is
+   exactly what must be bought. Assign the purchased top-up to the later meal and note the competition.
+
+3. Emit only positive remainders. If on_hand >= total_demand for an item, it does NOT go on the
+   shopping list at all (it is fully covered by the pantry) — mark it source "pantry" wherever a recipe
+   uses it. Only when to_buy > 0 does the item appear on the shopping_list, with quantity = to_buy.
+
+4. STAPLES are par-gated, not demand-gated. For any item under "STAPLES" in the pantry state that has a
+   "par:" value: do NOT buy it just because a recipe uses it. Project its end-of-horizon balance
+   (on_hand − demand). Buy it ONLY IF that projected balance would fall below par (or the item is shown
+   as "out"). When you do, set its shopping_list "category" to "restock", buy enough to return to par,
+   and say so in "notes". A staple whose projected balance stays at or above par stays OFF the list.
+
+5. Qualitative-only items (pantry lines that say "quantity not tracked"): you do not have a number to
+   subtract. Treat "well-stocked" as "assume enough for the week — do not buy unless a recipe needs an
+   unusually large amount"; treat "getting-low" or "out" as buy/restock candidates. Never invent a
+   numeric on-hand for these — reason qualitatively and note the assumption.
+
+Then group the resulting buy list by store with the recommended store per item (existing rules below
+still apply): items not on sale are "staple — buy at any store"; a staple on sale at a store you are
+already visiting is a "restock" opportunity, especially if the pantry shows it low. Apply stock-up
+economics to non-perishable and freezer-stable staples: at an unusually low trough price, buy deeper
+than the week needs — but only up to what the household can store and rotate before expiry, and never
+for Tier-0/Tier-1 perishables unless the surplus is frozen on day 0. Flag any such deeper buy in that
+item's notes as a deliberate stock-up. Include quantities for everything. Flag any Walmart
+recommendation with a brief savings justification.
+
+Reconciliation self-check before you emit the JSON: (a) no item appears on the shopping_list whose
+on_hand already covered its demand; (b) no staple appears unless its projected balance fell below par
+or it was out; (c) every meal that used a fully-covered ingredient marked that ingredient's "source"
+as "pantry"; (d) any two meals that competed for the same last on-hand portion are reflected — the
+loser's shortfall is the bought quantity and it is noted.
 
 
 OUTPUT FORMAT
@@ -383,6 +433,49 @@ const todayStr=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `${
 const safeUrl=u=>{if(u==null)return '';const t=String(u).trim();return /^(https?:|mailto:)/i.test(t)?t:'';};
 const esc=s=>s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const n2=(n)=>{const x=toNum(n);return x==null?'?':x.toFixed(2);};
+
+// ── Pantry normalization (S4 depletion data-model) ──────────────────────────
+// Fill new optional on-hand/par/unit/openedAt fields with SAFE, NON-FABRICATING
+// defaults. Never throws. Idempotent (safe on already-normalized data). The one
+// domain-critical rule: absent numeric on-hand stays ABSENT (undefined) — never
+// coerced to 0, because "unknown on hand" and "zero on hand" have opposite failure
+// modes (unknown→0 tells Claude you own nothing → over-buy).
+function num0(v){ // -> finite number >= 0, else undefined (NOT 0: absent must stay absent)
+  const n=(typeof v==='number')?v:(v!=null&&v!==''&&!isNaN(v)?parseFloat(v):NaN);
+  return (Number.isFinite(n)&&n>=0)?n:undefined;
+}
+function str(v){return (typeof v==='string')?v:(v!=null?String(v):'');}
+function normalizePantryItem(it,tier){
+  if(it==null||typeof it!=='object') return null;
+  const base={id:str(it.id)||('x-'+genId()),name:str(it.name),category:str(it.category)||'other'};
+  const oh=num0(it.onHand), un=(it.unit!=null?str(it.unit):undefined);
+  if(tier==='tier1'){
+    const status=(it.status==='well-stocked'||it.status==='getting-low'||it.status==='out')?it.status:'well-stocked';
+    const o={...base,status,updatedAt:str(it.updatedAt)||new Date().toISOString()};
+    if(oh!==undefined)o.onHand=oh;
+    const par=num0(it.par); if(par!==undefined)o.par=par;
+    if(un!==undefined&&un!=='')o.unit=un;
+    return o;
+  }
+  if(tier==='tier2'){
+    const o={...base,have:it.have===true};
+    if(oh!==undefined)o.onHand=oh;
+    if(un!==undefined&&un!=='')o.unit=un;
+    if(it.openedAt!=null)o.openedAt=str(it.openedAt);
+    return o;
+  }
+  // tier3
+  const o={...base,quantity:(it.quantity!=null?str(it.quantity):''),updatedAt:str(it.updatedAt)||new Date().toISOString()};
+  if(oh!==undefined)o.onHand=oh;
+  if(un!==undefined&&un!=='')o.unit=un;
+  if(it.openedAt!=null)o.openedAt=str(it.openedAt);
+  return o;
+}
+function normalizePantry(p){
+  const src=(p&&typeof p==='object')?p:{};
+  const norm=(arr,tier)=>Array.isArray(arr)?arr.map(i=>normalizePantryItem(i,tier)).filter(Boolean):[];
+  return {tier1:norm(src.tier1,'tier1'),tier2:norm(src.tier2,'tier2'),tier3:norm(src.tier3,'tier3')};
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // IMPORT PARSER CORE (pure — no DOM, no S; tested in isolation via markers)
@@ -672,10 +765,44 @@ let _pendingUpgradeToast=null;
   }catch(e){/* migration is best-effort */}
 })();
 
+// ── One-time template migration v3 → v4 (S4 depletion-reconciled template) ──
+// Mirrors migrateTemplateV3's structure (one-time DONE guard, key transition, best-effort
+// try/catch), but the replace-vs-preserve TEST is exact-equality against the pristine v3
+// default, delivered via a djb2 content hash so the 18KB v3 template is not duplicated in
+// source. Domain contract: a non-customizing user (stored v3 === pristine v3 default) is
+// force-upgraded to the depletion template; a user who hand-edited their template is left
+// in place, untouched (carried forward under the new key), and can re-pull via the editor.
+// The hash test can only ever false-PRESERVE (a drifted/edited template is kept), never
+// false-REPLACE — so a hand-edit is never silently clobbered.
+const PREV_TEMPLATE_V3_HASH=1370498550; // djb2 of the pristine v3 DEFAULT_PROMPT_TEMPLATE
+function _djb2(str){let x=5381;for(let i=0;i<str.length;i++){x=((x<<5)+x+str.charCodeAt(i))>>>0;}return x;}
+(function migrateTemplateV4(){
+  try{
+    const DONE='mp:migrated-template-v4';
+    if(localStorage.getItem(DONE))return;
+    const V3='mp:prompt-template-v3',V4=KEYS.promptTemplate;
+    const oldV3=localStorage.getItem(V3);
+    const hasV4=localStorage.getItem(V4)!=null;
+    if(oldV3!=null&&!hasV4){
+      let parsed;try{parsed=JSON.parse(oldV3)}catch(e){parsed=oldV3}
+      const oldText=typeof parsed==='string'?parsed:'';
+      if(oldText&&_djb2(oldText)===PREV_TEMPLATE_V3_HASH){
+        // pristine v3 default: adopt the new v4 depletion default (no user edits to preserve)
+        _pendingUpgradeToast='Prompt template upgraded to the depletion-reconciled format (subtracts what you already own before buying).';
+      }else if(oldText){
+        // hand-edited: carry the user's template forward under the new key, untouched
+        try{localStorage.setItem(V4,JSON.stringify(oldText))}catch(e){}
+      }
+    }
+    try{localStorage.removeItem(V3)}catch(e){}
+    localStorage.setItem(DONE,'1');
+  }catch(e){/* migration is best-effort */}
+})();
+
 // Global state
 const S={
   screen:'dashboard',
-  pantry:load(KEYS.pantry,DEFAULT_PANTRY),
+  pantry:normalizePantry(load(KEYS.pantry,DEFAULT_PANTRY)),
   prefs:load(KEYS.preferences,DEFAULT_PREFERENCES),
   household:load(KEYS.household,DEFAULT_HOUSEHOLD),
   currentPlan:load(KEYS.currentPlan,null),
@@ -979,16 +1106,53 @@ function renderReview(){
 // ─── Prompt Generator ───────────────────────────────────────────────────────
 function serializePantry(){
   const p=S.pantry;
-  const ws=p.tier1.filter(i=>i.status==='well-stocked').map(i=>i.name).join(', ');
-  const gl=p.tier1.filter(i=>i.status==='getting-low').map(i=>i.name).join(', ');
-  const out=p.tier1.filter(i=>i.status==='out').map(i=>i.name).join(', ');
-  const t3=p.tier3.filter(i=>i.quantity).map(i=>`${i.name} (${i.quantity})`).join(', ');
-  const t2=p.tier2.filter(i=>i.have).map(i=>i.name).join(', ');
-  let parts=[];
-  if(ws)parts.push('Well-stocked: '+ws+'.');if(gl)parts.push('Getting low: '+gl+'.');
-  if(out)parts.push('Out: '+out+'.');if(t3)parts.push('Have: '+t3+'.');
-  if(t2)parts.push('Weekly items on hand: '+t2+'.');
-  return parts.join(' ')||'No pantry items tracked.';
+  const fmtQty=(n,u)=>`${(+n).toString()}${u?(' '+u):''}`; // "5 lb", "0.5 bottle", "6"
+  const lines=[];
+
+  // ── STAPLES (Tier-1): par-gated ──
+  const t1=[];
+  for(const i of p.tier1){
+    if(typeof i.onHand==='number'){
+      let s=`- ${i.name} — on hand: ${fmtQty(i.onHand,i.unit)}`;
+      if(typeof i.par==='number') s+=`, par: ${fmtQty(i.par,i.unit)}`;
+      s+=` [${i.status}]`;
+      t1.push(s);
+    } else {
+      // qualitative fallback — no number known
+      t1.push(`- ${i.name} — ${i.status} (quantity not tracked)`);
+    }
+  }
+  if(t1.length){lines.push('STAPLES (always-stocked; buy only to restore par or when out):');lines.push(...t1);lines.push('');}
+
+  // ── PROTEINS & FROZEN (Tier-3): consume within horizon ──
+  const t3=[];
+  for(const i of p.tier3){
+    let s;
+    if(typeof i.onHand==='number'){ s=`- ${i.name} — on hand: ${fmtQty(i.onHand,i.unit)}`; }
+    else if(i.quantity){ s=`- ${i.name} — on hand: ${i.quantity} (estimate)`; }
+    else { continue; } // nothing known -> omit
+    if(i.openedAt){ s+=` [opened/aging — use or freeze first]`; }
+    t3.push(s);
+  }
+  if(t3.length){lines.push('PROTEINS & FROZEN (rotating; plan to consume within the horizon):');lines.push(...t3);lines.push('');}
+
+  // ── FRIDGE BASICS (Tier-2): binary have, with optional numbers ──
+  const haveNum=[], havePlain=[], need=[];
+  for(const i of p.tier2){
+    if(i.have){
+      if(typeof i.onHand==='number') haveNum.push(`- ${i.name} — on hand: ${fmtQty(i.onHand,i.unit)}${i.openedAt?' [opened — use first]':''}`);
+      else havePlain.push(i.name);
+    } else need.push(i.name);
+  }
+  if(haveNum.length||havePlain.length||need.length){
+    lines.push('FRIDGE BASICS:');
+    if(haveNum.length) lines.push(...haveNum);
+    if(havePlain.length) lines.push(`- Have (quantity not tracked, assume adequate for the week unless a recipe needs a large amount): ${havePlain.join(', ')}`);
+    if(need.length) lines.push(`- NOT on hand (buy if a recipe needs it): ${need.join(', ')}`);
+  }
+
+  const body=lines.join('\n').trim();
+  return body||'No pantry items tracked.';
 }
 
 function generatePrompt(){
@@ -1304,7 +1468,7 @@ function importAllData(event){
       if(missing.length){showToast('Invalid backup: missing '+missing.join(', '));return}
       if(!confirm('This will replace ALL current data (pantry, preferences, plans, history) with the backup. Continue?'))return;
       // Restore state
-      if(data.pantry){S.pantry=data.pantry;savePantry()}
+      if(data.pantry){S.pantry=normalizePantry(data.pantry);savePantry()}
       if(data.preferences){S.prefs=data.preferences;savePrefs()}
       if(data.household){S.household=data.household;saveHousehold()}
       if('currentPlan' in data){S.currentPlan=data.currentPlan;savePlan()}
