@@ -865,19 +865,62 @@ function nav(screen){S.screen=screen;render()}
 // ═══════════════════════════════════════════════════════════════════════════
 // RENDERING
 // ═══════════════════════════════════════════════════════════════════════════
+// Error boundary: one malformed field in state/plan must not brick the whole app.
+// On any exception in a screen renderer, show an in-UI recovery panel (never a white
+// screen) that explains the data couldn't be rendered and offers the scoped reset.
 function render(){
-  renderNav();
-  const main=document.getElementById('main');
-  switch(S.screen){
-    case 'dashboard':main.innerHTML=renderDashboard();break;
-    case 'pantry':main.innerHTML=renderPantry();break;
-    case 'review':main.innerHTML=renderReview();break;
-    case 'generate':main.innerHTML=renderGenerate();break;
-    case 'import':main.innerHTML=renderImport();break;
-    case 'preferences':main.innerHTML=renderPreferences();break;
-    case 'consumption':main.innerHTML='<div style="color:var(--fg4);padding:40px;text-align:center">Consumption Log — Coming in Phase 3</div>';break;
+  try{
+    renderNav();
+    const main=document.getElementById('main');
+    switch(S.screen){
+      case 'dashboard':main.innerHTML=renderDashboard();break;
+      case 'pantry':main.innerHTML=renderPantry();break;
+      case 'review':main.innerHTML=renderReview();break;
+      case 'generate':main.innerHTML=renderGenerate();break;
+      case 'import':main.innerHTML=renderImport();break;
+      case 'preferences':main.innerHTML=renderPreferences();break;
+      case 'consumption':main.innerHTML='<div style="color:var(--fg4);padding:40px;text-align:center">Consumption Log — Coming in Phase 3</div>';break;
+    }
+    bindEvents();
+  }catch(err){
+    try{console.error('render failed',err);}catch(e){}
+    renderRecoveryPanel(err);
   }
-  bindEvents();
+}
+
+// In-UI recovery panel shown when a screen renderer throws. Reuses the app's amber ⚠
+// idiom. Offers the scoped "Reset app data" as the escape hatch. Built with plain DOM
+// writes (not the failing renderers) so it can't itself throw on the same bad state.
+function renderRecoveryPanel(err){
+  const main=document.getElementById('main');
+  if(!main)return;
+  const msg=(err&&err.message)?String(err.message):'unknown error';
+  main.innerHTML=`<div class="card" style="border-color:#92400e;background:#1c1206;max-width:560px;margin:24px auto">
+    <div class="flex gap-10" style="align-items:flex-start">
+      <span style="font-size:20px;flex-shrink:0">⚠</span>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:700;color:var(--amber);margin-bottom:6px">This screen couldn't be displayed</div>
+        <div style="font-size:12px;color:#fde68a;line-height:1.6;margin-bottom:10px">Some of your saved data looks malformed, so this view failed to render. Your other data is untouched. Try switching to another screen, or reset this app's data to clear the bad state (this only clears weekly-feast's own storage).</div>
+        <div style="font-size:10px;color:var(--fg3);margin-bottom:14px;word-break:break-word">Details: ${esc(msg)}</div>
+        <div class="flex gap-8 flex-wrap">
+          <button class="btn btn-default" onclick="S.screen='dashboard';render()" style="width:auto">Go to Dashboard</button>
+          <button class="btn btn-danger" onclick="resetAppData()" style="width:auto">Reset app data</button>
+        </div>
+      </div>
+    </div></div>`;
+  try{renderNav();}catch(e){}
+}
+
+// Scoped hard reset: clear ONLY this app's mp:* localStorage keys and reload. Behind a
+// confirm(). Keeps unrelated localStorage (other apps on file://) intact.
+function resetAppData(){
+  if(!confirm('Reset weekly-feast? This permanently clears ALL of this app\'s data (pantry, preferences, plans, history, template) from this browser. Other sites are unaffected. This cannot be undone — export a backup first if you want to keep your data.'))return;
+  try{
+    const kill=[];
+    for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('mp:')===0)kill.push(k);}
+    kill.forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+  }catch(e){}
+  try{location.reload();}catch(e){}
 }
 
 function renderNav(){
@@ -1226,7 +1269,7 @@ function renderPreferences(){
   </div></div>`;
 
   // Data Management
-  h+=`<div class="card" style="border-color:var(--border)"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:6px">Data Management</div><div style="font-size:11px;color:var(--fg3);margin-bottom:12px;line-height:1.5">Your data is stored in this browser's local storage. Export regularly to back up your data, or to transfer it to another device or browser.</div><div class="flex gap-8 flex-wrap"><button class="btn btn-primary" onclick="exportAllData()" style="width:auto">Export All Data</button><button class="btn btn-default" onclick="document.getElementById('import-file-input').click()" style="width:auto">Import Data</button><input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importAllData(event)"></div></div>`;
+  h+=`<div class="card" style="border-color:var(--border)"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:6px">Data Management</div><div style="font-size:11px;color:var(--fg3);margin-bottom:12px;line-height:1.5">Your data is stored in this browser's local storage. Export regularly to back up your data, or to transfer it to another device or browser.</div><div class="flex gap-8 flex-wrap"><button class="btn btn-primary" onclick="exportAllData()" style="width:auto">Export All Data</button><button class="btn btn-default" onclick="document.getElementById('import-file-input').click()" style="width:auto">Import Data</button><input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importAllData(event)"></div><div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--fg3);margin-bottom:8px;line-height:1.5">Something broken or stuck? Reset clears all of this app's data from this browser and starts fresh. Export a backup first.</div><button class="btn btn-danger" onclick="resetAppData()" style="width:auto">Reset app data</button></div></div>`;
 
   return h;
 }
