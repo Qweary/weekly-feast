@@ -1167,7 +1167,10 @@ function pwBuildModel(){
     for(const it of sl){
       if(!it||typeof it!=='object')continue;
       const price=toNum(it.price);
-      if(price==null||!Number.isFinite(price)||it.price_type!=='confirmed')continue;
+      // Geiger F6: drop non-positive prices — a stray -/0 in a hand-edited or corrupted
+      // backup is a data error, not a real trough; it must never render a negative-dollar
+      // band or a false "your lowest recorded price."
+      if(price==null||!Number.isFinite(price)||price<=0||it.price_type!=='confirmed')continue;
       const key=pwNorm(it.item);if(!key)continue;
       let g=groups[key];
       if(!g){g=groups[key]={key,points:[],weeks:new Set(),display:String(it.item==null?'':it.item),displayWi:wi};}
@@ -1229,7 +1232,7 @@ function pwCard(m){
     <div style="margin-top:6px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
       <span style="font-size:16px;font-weight:700;color:${d.color}">${d.caret} $${n2(m.latest)}</span>
       <span style="font-size:12px;color:${d.color}">${d.phrase}</span>
-      ${d.mag?`<span style="font-size:11px;color:var(--fg3)">${d.mag}</span>`:''}
+      ${d.mag&&m.weeks>=5?`<span style="font-size:11px;color:var(--fg3)">${d.mag}</span>`:''}
     </div>
     <div style="font-size:11px;color:var(--fg3);margin-top:8px">low $${n2(m.min)}${m.lowStore?` <span style="color:var(--fg4)">(${esc(m.lowStore)})</span>`:''} · typ $${n2(m.median)} · high $${n2(m.max)}</div>
     ${bandBar}
