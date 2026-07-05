@@ -1174,7 +1174,7 @@ function pwBuildModel(){
       const key=pwNorm(it.item);if(!key)continue;
       let g=groups[key];
       if(!g){g=groups[key]={key,points:[],weeks:new Set(),display:String(it.item==null?'':it.item),displayWi:wi};}
-      g.points.push({price,wi,store:(it.store!=null?String(it.store):'')});
+      g.points.push({price,wi,store:(it.store!=null?String(it.store):''),category:(it.category!=null?String(it.category):'staple')});
       g.weeks.add(wi);
       if(wi<g.displayWi){g.displayWi=wi;g.display=String(it.item==null?'':it.item);} // freshest label wins
     }
@@ -1185,7 +1185,9 @@ function pwBuildModel(){
     const prices=g.points.map(p=>p.price);
     const weeks=g.weeks.size;
     if(weeks>=3){
-      const min=Math.min(...prices),max=Math.max(...prices),median=pwMedian(prices);
+      const min=Math.min(...prices),max=Math.max(...prices);
+      const nonSalePrices=g.points.filter(p=>p.category!=='sale').map(p=>p.price);
+      const median=pwMedian(nonSalePrices.length?nonSalePrices:prices);
       const smWi=g.displayWi; // smallest (newest) week index in the group
       const latest=Math.min(...g.points.filter(p=>p.wi===smWi).map(p=>p.price)); // best price that week
       let lowStore='',lowWi=Infinity;
