@@ -1245,9 +1245,13 @@ function pwCard(m){
 function renderPriceWatch(){
   const weeks=Array.isArray(S.planHistory)?S.planHistory.length:0;
   const s=weeks===1?'':'s';
+  // Re-openable "How this works" explainer (via reentryBtn's showOnboarding()) renders
+  // in-context on the Prices tab, mirroring renderDashboard's placement (after the header,
+  // before content). Pure static copy — no S/localStorage write from this render path.
+  const exp=S.showOnboarding?renderOnboardingExplainer():'';
   // State A — 0 entries: full empty state mirroring the dashboard no-plan idiom.
   if(weeks===0){
-    return `<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>Price Watch</h2><div class="sub">Your price record is empty.</div></div>${reentryBtn()}</div>
+    return `<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>Price Watch</h2><div class="sub">Your price record is empty.</div></div>${reentryBtn()}</div>${exp}
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:46vh;text-align:center">
       <div style="font-size:48px;margin-bottom:16px;opacity:.3">⇅</div>
       <div class="section-title"><h2>No price history yet</h2>
@@ -1269,7 +1273,7 @@ function renderPriceWatch(){
     const hint=top?` You're closest on <b style="color:var(--fg)">${esc(top.display)}</b> — ${top.weeks}/3 weeks.`:'';
     const panel=`<div class="card"><div style="font-size:12px;color:var(--fg2);line-height:1.6">You've imported <b style="color:var(--fg)">${weeks}</b> week${s} so far. A price trend and any stock-up hint appear once an item has a confirmed price in <b style="color:var(--fg)">3 different weeks</b>.${hint}</div></div>`;
     const rows=model.building.length?`<div class="card">${model.building.map(pwBuildingRow).join('')}</div>`:'';
-    return header+panel+rows;
+    return header+exp+panel+rows;
   }
   // State D — populated: quiet legend, ranked cards, then any building-history tail.
   const legend=`<div style="font-size:10px;color:var(--fg3);margin:-8px 0 16px;display:flex;gap:14px;flex-wrap:wrap"><span style="color:var(--green)">▾ at/below your low</span><span>▾ below typical</span><span style="color:var(--amber)">▴ above typical</span></div>`;
@@ -1277,7 +1281,7 @@ function renderPriceWatch(){
   const buildingBlock=model.building.length
     ? `<div class="section-title" style="margin-top:20px"><h2 style="font-size:14px">Building your record</h2><div class="sub">Items with fewer than 3 confirmed weeks — no trend yet.</div></div><div class="card">${model.building.map(pwBuildingRow).join('')}</div>`
     : '';
-  return header+legend+cards+buildingBlock;
+  return header+exp+legend+cards+buildingBlock;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
