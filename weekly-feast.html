@@ -114,7 +114,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v5',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v6',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
 
 const DEFAULT_PANTRY={tier1:[
 {id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",onHand:4,unit:"lb",par:2,updatedAt:new Date().toISOString()},
@@ -391,12 +391,27 @@ on output space, finish the JSON and shorten or omit the narrative — never lea
 JSON cut off. A complete plan with no narrative is a success; a truncated plan is a
 failure.
 
-PART B — THE NARRATIVE:
-After the data block, write a narrative summary explaining your reasoning: why you
-chose these recipes, what deals drove the plan, any tradeoffs between cost and
-quality, stores with missing ad data, pantry depletion concerns, and any items
-worth stocking up on due to unusually good sales. Separate it from the data block
-with a Markdown horizontal rule (---). This section is for the human reader only.
+PART B — "WHY THIS PLAN" (the narrative — written for the household to read):
+After the data block, write a Markdown horizontal rule (---) on its own line, then a short
+plain-language note to the household explaining WHY this is their plan this week. This is the
+part a person reads to trust and understand the list — it is NOT a log of your searches or a
+restatement of the JSON. Keep it to roughly 120–220 words, warm and direct, second person
+("your week", "you'll") — two or three short paragraphs, no headings and no bullet
+scaffolding. Cover the things that actually change a household's decisions:
+  - The deals that drove it: the one or two sale items the week is built around, and the rough
+    savings that made them worth anchoring to.
+  - How the week is sequenced: what gets cooked early because it won't keep, and what was
+    pushed late or frozen on shopping day.
+  - Where ingredients do double duty: the overlap / cascade choices that cut cost and waste
+    (one purchase feeding several meals).
+  - Honest tradeoffs: anything you were unsure about, any store whose prices you could not
+    confirm, any nutrition shortfall or single-use perishable you could not avoid — and why.
+    Name the low-confidence calls plainly. A household trusts a plan MORE when it admits what
+    it guessed.
+This narrative is optional. If you have nothing worth saying beyond the data, write nothing
+after the horizontal rule — do not pad it and never repeat the JSON as prose. Everything the
+app stores and displays as a plan comes from the data block above; this note is read by a
+person, not parsed, so ordinary formatting is fine.
 
 DATA RULES — apply these when building the JSON:
 - Every numeric value must be a bare JSON number: 2.85, not "2.85", not $2.85, not
@@ -813,6 +828,29 @@ function extractPlanJSON(raw){
   return uniq;
 }
 
+// Capture the post-sentinel "why this plan" narrative as a SEPARATE, READ-ONLY pass over the
+// raw text. Domain invariant: this must NOT touch extraction — it never feeds sliceBalancedObjects
+// / planScore and never alters extractPlanJSON candidates or parsePlanResponse selection. Only
+// captures when BOTH sentinels are present (the fallback whole-text path has no clean narrative
+// boundary, so we capture nothing rather than guess). Returns string | null (never "").
+function captureWhyPlan(raw){
+  const text=(raw==null?'':String(raw));
+  const bi=text.indexOf(WF_SENTINEL_BEGIN);
+  if(bi===-1)return null;
+  const ei=text.indexOf(WF_SENTINEL_END,bi+WF_SENTINEL_BEGIN.length);
+  if(ei===-1)return null;
+  let s=text.slice(ei+WF_SENTINEL_END.length).trim();
+  if(!s)return null;
+  // Strip, conservatively (a stray rule surviving is cosmetic; eating a real paragraph is not):
+  // 1) a single leading horizontal rule (---, ***, ___) on its own line.
+  s=s.replace(/^(?:-{3,}|\*{3,}|_{3,})[ \t]*(?:\r?\n|$)/,'').replace(/^\s+/,'');
+  // 2) a single leading "why this plan"/"why this week"-style heading line (only if the WHOLE
+  //    leading line is that title — never a mid-body line, never a heading carrying real content).
+  s=s.replace(/^[ \t]*#{0,6}[ \t]*(?:\*\*|__)?[ \t]*why this (?:plan|week)[ \t]*(?:\*\*|__)?[ \t]*:?[ \t]*(?:\r?\n|$)/i,'').replace(/^\s+/,'');
+  s=s.trim();
+  return s?s:null;
+}
+
 // Orchestrate extract -> parse -> normalize -> validate. Pure: {ok,plan}|{ok,error}.
 function parsePlanResponse(raw){
   const text=(raw==null?'':String(raw)).trim();
@@ -828,7 +866,7 @@ function parsePlanResponse(raw){
     if(score>bestScore){best=pc.data;bestScore=score;}
     if(score>=3)break;
   }
-  if(best!=null)return{ok:true,plan:normalizePlan(best)};
+  if(best!=null)return{ok:true,plan:{...normalizePlan(best),why_plan:captureWhyPlan(text)}};
   if(parseErr)return{ok:false,error:parseErr};
   return{ok:false,error:MSG_NOT_PLAN};
 }
@@ -922,6 +960,36 @@ const PREV_TEMPLATE_V4_HASH=2342717482; // djb2 of the pristine v4 DEFAULT_PROMP
   }catch(e){/* migration is best-effort */}
 })();
 
+// ── One-time template migration v5 → v6 (S6 "why this plan" narrative-capture template) ──
+// Same contract as migrateTemplateV5: exact-equality test against the pristine v5 default via djb2.
+// A non-customizing user (stored v5 === pristine v5 default) is force-upgraded to the v6 PART B
+// ("why this plan" narrative) template; a user who hand-edited their template is carried forward
+// untouched under the new key and can re-pull via the editor. The hash test can only ever
+// false-PRESERVE (a drifted/edited template is kept), never false-REPLACE.
+const PREV_TEMPLATE_V5_HASH=2002962832; // djb2 of the pristine v5 DEFAULT_PROMPT_TEMPLATE (pre-S6)
+(function migrateTemplateV6(){
+  try{
+    const DONE='mp:migrated-template-v6';
+    if(localStorage.getItem(DONE))return;
+    const V5='mp:prompt-template-v5',V6=KEYS.promptTemplate;
+    const oldV5=localStorage.getItem(V5);
+    const hasV6=localStorage.getItem(V6)!=null;
+    if(oldV5!=null&&!hasV6){
+      let parsed;try{parsed=JSON.parse(oldV5)}catch(e){parsed=oldV5}
+      const oldText=typeof parsed==='string'?parsed:'';
+      if(oldText&&_djb2(oldText)===PREV_TEMPLATE_V5_HASH){
+        // pristine v5 default: adopt the new v6 "why this plan" default (no user edits to preserve)
+        _pendingUpgradeToast='Prompt template upgraded — Claude now writes a short "why this plan" note you can read on the dashboard.';
+      }else if(oldText){
+        // hand-edited: carry the user's template forward under the new key, untouched
+        try{localStorage.setItem(V6,JSON.stringify(oldText))}catch(e){}
+      }
+    }
+    try{localStorage.removeItem(V5)}catch(e){}
+    localStorage.setItem(DONE,'1');
+  }catch(e){/* migration is best-effort */}
+})();
+
 // Global state
 const S={
   screen:'dashboard',
@@ -935,6 +1003,7 @@ const S={
   checkedItems:load(KEYS.checkedItems,{}),
   removedShoppingItems:load(KEYS.removedShoppingItems,[]),
   showRemovedItems:false,
+  whyPlanOpen:false, // ephemeral "why this plan" disclosure UI state (NOT persisted, NOT in KEYS)
   // Screen-local state
   pantryTab:'tier1',
   pantryNumOpen:{}, // ephemeral per-item numeric-disclosure UI state (NOT persisted, NOT in KEYS, never written by savePantry)
@@ -1172,7 +1241,39 @@ function renderDashboard(){
   // Shopping list first on both mobile and desktop — it's the active working area
   h+=renderShoppingSection(sl,byStore,cc);
   h+=renderMealCards(mp);
+  // Reflective epilogue — the "why" you read after the "what". Last on the populated dashboard.
+  h+=renderWhyPlanCard(plan);
   return h;
+}
+
+// "Why this plan" — a quiet, neutral, collapsed-by-default disclosure card carrying Claude's
+// post-sentinel narrative (S.whyPlanOpen, ephemeral). Neutral border (no state color); reads
+// plan.why_plan directly (NOT the 1136 destructure). Absent narrative → no card at all.
+// XSS: the narrative is pasted, untrusted text — esc() every segment BEFORE any <br>/paragraph
+// HTML conversion; no Markdown, no raw HTML injection (same as every other free-text field).
+function renderWhyPlanCard(plan){
+  if(!plan.why_plan)return '';
+  const text=String(plan.why_plan);
+  const open=!!S.whyPlanOpen;
+  const chev=open?'▾':'▸';
+  // Teaser: first non-empty line (or first ~90 chars) — a taste, not the whole thing.
+  const firstLine=(text.split(/\r?\n/).find(l=>l.trim())||'').trim();
+  const teaser=firstLine.length>90?firstLine.slice(0,90).replace(/\s+$/,'')+'…':firstLine;
+  const teaserHtml=open?'':`<span style="color:var(--fg3);font-size:11px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(teaser)}</span>`;
+  let body='';
+  if(open){
+    const paras=text.split(/\n\s*\n/).map(p=>p.trim()).filter(Boolean);
+    const inner=paras.map((p,idx)=>`<p style="color:var(--fg2);font-size:12px;line-height:1.6;margin-bottom:${idx===paras.length-1?'0':'8px'}">${esc(p).replace(/\r?\n/g,'<br>')}</p>`).join('');
+    body=`<div style="max-width:640px;margin-top:10px">${inner}</div>`;
+  }
+  return `<div class="card" style="border-color:var(--border)">
+    <div id="whyplan-header" role="button" tabindex="0" aria-expanded="${open?'true':'false'}" onclick="S.whyPlanOpen=!S.whyPlanOpen;render()" style="display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer">
+      <span style="color:var(--fg3);font-size:12px;flex-shrink:0">${chev}</span>
+      <span style="color:var(--fg2);font-size:12px;font-weight:600;flex-shrink:0">Why this plan</span>
+      ${teaserHtml}
+    </div>
+    ${body}
+  </div>`;
 }
 
 // Non-cook night classifier — leftovers first (common case), then eat-out, else neutral catch-all.
@@ -1495,6 +1596,9 @@ function bindEvents(){
       if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){e.preventDefault();toggle();}
     };
   });
+  // "Why this plan" disclosure (role=button): Enter/Space toggle — keyboard parity with shop rows.
+  const wph=document.getElementById('whyplan-header');
+  if(wph)wph.onkeydown=e=>{if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){e.preventDefault();S.whyPlanOpen=!S.whyPlanOpen;render();}};
   // Enter keys for preference inputs
   ['new-allergy','new-dislike','new-pref','pantry-name'].forEach(id=>{
     const el=document.getElementById(id);
