@@ -1254,7 +1254,7 @@ function renderPriceWatch(){
         <div class="sub">Price trends appear once you've imported a few weeks — each item needs a confirmed price in at least 3 different weeks. Import this week's plan to start your price record.</div></div>
       <div class="flex gap-10" style="flex-wrap:wrap;justify-content:center">
         <button class="btn btn-primary" data-nav="review">Start Weekly Review</button>
-        <button class="btn btn-default" data-nav="import">Import Mock Data</button>
+        <button class="btn btn-default" onclick="loadMock();nav('import')">Load Sample Plan</button>
       </div>
     </div>`;
   }
@@ -1425,7 +1425,7 @@ function renderDashboard(){
     h+=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:46vh;text-align:center">
       <div style="font-size:48px;margin-bottom:16px;opacity:.3">◉</div>
       <div class="section-title"><h2>No Meal Plan Yet</h2><div class="sub">Start by reviewing your pantry and generating a prompt for Claude.</div></div>
-      <div class="flex gap-10" style="flex-wrap:wrap;justify-content:center"><button class="btn btn-primary" data-nav="review">Start Weekly Review</button><button class="btn btn-default" data-nav="import">Import Mock Data</button></div></div>`;
+      <div class="flex gap-10" style="flex-wrap:wrap;justify-content:center"><button class="btn btn-primary" data-nav="review">Start Weekly Review</button><button class="btn btn-default" onclick="loadMock();nav('import')">Load Sample Plan</button></div></div>`;
     return h;
   }
   const{meal_plan:mp=[],shopping_list:sl=[],cost_summary:cs={},metadata:md={},pantry_alerts:pa=[],nutrition_summary:ns=null}=plan;
@@ -1744,7 +1744,7 @@ function renderGenerate(){
 // ─── Import ─────────────────────────────────────────────────────────────────
 function renderImport(){
   let h=`<div class="section-title"><h2>Import Claude's Response</h2><div class="sub">Paste the full response or just the JSON block</div></div>`;
-  h+=`<div class="card"><div class="flex justify-between items-center" style="margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:var(--fg2)">Paste Response</span><button class="btn btn-default" onclick="loadMock()" style="width:auto;font-size:10px;min-height:32px">Load Mock Data</button></div><textarea class="inp" id="import-area" style="min-height:250px;font-size:11px" oninput="S.importRaw=this.value;S.importError=null;S.importParsed=null;debouncedSave('importRaw',saveImportRaw)" placeholder="Paste Claude's response here...">${esc(S.importRaw)}</textarea><div class="flex gap-8 flex-wrap" style="margin-top:10px"><button class="btn btn-primary" onclick="parseImport()">Parse Response</button><button class="btn btn-default" onclick="S.importRaw='';S.importError=null;S.importParsed=null;saveImportRaw();render()">Clear</button></div></div>`;
+  h+=`<div class="card"><div class="flex justify-between items-center" style="margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:var(--fg2)">Paste Response</span><button class="btn btn-default" onclick="loadMock()" style="width:auto;font-size:10px;min-height:32px">Load Sample Plan</button></div><textarea class="inp" id="import-area" style="min-height:250px;font-size:11px" oninput="S.importRaw=this.value;S.importError=null;S.importParsed=null;debouncedSave('importRaw',saveImportRaw)" placeholder="Paste Claude's response here...">${esc(S.importRaw)}</textarea><div class="flex gap-8 flex-wrap" style="margin-top:10px"><button class="btn btn-primary" onclick="parseImport()">Parse Response</button><button class="btn btn-default" onclick="S.importRaw='';S.importError=null;S.importParsed=null;saveImportRaw();render()">Clear</button></div></div>`;
   if(S.importError) h+=`<div class="card" style="border-color:#991b1b;background:#1a0505"><div style="font-size:11px;font-weight:600;color:#fca5a5;margin-bottom:4px">⚠ Parse Error</div><div style="font-size:12px;color:#fecaca">${esc(S.importError)}</div></div>`;
   if(S.importParsed){
     const d=S.importParsed;
