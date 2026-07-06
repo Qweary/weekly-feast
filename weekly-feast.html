@@ -1121,6 +1121,7 @@ const PW_PLURAL_STOP = new Set(['greens','molasses']);
 // ~10-30% and persist; within-store non-sale noise is a few %. STORE_GAP_PCT separates them.
 const PW_STORE_MIN_N   = 2;      // min own NON-SALE points for a store to count as a "pattern"
 const PW_STORE_GAP_PCT = 0.08;   // between-store typical spread (÷ pooled median) that is structural
+const PW_STOCKUP_DEPTH = 0.18;   // min discount below typical for the stock-up IMPERATIVE (Becquerel F3a)
 
 // Name-fold (E1-S3): trim+lowercase, then (A) strip a trailing NON-SIZE parenthetical,
 // then (B) singularize-lite — drop ONE trailing 's' from the LAST token, guarded so it
@@ -1230,6 +1231,28 @@ function pwStoreAware(points, sLatest, pooledMedian){
           sDisp:(Math.max(...nonL)-Math.min(...nonL))/t};
 }
 
+// Nth-newest distinct-week best (min) price on an optional store substrate.
+// n=1 → the 2nd-newest wi after smWi (the "prior confirmed point"); n=2 → 3rd-newest.
+// storeFilter: a non-empty string restricts to that store's own points (F4 store-
+// consistency); '' / null → pooled. Returns null when that rank is absent → caller
+// treats it as "trend unknowable" (not-declining). Pure; never throws.
+function pwPriorLow(points, smWi, storeFilter, n){
+  const wis=[];
+  for(const p of points){
+    if(storeFilter && (p.store||'')!==storeFilter) continue;
+    if(p.wi>smWi && wis.indexOf(p.wi)===-1) wis.push(p.wi);
+  }
+  wis.sort((a,b)=>a-b);
+  const targetWi=wis[n-1];
+  if(targetWi===undefined) return null;
+  let lo=Infinity;
+  for(const p of points){
+    if(storeFilter && (p.store||'')!==storeFilter) continue;
+    if(p.wi===targetWi && p.price<lo) lo=p.price;
+  }
+  return Number.isFinite(lo)?lo:null;
+}
+
 // Build the read-only model from S.planHistory (newest-first; index 0 = most recent).
 // Returns {weeksRecorded, ranked:[…≥3 confirmed weeks, sorted best-deal-first],
 // building:[…1-2 confirmed weeks]}. Every field read is guarded — old vintages lack
@@ -1332,9 +1355,23 @@ function pwBuildModel(){
       // (own spread>0) is NOT overridden. Floor VALUES untouched; lowStore still discloses the place-low.
       if(st.mode==='perstore' && latest<=min+0.005 && (troughMax-troughMin<=0.005))
         delta={color:'var(--fg)',caret:'–',phrase:'right around your typical',mag:''};
+      const trendStore = (st.mode==='perstore') ? sLatest : null;
+      const priorLo  = pwPriorLow(g.points, smWi, trendStore, 1);
+      const prior2Lo = pwPriorLow(g.points, smWi, trendStore, 2);
+      // sustained descent: prior2 > prior > latest, each by more than the house 0.005 epsilon.
+      const stillFalling = (priorLo!=null && prior2Lo!=null)
+        && (latest < priorLo - 0.005) && (priorLo < prior2Lo - 0.005);
+      const depthOK = latest <= dTypical*(1-PW_STOCKUP_DEPTH) + 0.005;   // ≥18% below typical (F3a); dTypical>0 guaranteed by L1276 filter
+      const stockupCandidate = (st.mode!=='suppress')
+        && pwStockUp(latest, troughMin, tier)      // at own-store/pooled floor AND tier===3 (UNCHANGED gate)
+        && (troughMax - troughMin > 0.005)           // real spread (UNCHANGED guard)
+        && depthOK;                                  // NEW depth floor
+      const fireStockUp = stockupCandidate && !stillFalling;   // deep, at-floor, NOT a ramp → imperative
+      const trendHold   = stockupCandidate &&  stillFalling;   // deep, at-floor, still-ramping → "no rush"
       ranked.push({key,display:g.display,weeks,min,max,median,latest,lowStore,tier,delta,
         signal:(dTypical-latest)/dTypical,
-        fireStockUp:(st.mode!=='suppress') && pwStockUp(latest,troughMin,tier) && (troughMax-troughMin>0.005),
+        fireStockUp,
+        trendHold,
         freshNote:(st.mode!=='suppress') && (latest<=troughMin+0.005)&&Number.isInteger(tier)&&tier<3&&(troughMax-troughMin>0.005),
         storeMode:st.mode,
         storeTypical:(st.mode==='perstore'?st.typical:null),
@@ -1365,7 +1402,9 @@ function pwCard(m){
     : '';
   let note='';
   if(m.fireStockUp){
-    note=`<div style="font-size:11px;line-height:1.5;color:var(--fg2);margin-top:8px"><span style="color:var(--green)">●</span> Cheapest you've recorded — stock up if it keeps.</div>`;
+    note=`<div style="font-size:11px;line-height:1.5;color:var(--fg2);margin-top:8px"><span style="color:var(--green)">●</span> Cheapest you've recorded — stock up now if it keeps.</div>`;
+  }else if(m.trendHold){
+    note=`<div style="font-size:11px;line-height:1.5;color:var(--fg3);margin-top:8px"><span style="color:var(--fg3)">●</span> At your low, but still falling — no rush.</div>`;
   }else if(m.freshNote){
     note=`<div style="font-size:11px;color:var(--fg3);margin-top:8px">Good week to buy it fresh.</div>`;
   }
