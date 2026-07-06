@@ -1110,7 +1110,39 @@ function nav(screen){S.screen=screen;render()}
 // tier-3-only stock-up, most-recent non-null tier join); latest-vs-typical delta
 // colours per Lens's dead-band thresholds. Every pasted item/store name goes through
 // esc() before insertion (names are untrusted pasted-Claude JSON).
-function pwNorm(s){return String(s==null?'':s).trim().toLowerCase();}
+// Mass/plural-invariant grocery nouns that slip past the ss/us/is guards and must
+// NOT singularize (would false-merge onto a different item). Intentionally tight;
+// extend by one line when a real field collision is observed. (E1-S3 / Becquerel)
+const PW_PLURAL_STOP = new Set(['greens','molasses']);
+
+// Name-fold (E1-S3): trim+lowercase, then (A) strip a trailing NON-SIZE parenthetical,
+// then (B) singularize-lite — drop ONE trailing 's' from the LAST token, guarded so it
+// never false-merges (greens↛green, molasses↛molasse, chicken breast≠chicken thigh, and
+// two different tuna(…) SIZES stay distinct). Feeds BOTH the grouping key (L1175) and the
+// tier-join key (L1159). Size parens are KEPT on purpose — that leaves the tuna cross-list
+// reconciliation to S4 (its [PENDING-E1] guard stays pending). Read-path only; no schema.
+function pwNorm(s){
+  let x = String(s==null?'':s).trim().toLowerCase();
+  if(!x) return x;
+  // (A) trailing-parenthetical strip — only when the paren carries NO size/qty/unit signal
+  const pm = x.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+  if(pm){
+    const inner = pm[2];
+    const hasSize = /\d/.test(inner) ||
+      /\b(oz|ozs|ounce|ounces|lb|lbs|pound|pounds|g|gram|grams|kg|kgs|ml|l|liter|liters|litre|litres|ct|count|pk|pack|packs|pkg|dozen|dz|qt|quart|quarts|pt|pint|pints|gal|gallon|gallons)\b/.test(inner);
+    const head = pm[1].trim();
+    if(!hasSize && head) x = head;              // strip descriptor paren; KEEP size paren; never empty the key
+  }
+  // (B) singularize-lite — strip ONE trailing 's' from the LAST whitespace token, guarded
+  const parts = x.split(/\s+/);
+  const last = parts[parts.length-1];
+  if(last.length>=4 && last.charAt(last.length-1)==='s'
+     && !/(ss|us|is)$/.test(last) && !PW_PLURAL_STOP.has(last)){
+    parts[parts.length-1] = last.slice(0,-1);
+    x = parts.join(' ');
+  }
+  return x;
+}
 
 // Lower-of-two median (Becquerel 1b: a real observed price, deterministic, safe delta
 // direction). Odd count → the single central value.
