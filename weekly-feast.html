@@ -1157,6 +1157,15 @@ function nav(screen){S.screen=screen;render()}
 // extend by one line when a real field collision is observed. (E1-S3 / Becquerel)
 const PW_PLURAL_STOP = new Set(['greens','molasses']);
 
+// Trailing-paren NOISE tokens: pure packaging-FORM descriptors that name how the
+// identical good is bundled, carrying no variety/grade/provenance/prep/price-regime
+// signal. These are the ONLY non-size parens pwNorm strips; every other paren
+// (variety/cut/grade/provenance/prep, organic/fresh price-regime markers, and any
+// UNRECOGNIZED token) is PRESERVED as identity — the invariant's under-merge-on-doubt
+// side. Intentionally tiny + preserve-biased; extend by one line when a real benign
+// descriptor is observed harmlessly fragmenting in the field. (DC-1 / Becquerel)
+const PW_PAREN_NOISE = new Set(['loose','bagged','bag']);
+
 // E1-S5 store-aware typical thresholds (Becquerel F4). A "structural store gap" is a
 // PERSISTENT price difference between stores (a store effect), not week-to-week noise:
 // real staple price gaps across store types (warehouse/discount vs conventional) run
@@ -1182,14 +1191,21 @@ const PW_OUTLIER_LO = 0.2;    // NON-SALE confirmed price < 1/5 own robust media
 function pwNorm(s){
   let x = String(s==null?'':s).trim().toLowerCase();
   if(!x) return x;
-  // (A) trailing-parenthetical strip — only when the paren carries NO size/qty/unit signal
+  // (A) DC-1 FACET-AWARE trailing-parenthetical handling. Precedence; default = PRESERVE
+  // (invariant: a safe under-merge beats an unsafe over-merge). Only a SIZE paren or a
+  // KNOWN pure-form noise paren (or an empty paren) collapses onto the head; a variety/
+  // grade/provenance/prep/organic/fresh/unknown paren stays part of the identity key so
+  // two genuinely different products (apple (gala) ≠ apple (fuji)) keep distinct bands.
   const pm = x.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
   if(pm){
-    const inner = pm[2];
+    const inner = pm[2].trim();
+    const head  = pm[1].trim();
     const hasSize = /\d/.test(inner) ||
       /\b(oz|ozs|ounce|ounces|lb|lbs|pound|pounds|g|gram|grams|kg|kgs|ml|l|liter|liters|litre|litres|ct|count|pk|pack|packs|pkg|dozen|dz|qt|quart|quarts|pt|pint|pints|gal|gallon|gallons)\b/.test(inner);
-    const head = pm[1].trim();
-    if(!hasSize && head) x = head;              // strip descriptor paren; KEEP size paren; never empty the key
+    // KEEP WHOLE a size paren (distinct sizes never pool — S12; also handles (2 lb gala)).
+    // STRIP only an empty paren or a known pure-form noise word, and only if a non-empty
+    // head remains (never manufacture an empty key). PRESERVE everything else as a facet.
+    if(!hasSize && head && (inner === '' || PW_PAREN_NOISE.has(inner))) x = head;
   }
   // (B) singularize-lite — strip ONE trailing 's' from the LAST whitespace token, guarded
   const parts = x.split(/\s+/);
