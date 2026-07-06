@@ -1115,6 +1115,13 @@ function nav(screen){S.screen=screen;render()}
 // extend by one line when a real field collision is observed. (E1-S3 / Becquerel)
 const PW_PLURAL_STOP = new Set(['greens','molasses']);
 
+// E1-S5 store-aware typical thresholds (Becquerel F4). A "structural store gap" is a
+// PERSISTENT price difference between stores (a store effect), not week-to-week noise:
+// real staple price gaps across store types (warehouse/discount vs conventional) run
+// ~10-30% and persist; within-store non-sale noise is a few %. STORE_GAP_PCT separates them.
+const PW_STORE_MIN_N   = 2;      // min own NON-SALE points for a store to count as a "pattern"
+const PW_STORE_GAP_PCT = 0.08;   // between-store typical spread (÷ pooled median) that is structural
+
 // Name-fold (E1-S3): trim+lowercase, then (A) strip a trailing NON-SIZE parenthetical,
 // then (B) singularize-lite — drop ONE trailing 's' from the LAST token, guarded so it
 // never false-merges (greens↛green, molasses↛molasse, chicken breast≠chicken thigh, and
@@ -1189,6 +1196,40 @@ function pwDelta(latest,min,max,median,band){
 // unknown/absent tier → suppress (the Number.isInteger guard).
 function pwStockUp(latest,min,tier){return (latest<=min+0.005)&&Number.isInteger(tier)&&tier===3;}
 
+// Store-aware typical classifier (E1-S5 / Becquerel F4): given a group's points, the LATEST
+// observation's store, and the pooled non-sale median, decide whether the stores are
+// STRUCTURALLY different (a persistent gap, not noise) and, if so, return the latest store's
+// OWN cut-line + floor operands. Pure; no writes. Returns one of:
+//   {mode:'pooled'}                                             → caller keeps byte-identical behavior
+//   {mode:'suppress', medians, sLatest}                         → gap, but latest store too thin → non-verdict
+//   {mode:'perstore', sLatest, medians, typical, sWeeks, sMin, sMax, sDisp}
+// typical = latest store's NON-SALE median (composes with F1); sMin/sMax over that store's ALL
+// points (incl sale — a real sale IS a trough, mirrors the pooled floor); sDisp/sWeeks feed the
+// per-store F6b dead-band. Min/max stay POOLED at the call site (green/steady unchanged).
+function pwStoreAware(points, sLatest, pooledMedian){
+  const byNon={}, byAll={};
+  for(const p of points){
+    const s=p.store||'';
+    (byAll[s]||(byAll[s]=[])).push(p.price);
+    if(p.category!=='sale')(byNon[s]||(byNon[s]=[])).push(p.price);
+  }
+  const qual=Object.keys(byNon).filter(s=>byNon[s].length>=PW_STORE_MIN_N);
+  const medians={};
+  for(const s of qual) medians[s]=pwMedian(byNon[s]);
+  let gap=false;
+  if(qual.length>=2 && pooledMedian>0){
+    const ms=qual.map(s=>medians[s]);
+    if((Math.max(...ms)-Math.min(...ms))/pooledMedian >= PW_STORE_GAP_PCT) gap=true;
+  }
+  if(!gap) return {mode:'pooled'};
+  const nonL=byNon[sLatest]||[], allL=byAll[sLatest]||[];
+  if(nonL.length<PW_STORE_MIN_N) return {mode:'suppress', medians, sLatest};
+  const t=pwMedian(nonL);
+  return {mode:'perstore', sLatest, medians, typical:t, sWeeks:nonL.length,
+          sMin:Math.min(...allL), sMax:Math.max(...allL),
+          sDisp:(Math.max(...nonL)-Math.min(...nonL))/t};
+}
+
 // Build the read-only model from S.planHistory (newest-first; index 0 = most recent).
 // Returns {weeksRecorded, ranked:[…≥3 confirmed weeks, sorted best-deal-first],
 // building:[…1-2 confirmed weeks]}. Every field read is guarded — old vintages lack
@@ -1257,7 +1298,9 @@ function pwBuildModel(){
       const taper=Math.max(0,Math.min(1,(5-weeks)/2));
       const band=Math.min(0.35,0.02+taper*0.6*disp);
       const smWi=g.displayWi; // smallest (newest) week index in the group
-      const latest=Math.min(...g.points.filter(p=>p.wi===smWi).map(p=>p.price)); // best price that week
+      const latestPts=g.points.filter(p=>p.wi===smWi);
+      const latest=Math.min(...latestPts.map(p=>p.price)); // best price that week
+      let sLatest=''; for(const p of latestPts){if(p.price===latest){sLatest=p.store||'';break;}} // store of the latest point (E1-S5)
       let lowStore='',lowWi=Infinity;
       for(const p of g.points){if(p.price===min&&p.wi<lowWi){lowWi=p.wi;lowStore=p.store;}} // most-recent low's store
       let tier=tierMap[key];                                    // EXACT match wins — unchanged
@@ -1265,11 +1308,39 @@ function pwBuildModel(){
         const bt=tierMapBase[key];                              // key === its own base here
         if(bt!==undefined) tier=bt;                             // reconcile; undefined if absent/suppressed → stays inert
       }
-      const delta=pwDelta(latest,min,max,median,band);
+      // E1-S5 store-aware typical (Becquerel F4): when stores are STRUCTURALLY different (a persistent
+      // gap, not week-to-week noise), de-pool the typical CUT-LINE + its dead-band onto the latest
+      // observation's OWN store, and judge the stock-up/freshNote trough against that store's OWN floor —
+      // never the pooled floor, which IS the cheap store's baseline. The pooled min/max (GREEN/steady +
+      // record) stay POOLED (Cascade boundary). Single store / same-price / thin per-store ⇒ 'pooled' ⇒
+      // every value below is byte-identical to pre-S5 (see spec §4).
+      const st=pwStoreAware(g.points,sLatest,median);
+      let dTypical=median, dBand=band, troughMin=min, troughMax=max;
+      if(st.mode==='perstore'){
+        dTypical=st.typical;
+        const t2=Math.max(0,Math.min(1,(5-st.sWeeks)/2));
+        dBand=Math.min(0.35,0.02+t2*0.6*st.sDisp);   // dead-band tracks the per-store substrate
+        troughMin=st.sMin; troughMax=st.sMax;        // own-store trough, not the pooled floor
+      }
+      let delta=(st.mode==='suppress')
+        ? {color:'var(--fg)',caret:'–',phrase:'prices vary by store',mag:''}  // NON-VERDICT; phrase = Lens AC-L1-S5 (§9)
+        : pwDelta(latest,min,max,dTypical,dBand);    // min/max POOLED (green/steady unchanged); typical/band per-store when perstore
+      // Lens AC-L2-S5 (green-neutralize on the flat cheap-store baseline — §9): at the pooled floor
+      // BUT the latest store's OWN baseline is flat (troughMax/troughMin are the own-store floor in
+      // perstore) ⇒ a PLACE signal, not a TIME deal ⇒ neutralize the pooled-floor green to the honest
+      // per-store neutral. Complement of the stock-up gate (which needs spread>0.005); a genuine sale
+      // (own spread>0) is NOT overridden. Floor VALUES untouched; lowStore still discloses the place-low.
+      if(st.mode==='perstore' && latest<=min+0.005 && (troughMax-troughMin<=0.005))
+        delta={color:'var(--fg)',caret:'–',phrase:'right around your typical',mag:''};
       ranked.push({key,display:g.display,weeks,min,max,median,latest,lowStore,tier,delta,
-        signal:(median-latest)/median,
-        fireStockUp:pwStockUp(latest,min,tier) && (max-min>0.005),
-        freshNote:(latest<=min+0.005)&&Number.isInteger(tier)&&tier<3&&(max-min>0.005)});
+        signal:(dTypical-latest)/dTypical,
+        fireStockUp:(st.mode!=='suppress') && pwStockUp(latest,troughMin,tier) && (troughMax-troughMin>0.005),
+        freshNote:(st.mode!=='suppress') && (latest<=troughMin+0.005)&&Number.isInteger(tier)&&tier<3&&(troughMax-troughMin>0.005),
+        storeMode:st.mode,
+        storeTypical:(st.mode==='perstore'?st.typical:null),
+        storeWeeks:(st.mode==='perstore'?st.sWeeks:null),   // Lens AC-L4-S5: own-store n backing the typical (closes S5-N1)
+        storeLatest:(st.mode!=='pooled'?sLatest:''),
+        storeMedians:(st.mode!=='pooled'?st.medians:null)});
     }else{ // 1-2 confirmed weeks — building history: NEVER a band/colour/trend
       building.push({key,display:g.display,weeks,min:Math.min(...prices),max:Math.max(...prices)});
     }
@@ -1306,9 +1377,9 @@ function pwCard(m){
     <div style="margin-top:6px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
       <span style="font-size:16px;font-weight:700;color:${d.color}">${d.caret} $${n2(m.latest)}</span>
       <span style="font-size:12px;color:${d.color}">${d.phrase}</span>
-      ${d.mag&&m.weeks>=5?`<span style="font-size:11px;color:var(--fg3)">${d.mag}</span>`:''}
+      ${d.mag&&(m.storeMode==='perstore'?m.storeWeeks>=5:m.weeks>=5)?`<span style="font-size:11px;color:var(--fg3)">${d.mag}</span>`:''}
     </div>
-    <div style="font-size:11px;color:var(--fg3);margin-top:8px">low $${n2(m.min)}${m.lowStore?` <span style="color:var(--fg4)">(${esc(m.lowStore)})</span>`:''} · typ $${n2(m.median)} · high $${n2(m.max)}</div>
+    <div style="font-size:11px;color:var(--fg3);margin-top:8px">low $${n2(m.min)}${m.lowStore?` <span style="color:var(--fg4)">(${esc(m.lowStore)})</span>`:''} · typ $${n2(m.storeMode==='perstore'?m.storeTypical:m.median)} · high $${n2(m.max)}</div>
     ${bandBar}
     ${note}
   </div>`;
