@@ -114,7 +114,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v7',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v8',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
 
 const DEFAULT_PANTRY={tier1:[
 {id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",onHand:4,unit:"lb",par:2,updatedAt:new Date().toISOString()},
@@ -260,7 +260,16 @@ cabbage, citrus, apples, hard cheese, eggs — 1-2 weeks), or 3 (onions, potatoe
 dried grains/pasta/legumes, oils, anything frozen — weeks to months). Set cook_by (Tier-0/1) or
 freeze_by (if it will be frozen on day 0) to the actual calendar date; leave both null for Tier-2/3
 shelf-stable items. These tiers follow USDA FSIS / FoodSafety.gov cold-storage guidance — do not invent
-shorter or longer windows.
+shorter or longer windows. Also record freezable (true or false) for each ingredient: true when a
+surplus of the item, portioned and frozen on the shopping day and thawed later, is still fit for the
+same use you bought it for — raw proteins, cooked components and planned leftovers, stock and soups,
+bread, butter and hard cheese, and produce destined for a cooked application. Set false when freezing
+yields a different-use or ruined product — high-water raw produce and tender greens for fresh use,
+berries and melon for fresh eating, soft herbs for garnish, in-shell eggs, soft and cream dairy, and
+fried foods. freezable is the machine-readable form of the freezer-offload rule above and is orthogonal
+to shelf_life_tier: a fresh chicken thigh is Tier 0-1 but freezable true, while a fresh strawberry
+bought for a fruit salad is Tier 0 but freezable false. Omit the field only if you genuinely cannot
+judge it — a missing value is treated as not-freezable, never as freezable.
 
 Breakfasts and lunches: Provide simple text suggestions (oatmeal, sandwiches, eggs, leftovers, simple salads) without full recipe treatment. These should be low-effort, pantry-driven meals. Reference specific leftovers by name where applicable (e.g., "leftover beef stew from Day 3").
 
@@ -449,7 +458,7 @@ safety net, not a target: emit the schema exactly.
     "stores_estimated": ["Walmart"],
     "confidence": "normal"
   },
-  "meal_plan": [ { "day": 1, "date": "YYYY-MM-DD", "breakfast": "...", "lunch": "...", "dinner": { "name": "...", "source_url": "...", "source_site": "...", "servings": 4, "cost_per_serving": 2.85, "perishability_note": "... or null", "quality_note": "... or null", "ingredients": [ { "item": "...", "quantity": "...", "source": "sale | pantry | staple", "store": "store name or null", "price_estimate": 0.00, "shelf_life_tier": 0, "cook_by": "YYYY-MM-DD or null", "freeze_by": "YYYY-MM-DD or null" } ] } } ],
+  "meal_plan": [ { "day": 1, "date": "YYYY-MM-DD", "breakfast": "...", "lunch": "...", "dinner": { "name": "...", "source_url": "...", "source_site": "...", "servings": 4, "cost_per_serving": 2.85, "perishability_note": "... or null", "quality_note": "... or null", "ingredients": [ { "item": "...", "quantity": "...", "source": "sale | pantry | staple", "store": "store name or null", "price_estimate": 0.00, "shelf_life_tier": 0, "freezable": true | false, "cook_by": "YYYY-MM-DD or null", "freeze_by": "YYYY-MM-DD or null" } ] } } ],
   "shopping_list": [ { "item": "...", "quantity": "...", "store": "store name or any", "price": 0.00, "price_type": "confirmed | estimated", "category": "sale | staple | restock", "notes": "... or null", "meals_spanned": 2 } ],
   "pantry_alerts": [ { "item": "...", "concern": "..." } ],
   "cost_summary": { "total_estimated": 0.00, "per_person_per_day": 0.00, "by_store": { "StoreName": 0.00 } },
@@ -465,6 +474,7 @@ Field notes:
 - "pantry_alerts": Include entries only when cumulative weekly usage warrants a heads-up. An empty array is fine if no alerts are needed.
 - "shelf_life_tier" (ingredient): integer 0-3 per USDA FSIS cold-storage tiers — 0 = 1-2 day (ground meat/poultry, fish, soft herbs, tender greens, berries, ripe avocado), 1 = 3-5 day (large raw cuts, broccoli, peppers, mushrooms, leftovers), 2 = 1-2 week (carrots, cabbage, citrus, apples, hard cheese, eggs), 3 = weeks-plus / shelf-stable / frozen. null if not applicable.
 - "cook_by"/"freeze_by" (ingredient): calendar date the item must be cooked (Tier-0/1) or frozen if offloaded day-0. Both null for shelf-stable items.
+- "freezable" (ingredient): boolean — true if a surplus can be portioned, frozen on the shopping day, and thawed for the SAME use (raw proteins, cooked components, stock, bread, butter, hard cheese, produce for cooked dishes); false if freezing ruins it or changes its use (high-water raw produce and tender greens for fresh use, berries/melon for fresh eating, soft herbs, in-shell eggs, soft/cream dairy, fried foods). Orthogonal to shelf_life_tier. Omit only if genuinely unknown; a missing value is treated as not-freezable.
 - "meals_spanned" (shopping_list): count of meals a purchased item feeds. A perishable with meals_spanned = 1 is a stranded-remainder risk (single-use audit).
 - "nutrition_summary" (top-level): weekly-level MyPlate balance result (see STEP 3.5) — the protein sources actually used, vegetable subgroups represented, seafood servings, and whether produce ~half-fills the plate across the week. "shortfalls" is an array of honest entries, one per weekly target the budget-optimal plan could not meet (protein rotation ≥3, ~2 seafood servings, ≥3 of 5 veg subgroups, ~half-plate produce), each naming the gap and its cost/availability reason; an empty array [] means every target was met. General healthy-eating guidance for weekly variety, not medical nutrition therapy. May be null.
 - "overlap_map" (top-level): optional map of item -> list of day numbers that use it. May be null.
@@ -477,7 +487,7 @@ BEGIN_WEEKLY_FEAST_JSON
 {
   "metadata": {"plan_date":"2026-03-09","plan_days":7,"household_size":2,"stores_searched":["QFC","Kroger","Safeway","Walmart"],"stores_confirmed":["QFC","Safeway"],"stores_estimated":["Walmart"],"confidence":"normal"},
   "meal_plan": [
-    {"day":1,"date":"2026-03-09","breakfast":"Oatmeal with banana","lunch":"Turkey sandwiches","dinner":{"name":"One-Pot Chicken and Rice","source_url":"https://example.com/chicken-rice","source_site":"Budget Bytes","servings":2,"cost_per_serving":1.85,"perishability_note":"Uses fresh cilantro — early in week","quality_note":null,"ingredients":[{"item":"chicken thighs","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null,"shelf_life_tier":0,"cook_by":"2026-03-10","freeze_by":null},{"item":"onion","quantity":"1","source":"staple","store":"QFC","price_estimate":0.75,"shelf_life_tier":3,"cook_by":null,"freeze_by":null}]}},
+    {"day":1,"date":"2026-03-09","breakfast":"Oatmeal with banana","lunch":"Turkey sandwiches","dinner":{"name":"One-Pot Chicken and Rice","source_url":"https://example.com/chicken-rice","source_site":"Budget Bytes","servings":2,"cost_per_serving":1.85,"perishability_note":"Uses fresh cilantro — early in week","quality_note":null,"ingredients":[{"item":"chicken thighs","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null,"shelf_life_tier":0,"freezable":true,"cook_by":"2026-03-10","freeze_by":null},{"item":"onion","quantity":"1","source":"staple","store":"QFC","price_estimate":0.75,"shelf_life_tier":3,"freezable":false,"cook_by":null,"freeze_by":null}]}},
     {"day":2,"date":"2026-03-10","breakfast":"Eggs and toast","lunch":"Leftover chicken and rice","dinner":{"name":"Leftovers — Day 1 chicken and rice","source_url":null,"source_site":null,"servings":2,"cost_per_serving":null,"perishability_note":null,"quality_note":null,"ingredients":[]}}
   ],
   "shopping_list": [{"item":"Onion","quantity":"1","store":"QFC","price":0.75,"price_type":"confirmed","category":"staple","notes":null,"meals_spanned":2}],
@@ -694,7 +704,7 @@ function parseCandidate(str){
 
 function normalizeIngredient(ing){
   if(ing==null)return null;
-  if(typeof ing==='string')return{item:ing,quantity:'',source:'staple',store:null,price_estimate:null,shelf_life_tier:null,cook_by:null,freeze_by:null};
+  if(typeof ing==='string')return{item:ing,quantity:'',source:'staple',store:null,price_estimate:null,shelf_life_tier:null,freezable:null,cook_by:null,freeze_by:null};
   if(typeof ing!=='object')return null;
   return{
     item: ing.item!=null?String(ing.item):'',
@@ -703,6 +713,7 @@ function normalizeIngredient(ing){
     store: ing.store!=null?String(ing.store):null,
     price_estimate: toNum(ing.price_estimate),
     shelf_life_tier: ([0,1,2,3].includes(ing.shelf_life_tier))?ing.shelf_life_tier:null,
+    freezable: (typeof ing.freezable==='boolean')?ing.freezable:null,
     cook_by: (typeof ing.cook_by==='string'&&ing.cook_by.trim())?ing.cook_by:null,
     freeze_by: (typeof ing.freeze_by==='string'&&ing.freeze_by.trim())?ing.freeze_by:null
   };
@@ -1022,6 +1033,37 @@ const PREV_TEMPLATE_V6_HASH=1247868438; // djb2 of the pristine v6 DEFAULT_PROMP
       }
     }
     try{localStorage.removeItem(V6)}catch(e){}
+    localStorage.setItem(DONE,'1');
+  }catch(e){/* migration is best-effort */}
+})();
+
+// ── One-time template migration v7 → v8 (E1-S7 freezable-protein signal) ──
+// Same contract as migrateTemplateV7: exact-equality test against the pristine v7 default via djb2.
+// A non-customizing user (stored v7 === pristine v7 default) is force-upgraded to the v8 FREEZABLE
+// default (STEP-3 now requests a per-ingredient `freezable` boolean); a user who hand-edited their
+// template is carried forward untouched under the new key and can re-pull via the editor. The hash
+// test can only ever false-PRESERVE (a drifted/edited template is kept), never false-REPLACE. Chains
+// after the v6→v7 guard above (which removed the v6 key first).
+const PREV_TEMPLATE_V7_HASH=2198782153; // djb2 of the pristine v7 DEFAULT_PROMPT_TEMPLATE (pre-freezable, HEAD fdef8af)
+(function migrateTemplateV8(){
+  try{
+    const DONE='mp:migrated-template-v8';
+    if(localStorage.getItem(DONE))return;
+    const V7='mp:prompt-template-v7',V8=KEYS.promptTemplate;
+    const oldV7=localStorage.getItem(V7);
+    const hasV8=localStorage.getItem(V8)!=null;
+    if(oldV7!=null&&!hasV8){
+      let parsed;try{parsed=JSON.parse(oldV7)}catch(e){parsed=oldV7}
+      const oldText=typeof parsed==='string'?parsed:'';
+      if(oldText&&_djb2(oldText)===PREV_TEMPLATE_V7_HASH){
+        // pristine v7 default: adopt the new v8 freezable default (no user edits to preserve)
+        _pendingUpgradeToast='Prompt template upgraded — Claude now flags freezer-friendly proteins so Price Watch can spot buy-and-freeze deals.';
+      }else if(oldText){
+        // hand-edited: carry the user's template forward under the new key, untouched
+        try{localStorage.setItem(V8,JSON.stringify(oldText))}catch(e){}
+      }
+    }
+    try{localStorage.removeItem(V7)}catch(e){}
     localStorage.setItem(DONE,'1');
   }catch(e){/* migration is best-effort */}
 })();
