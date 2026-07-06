@@ -1164,6 +1164,7 @@ const PW_PLURAL_STOP = new Set(['greens','molasses']);
 const PW_STORE_MIN_N   = 2;      // min own NON-SALE points for a store to count as a "pattern"
 const PW_STORE_GAP_PCT = 0.08;   // between-store typical spread (÷ pooled median) that is structural
 const PW_STOCKUP_DEPTH = 0.18;   // min discount below typical for the stock-up IMPERATIVE (Becquerel F3a)
+const PW_FREEZE_DEPTH  = 0.30;   // min discount below typical for the BUY-AND-FREEZE imperative (Becquerel F3c) — its OWN constant, > PW_STOCKUP_DEPTH
 
 // Name-fold (E1-S3): trim+lowercase, then (A) strip a trailing NON-SIZE parenthetical,
 // then (B) singularize-lite — drop ONE trailing 's' from the LAST token, guarded so it
@@ -1303,7 +1304,7 @@ function pwBuildModel(){
   const hist=Array.isArray(S.planHistory)?S.planHistory:[];
   // Shelf-life-tier join: MOST-RECENT non-null wins (newest-first iteration → first
   // seen is freshest; captures a later tier correction, ignores stale/null vintages).
-  const tierMap={};
+  const tierMap={}, freezableMap={};
   for(let wi=0;wi<hist.length;wi++){
     const e=hist[wi];
     const mp=(e&&e.plan&&Array.isArray(e.plan.meal_plan))?e.plan.meal_plan:[];
@@ -1313,6 +1314,8 @@ function pwBuildModel(){
         if(!ing||typeof ing!=='object')continue;
         const t=ing.shelf_life_tier;
         if(Number.isInteger(t)&&t>=0&&t<=3){const k=pwNorm(ing.item);if(k&&!(k in tierMap))tierMap[k]=t;}
+        const fz=ing.freezable;                                                    // NEW (E1-S7): strict-boolean, most-recent-non-null wins, exact-key only
+        if(typeof fz==='boolean'){const k=pwNorm(ing.item);if(k&&!(k in freezableMap))freezableMap[k]=fz;}
       }
     }
   }
@@ -1410,10 +1413,24 @@ function pwBuildModel(){
         && depthOK;                                  // NEW depth floor
       const fireStockUp = stockupCandidate && !stillFalling;   // deep, at-floor, NOT a ramp → imperative
       const trendHold   = stockupCandidate &&  stillFalling;   // deep, at-floor, still-ramping → "no rush"
+      // Freeze-buy gate (Becquerel F3c, verbatim §3.1): DISJOINT from pwStockUp by the tier
+      // predicate (freeze needs tier<3, stockup needs tier===3 → never both). freezableMap[key]
+      // is strictly-true only (absent/null/non-bool → inert); own constant PW_FREEZE_DEPTH=0.30
+      // (deeper hurdle than the 0.18 shelf-stable floor — freezer space is scarce/rivalrous).
+      const depthFreezeOK = latest <= dTypical*(1-PW_FREEZE_DEPTH) + 0.005;   // ≥30% below store-aware typical (§2)
+      const fireFreeze =
+           (st.mode!=='suppress')
+        && (latest<=troughMin+0.005)                    // at own-store/pooled floor (mirrors freshNote)
+        && (troughMax-troughMin>0.005)                  // real spread — never fire on a flat series
+        && (freezableMap[key]===true)                   // the NEW signal, STRICTLY true (§2.1)
+        && Number.isInteger(tier) && tier<3             // FRESH — DISJOINT from pwStockUp's tier===3
+        && depthFreezeOK
+        && !stillFalling;                               // not a live descent (mirrors trendHold/F2)
       ranked.push({key,display:g.display,weeks,min,max,median,latest,lowStore,tier,delta,
         signal:(dTypical-latest)/dTypical,
         fireStockUp,
         trendHold,
+        fireFreeze,
         freshNote:(st.mode!=='suppress') && (latest<=troughMin+0.005)&&Number.isInteger(tier)&&tier<3&&(troughMax-troughMin>0.005),
         storeMode:st.mode,
         storeTypical:(st.mode==='perstore'?st.typical:null),
@@ -1445,6 +1462,8 @@ function pwCard(m){
   let note='';
   if(m.fireStockUp){
     note=`<div style="font-size:11px;line-height:1.5;color:var(--fg2);margin-top:8px"><span style="color:var(--green)">●</span> Cheapest you've recorded — stock up now if it keeps.</div>`;
+  }else if(m.fireFreeze){
+    note=`<div style="font-size:11px;line-height:1.5;color:var(--fg2);margin-top:8px"><span style="color:var(--green)">❄</span> Rare low on a freezable cut — buy extra and freeze the surplus.</div>`;
   }else if(m.trendHold){
     note=`<div style="font-size:11px;line-height:1.5;color:var(--fg3);margin-top:8px"><span style="color:var(--fg3)">●</span> At your low, but still falling — no rush.</div>`;
   }else if(m.freshNote){
