@@ -1166,6 +1166,13 @@ const PW_STORE_GAP_PCT = 0.08;   // between-store typical spread (÷ pooled medi
 const PW_STOCKUP_DEPTH = 0.18;   // min discount below typical for the stock-up IMPERATIVE (Becquerel F3a)
 const PW_FREEZE_DEPTH  = 0.30;   // min discount below typical for the BUY-AND-FREEZE imperative (Becquerel F3c) — its OWN constant, > PW_STOCKUP_DEPTH
 
+// E1-S8 reader outlier/sanity clamp (Becquerel F2 8a). A confirmed price more than a
+// factor of 5 off its item's OWN robust median is a data-entry error (extra-digit / missing-
+// decimal), not a real shelf event — a real single-item price lives within ~[0.25x,3x] of its
+// typical, a decimal-slip is ~10x. 5 sits in the gap (2x log-margin each edge); §1.2 grounding.
+const PW_OUTLIER_HI = 5;      // confirmed price > 5x own robust median ⇒ data-entry error (extra digit); Becquerel F2 §1.2
+const PW_OUTLIER_LO = 0.2;    // NON-SALE confirmed price < 1/5 own robust median ⇒ data-entry error (missing decimal); §1.2
+
 // Name-fold (E1-S3): trim+lowercase, then (A) strip a trailing NON-SIZE parenthetical,
 // then (B) singularize-lite — drop ONE trailing 's' from the LAST token, guarded so it
 // never false-merges (greens↛green, molasses↛molasse, chicken breast≠chicken thigh, and
@@ -1353,11 +1360,26 @@ function pwBuildModel(){
   const ranked=[],building=[];
   for(const key of Object.keys(groups)){
     const g=groups[key];
-    const prices=g.points.map(p=>p.price);
-    const weeks=g.weeks.size;
+    // E1-S8 (Becquerel F2 8a): domain-plausibility clamp — drop confirmed-but-IMPLAUSIBLE
+    // prices (fat-finger $299 / missing-decimal $0.29) BEFORE any stat, so they can neither
+    // set the floor, saturate the F6b band, nor false-rank. Robust center = median over ALL
+    // raw points (survives one outlier at ≥3 weeks). Sale-tagged points are EXEMPT from the
+    // LOW bound (a declared sale is an EXPECTED low — trust it, per F1). SILENT: the point is
+    // dropped exactly as the L1344 ≤0 guard drops it. Only evaluated at ≥3 raw weeks.
+    let pts=g.points;
+    if(g.weeks.size>=3){
+      const med0=pwMedian(g.points.map(p=>p.price));   // real array element (n≥3) ⇒ its own point (ratio 1.0) always admitted ⇒ pts never empty
+      if(med0!=null&&med0>0){                           // degenerate guard: no robust center → no exclusion; med0 is a multiplier (never a divisor) so no ÷0
+        pts=g.points.filter(p=>
+          !((p.price>med0*PW_OUTLIER_HI) ||
+            (p.category!=='sale' && p.price<med0*PW_OUTLIER_LO)));
+      }
+    }
+    const prices=pts.map(p=>p.price);
+    const weeks=new Set(pts.map(p=>p.wi)).size;   // clean-week count over the ADMITTED set (may drop below 3 → building)
     if(weeks>=3){
       const min=Math.min(...prices),max=Math.max(...prices);
-      const nonSalePrices=g.points.filter(p=>p.category!=='sale').map(p=>p.price);
+      const nonSalePrices=pts.filter(p=>p.category!=='sale').map(p=>p.price);   // ← pts (admitted), was g.points
       const anchorArr=nonSalePrices.length?nonSalePrices:prices; // the F1 non-sale anchor array
       const median=pwMedian(anchorArr);
       // F6b: dispersion-aware small-n dead-band. disp = relative spread of the non-sale
@@ -1365,12 +1387,12 @@ function pwBuildModel(){
       const disp=(Math.max(...anchorArr)-Math.min(...anchorArr))/median;
       const taper=Math.max(0,Math.min(1,(5-weeks)/2));
       const band=Math.min(0.35,0.02+taper*0.6*disp);
-      const smWi=g.displayWi; // smallest (newest) week index in the group
-      const latestPts=g.points.filter(p=>p.wi===smWi);
+      const smWi=Math.min(...pts.map(p=>p.wi)); // smallest (newest) ADMITTED week index — recomputed over admitted (outlier-latest safety; E1-S8)
+      const latestPts=pts.filter(p=>p.wi===smWi);   // ← pts (admitted), was g.points
       const latest=Math.min(...latestPts.map(p=>p.price)); // best price that week
       let sLatest=''; for(const p of latestPts){if(p.price===latest){sLatest=p.store||'';break;}} // store of the latest point (E1-S5)
       let lowStore='',lowWi=Infinity;
-      for(const p of g.points){if(p.price===min&&p.wi<lowWi){lowWi=p.wi;lowStore=p.store;}} // most-recent low's store
+      for(const p of pts){if(p.price===min&&p.wi<lowWi){lowWi=p.wi;lowStore=p.store;}} // most-recent low's store  ← pts (admitted), was g.points
       let tier=tierMap[key];                                    // EXACT match wins — unchanged
       if(tier===undefined && pwBaseKey(key)===key){             // exact miss AND shopping key is SIZE-FREE (the gate)
         const bt=tierMapBase[key];                              // key === its own base here
@@ -1382,7 +1404,7 @@ function pwBuildModel(){
       // never the pooled floor, which IS the cheap store's baseline. The pooled min/max (GREEN/steady +
       // record) stay POOLED (Cascade boundary). Single store / same-price / thin per-store ⇒ 'pooled' ⇒
       // every value below is byte-identical to pre-S5 (see spec §4).
-      const st=pwStoreAware(g.points,sLatest,median);
+      const st=pwStoreAware(pts,sLatest,median);   // ← pts (admitted), was g.points
       let dTypical=median, dBand=band, troughMin=min, troughMax=max;
       if(st.mode==='perstore'){
         dTypical=st.typical;
@@ -1401,8 +1423,8 @@ function pwBuildModel(){
       if(st.mode==='perstore' && latest<=min+0.005 && (troughMax-troughMin<=0.005))
         delta={color:'var(--fg)',caret:'–',phrase:'right around your typical',mag:''};
       const trendStore = (st.mode==='perstore') ? sLatest : null;
-      const priorLo  = pwPriorLow(g.points, smWi, trendStore, 1);
-      const prior2Lo = pwPriorLow(g.points, smWi, trendStore, 2);
+      const priorLo  = pwPriorLow(pts, smWi, trendStore, 1);   // ← pts (admitted), was g.points
+      const prior2Lo = pwPriorLow(pts, smWi, trendStore, 2);   // ← pts (admitted), was g.points
       // sustained descent: prior2 > prior > latest, each by more than the house 0.005 epsilon.
       const stillFalling = (priorLo!=null && prior2Lo!=null)
         && (latest < priorLo - 0.005) && (priorLo < prior2Lo - 0.005);
