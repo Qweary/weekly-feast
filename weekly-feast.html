@@ -1144,6 +1144,24 @@ function pwNorm(s){
   return x;
 }
 
+// Join-only derived key (E1-S4 / Becquerel): strip a trailing SIZE paren from an
+// already-pwNorm'd key and re-normalize the exposed head, so a recipe tier key that
+// carries a size paren (canned tuna (5 oz)) can reconcile onto a bare shopping group
+// key (canned tuna) WITHOUT ever loosening pwNorm (which would re-merge tuna 5oz/12oz
+// in the GROUPING key — S12's size-distinct guard). Uses pwNorm's OWN size test so it
+// removes ONLY what pwNorm chose to keep. Read-path only.
+function pwBaseKey(k){
+  const m = String(k==null?'':k).match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+  if(m){
+    const inner = m[2];
+    const hasSize = /\d/.test(inner) ||
+      /\b(oz|ozs|ounce|ounces|lb|lbs|pound|pounds|g|gram|grams|kg|kgs|ml|l|liter|liters|litre|litres|ct|count|pk|pack|packs|pkg|dozen|dz|qt|quart|quarts|pt|pint|pints|gal|gallon|gallons)\b/.test(inner);
+    const head = m[1].trim();
+    if(hasSize && head) return pwNorm(head);   // strip size paren; RE-NORMALIZE the exposed head
+  }
+  return k;                                      // no trailing size paren → base == k
+}
+
 // Lower-of-two median (Becquerel 1b: a real observed price, deterministic, safe delta
 // direction). Odd count → the single central value.
 function pwMedian(nums){
@@ -1192,6 +1210,17 @@ function pwBuildModel(){
       }
     }
   }
+  // Base-fallback (E1-S4): reconcile a size-paren-only difference on the SAME base item.
+  // Built DOWNSTREAM of tierMap, so Ruling-3 most-recent-non-null-wins is already applied
+  // per exact key (composes; never re-opens tier-drift). Two sizes → DIFFERENT tiers → suppress.
+  const tierMapBase={}, baseConflict={};
+  for(const ek of Object.keys(tierMap)){
+    const b=pwBaseKey(ek);
+    if(b===ek) continue;                                   // recipe key already bare — exact map covers it
+    if(baseConflict[b]) continue;
+    if(!(b in tierMapBase)) tierMapBase[b]=tierMap[ek];
+    else if(tierMapBase[b]!==tierMap[ek]){ baseConflict[b]=true; delete tierMapBase[b]; }
+  }
   // Flatten confirmed observations (drop estimated/null-price entirely), group by norm name.
   const groups={};
   for(let wi=0;wi<hist.length;wi++){
@@ -1231,7 +1260,11 @@ function pwBuildModel(){
       const latest=Math.min(...g.points.filter(p=>p.wi===smWi).map(p=>p.price)); // best price that week
       let lowStore='',lowWi=Infinity;
       for(const p of g.points){if(p.price===min&&p.wi<lowWi){lowWi=p.wi;lowStore=p.store;}} // most-recent low's store
-      const tier=tierMap[key];
+      let tier=tierMap[key];                                    // EXACT match wins — unchanged
+      if(tier===undefined && pwBaseKey(key)===key){             // exact miss AND shopping key is SIZE-FREE (the gate)
+        const bt=tierMapBase[key];                              // key === its own base here
+        if(bt!==undefined) tier=bt;                             // reconcile; undefined if absent/suppressed → stays inert
+      }
       const delta=pwDelta(latest,min,max,median,band);
       ranked.push({key,display:g.display,weeks,min,max,median,latest,lowStore,tier,delta,
         signal:(median-latest)/median,
