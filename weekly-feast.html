@@ -1123,13 +1123,14 @@ function pwMedian(nums){
 // Latest-vs-typical delta → {color,caret,phrase,mag} (Lens §4c dead-band, first-match
 // order). Direction is carried by the caret AND the phrase, never colour alone. Green
 // is rationed to the exact recorded floor; the ±2% dead-band only softens neutral/amber.
-function pwDelta(latest,min,max,median){
+function pwDelta(latest,min,max,median,band){
+  const b=(Number.isFinite(band)&&band>0)?band:0.02;   // default = today's ±2%
   const pctBelow=Math.round(100*(median-latest)/median);
   const pctAbove=Math.round(100*(latest-median)/median);
   if(max-min<=0.005) return {color:'var(--fg)',caret:'–',phrase:'steady — no change yet',mag:''};
   if(latest<=min+0.005) return {color:'var(--green)',caret:'▾',phrase:'your lowest recorded price',mag:(pctBelow>=1?`(${pctBelow}% below typical)`:'')};
-  if(latest>median*1.02) return {color:'var(--amber)',caret:'▴',phrase:'above your typical',mag:`(${pctAbove}% above typical)`};
-  if(latest<median*0.98) return {color:'var(--fg)',caret:'▾',phrase:'below your typical',mag:`(${pctBelow}% below typical)`};
+  if(latest>median*(1+b)) return {color:'var(--amber)',caret:'▴',phrase:'above your typical',mag:`(${pctAbove}% above typical)`};
+  if(latest<median*(1-b)) return {color:'var(--fg)',caret:'▾',phrase:'below your typical',mag:`(${pctBelow}% below typical)`};
   return {color:'var(--fg)',caret:'–',phrase:'right around your typical',mag:''};
 }
 
@@ -1187,13 +1188,19 @@ function pwBuildModel(){
     if(weeks>=3){
       const min=Math.min(...prices),max=Math.max(...prices);
       const nonSalePrices=g.points.filter(p=>p.category!=='sale').map(p=>p.price);
-      const median=pwMedian(nonSalePrices.length?nonSalePrices:prices);
+      const anchorArr=nonSalePrices.length?nonSalePrices:prices; // the F1 non-sale anchor array
+      const median=pwMedian(anchorArr);
+      // F6b: dispersion-aware small-n dead-band. disp = relative spread of the non-sale
+      // anchor; band widens the ±2% neutral zone on noisy 3-4-week items, tapering to 2% by 5 weeks.
+      const disp=(Math.max(...anchorArr)-Math.min(...anchorArr))/median;
+      const taper=Math.max(0,Math.min(1,(5-weeks)/2));
+      const band=Math.min(0.35,0.02+taper*0.6*disp);
       const smWi=g.displayWi; // smallest (newest) week index in the group
       const latest=Math.min(...g.points.filter(p=>p.wi===smWi).map(p=>p.price)); // best price that week
       let lowStore='',lowWi=Infinity;
       for(const p of g.points){if(p.price===min&&p.wi<lowWi){lowWi=p.wi;lowStore=p.store;}} // most-recent low's store
       const tier=tierMap[key];
-      const delta=pwDelta(latest,min,max,median);
+      const delta=pwDelta(latest,min,max,median,band);
       ranked.push({key,display:g.display,weeks,min,max,median,latest,lowStore,tier,delta,
         signal:(median-latest)/median,
         fireStockUp:pwStockUp(latest,min,tier) && (max-min>0.005),
