@@ -1193,6 +1193,17 @@ const PW_PAREN_NOISE = new Set(['loose','bagged','bag']);
 // or user-editable alias map — no reload-surviving state, no djb2/schema. (DC-2 / Becquerel)
 const PW_LEADING_CANON = new Map([['yellow onion', 'onion']]);
 
+// DC-4 / S4-N1 (Becquerel): UNAMBIGUOUS shelf-stable FORM words (USDA-FSIS shelf-stable =
+// moisture-removed OR hermetically sealed). Ambiguous preservation (smoked/cured/pickled/
+// fermented) is EXCLUDED — those span refrigerated grocery forms. Growth bar (WATCH): an added
+// word must denote shelf-stable with NO refrigerated grocery form.
+const PW_KEEPS_FORM = new Set(['canned','tinned','dried','dry','dehydrated','powdered','instant','jarred','bottled']);
+// Inherently-shelf-stable pantry STAPLE base-nouns (bare noun ⟹ shelf-stable with certainty).
+// Stored in pwNorm-CANONICAL (singularized) form. Seeded with EXACTLY the S13 designated-close
+// set (Rice/Flour/Sugar/Pasta/Oats). Growth bar (WATCH DC-4-N1): the bare grocery noun must never
+// denote a fresh/perishable item — a mis-add RE-OPENS S4-N1, so add only on observed fragmentation.
+const PW_KEEPS_STAPLE = new Set(['rice','flour','sugar','pasta','oat']);
+
 // E1-S5 store-aware typical thresholds (Becquerel F4). A "structural store gap" is a
 // PERSISTENT price difference between stores (a store effect), not week-to-week noise:
 // real staple price gaps across store types (warehouse/discount vs conventional) run
@@ -1274,6 +1285,20 @@ function pwBaseKey(k){
     if(hasSize && head) return pwNorm(head);   // strip size paren; RE-NORMALIZE the exposed head
   }
   return k;                                      // no trailing size paren → base == k
+}
+
+// Shelf-stable AFFIRMATION for the DC-4 / S4-N1 category-agreement guard (Becquerel). Answers ONE
+// question: does the bare shopping item's OWN NAME affirm it is shelf-stable ("keeps"), so a
+// recipe-derived tier-3 may be inherited across the base-fallback? TRUE only on an UNAMBIGUOUS
+// signal in the name itself — a shelf-stable FORM word (canned/dried/…) OR a certified pantry
+// STAPLE noun (rice/flour/…). Everything else → FALSE → the tier-3 inheritance is suppressed to
+// inert (the arc invariant's under-merge-on-ambiguity side). Operates on an already-pwNorm'd key.
+// Read-path only, pure string→bool.
+function pwKeeps(k){
+  const s = String(k==null?'':k).trim();
+  if(!s) return false;
+  for(const w of s.split(/\s+/)){ if(PW_KEEPS_FORM.has(w)) return true; }  // any shelf-stable FORM word
+  return PW_KEEPS_STAPLE.has(s);                                          // OR whole-name inherently-shelf-stable staple
 }
 
 // AC-L4 near-twin projection (DC-2; Becquerel-defined, Lens OWNS the gate that consumes it).
@@ -1468,7 +1493,14 @@ function pwBuildModel(){
       let tier=tierMap[key];                                    // EXACT match wins — unchanged
       if(tier===undefined && pwBaseKey(key)===key){             // exact miss AND shopping key is SIZE-FREE (the gate)
         const bt=tierMapBase[key];                              // key === its own base here
-        if(bt!==undefined) tier=bt;                             // reconcile; undefined if absent/suppressed → stays inert
+        // DC-4 / S4-N1 category-agreement guard (Becquerel Option B): a tier-3 "keeps" may be inherited
+        // across the base-fallback ONLY when the bare shopping item's OWN NAME affirms shelf-stable
+        // (pwKeeps) — else the inheritance is SUPPRESSED to inert (under-merge on ambiguity closes the
+        // false "it keeps" on a possibly-fresh item). Non-tier-3 inheritance is the conservative/
+        // perishable direction (drives at most freshNote) and is UNGUARDED. The EXACT path above is the
+        // recipe's own ground-truth tier (Geiger F5) and is never guarded — S4-N1 is a cross-item
+        // base-inheritance defect only.
+        if(bt!==undefined && (bt!==3 || pwKeeps(key))) tier=bt;  // reconcile; undefined/ambiguous-keeps → stays inert
       }
       // E1-S5 store-aware typical (Becquerel F4): when stores are STRUCTURALLY different (a persistent
       // gap, not week-to-week noise), de-pool the typical CUT-LINE + its dead-band onto the latest
