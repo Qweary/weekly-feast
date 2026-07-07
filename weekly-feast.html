@@ -1157,6 +1157,20 @@ function nav(screen){S.screen=screen;render()}
 // extend by one line when a real field collision is observed. (E1-S3 / Becquerel)
 const PW_PLURAL_STOP = new Set(['greens','molasses']);
 
+// Regular English -is plurals to RECOVER (kiwi→kiwis): a tiny, closed, preserve-biased
+// allowlist that OVERRIDES the blanket is$ singularize-block for PROVEN regular plurals of
+// an -i-ending singular, so the same good spelled kiwi/kiwis pools into ONE honest band.
+// No orthographic regex separates kiwis (k-i-w-i-s) from basis (b-a-s-i-s) — BOTH end in "is",
+// and kiwis' pre-"is" char 'w' is a consonant just like basis' 's'/iris' 'r' — so [^aeiou]is$
+// would still block kiwis (fails its own canonical case). The discriminator MUST be lexical.
+// The blanket is$ block STAYS the default: basis/iris/axis/analysis/crisis and every UNKNOWN
+// -is word remain SPLIT (the invariant's under-merge-on-doubt side). Only a word listed here
+// recovers → this set can NEVER false-merge an unknown -is word by construction. Ships with ONE
+// entry; extend by one vetted line only when a real regular -is plural is seen fragmenting in the
+// field, never a guess (padding = the over-merge risk). Hard-coded code allowlist like
+// PW_PAREN_NOISE/PW_LEADING_CANON — NOT a persisted/user-editable map. (DC-3 / Becquerel E1-S3-N1)
+const PW_IS_RECOVER = new Set(['kiwis']);
+
 // Trailing-paren NOISE tokens: pure packaging-FORM descriptors that name how the
 // identical good is bundled, carrying no variety/grade/provenance/prep/price-regime
 // signal. These are the ONLY non-size parens pwNorm strips; every other paren
@@ -1224,11 +1238,13 @@ function pwNorm(s){
     // head remains (never manufacture an empty key). PRESERVE everything else as a facet.
     if(!hasSize && head && (inner === '' || PW_PAREN_NOISE.has(inner))) x = head;
   }
-  // (B) singularize-lite — strip ONE trailing 's' from the LAST whitespace token, guarded
+  // (B) singularize-lite — strip ONE trailing 's' from the LAST whitespace token, guarded;
+  //     PW_IS_RECOVER (DC-3) overrides the blanket is$ block for proven regular -is plurals (kiwis→kiwi)
   const parts = x.split(/\s+/);
   const last = parts[parts.length-1];
   if(last.length>=4 && last.charAt(last.length-1)==='s'
-     && !/(ss|us|is)$/.test(last) && !PW_PLURAL_STOP.has(last)){
+     && (!/(ss|us|is)$/.test(last) || PW_IS_RECOVER.has(last))
+     && !PW_PLURAL_STOP.has(last)){
     parts[parts.length-1] = last.slice(0,-1);
     x = parts.join(' ');
   }
