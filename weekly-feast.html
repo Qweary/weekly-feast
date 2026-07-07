@@ -1166,6 +1166,19 @@ const PW_PLURAL_STOP = new Set(['greens','molasses']);
 // descriptor is observed harmlessly fragmenting in the field. (DC-1 / Becquerel)
 const PW_PAREN_NOISE = new Set(['loose','bagged','bag']);
 
+// Leading-descriptor canon (DC-2): a tiny, closed, PAIR-SPECIFIC allowlist of redundant
+// LEADING modifiers that merely restate a default identity (yellow IS the default storage
+// onion; bare "onion" means yellow onion) → collapse to the canonical base so the same good
+// spelled long or short pools into ONE honest price band. PHRASE-qualified, NOT a bare-token
+// drop: "yellow" is redundant noise on onion but IDENTITY on squash/pepper/corn, so each
+// entry is a full proven <phrase → base> pair. Preserve-by-default (the invariant's
+// under-merge-on-doubt side); the burden of proof is on ADDING a line, each clearing
+// "does the bare name already mean exactly this, with no price-regime shift?". Ships with
+// ONE entry; extend by one vetted line, never a guess (padding = the over-merge risk).
+// This is a hard-coded code allowlist (like PW_PAREN_NOISE/PW_PLURAL_STOP), NOT a persisted
+// or user-editable alias map — no reload-surviving state, no djb2/schema. (DC-2 / Becquerel)
+const PW_LEADING_CANON = new Map([['yellow onion', 'onion']]);
+
 // E1-S5 store-aware typical thresholds (Becquerel F4). A "structural store gap" is a
 // PERSISTENT price difference between stores (a store effect), not week-to-week noise:
 // real staple price gaps across store types (warehouse/discount vs conventional) run
@@ -1215,6 +1228,13 @@ function pwNorm(s){
     parts[parts.length-1] = last.slice(0,-1);
     x = parts.join(' ');
   }
+  // (C) DC-2 leading-descriptor canon. Runs AFTER (B) so the key is already singular. EXACT
+  // full-string match only — a size-paren-bearing string ("yellow onion (2 lb)") never matches
+  // a bare key, so the collapse never pools across sizes; that residual is left to AC-L4's
+  // display-dedup (never a band pool). Only the allowlisted redundant-prefix phrases collapse;
+  // every variety/grade/prep/product leading modifier (red/green/sweet/baby/boneless/large/
+  // whole) preserves — the invariant's under-merge-on-doubt side.
+  if(PW_LEADING_CANON.has(x)) x = PW_LEADING_CANON.get(x);
   return x;
 }
 
@@ -1234,6 +1254,22 @@ function pwBaseKey(k){
     if(hasSize && head) return pwNorm(head);   // strip size paren; RE-NORMALIZE the exposed head
   }
   return k;                                      // no trailing size paren → base == k
+}
+
+// AC-L4 near-twin projection (DC-2; Becquerel-defined, Lens OWNS the gate that consumes it).
+// The SAME PW_LEADING_CANON collapse, reaching THROUGH a trailing paren so two ranked cards
+// that are the same good at the same size but escaped step (C)'s exact-bare match
+// ("yellow onion (2 lb)" vs "onion (2 lb)") map to ONE near-twin key. Keys off POST-CANON
+// IDENTITY, never surface similarity: heads NOT in the map (apple, red onion, sweet potato,
+// boneless chicken breast) return unchanged → their leadKey == their key → they stay DISTINCT
+// → AC-L4 LEAVES them. Bounded by the SAME tiny allowlist as the merge → cannot over-suppress
+// a good the domain has not certified identical. Display-dedup only; NEVER pools bands.
+function pwLeadKey(k){
+  const s = String(k==null?'':k);
+  const m = s.match(/^(.*?)\s*(\([^()]*\))\s*$/);   // split off a trailing paren, if any
+  const head = m ? m[1].trim() : s.trim();
+  const suf  = m ? (' ' + m[2]) : '';               // re-attach the paren verbatim (size stays distinct)
+  return (PW_LEADING_CANON.has(head) ? PW_LEADING_CANON.get(head) : head) + suf;
 }
 
 // Lower-of-two median (Becquerel 1b: a real observed price, deterministic, safe delta
@@ -1480,8 +1516,28 @@ function pwBuildModel(){
     }
   }
   ranked.sort((a,b)=>(b.signal-a.signal)||(b.weeks-a.weeks)||(a.display<b.display?-1:a.display>b.display?1:0));
+  // AC-L4 near-twin double-rank gate (DC-2; Lens OWNS the form). After the ranked sort, collapse
+  // any RESIDUAL near-twin — two ranked cards that are the SAME good at the SAME size but escaped
+  // step (C)'s exact-bare match (yellow onion (2 lb) ~ onion (2 lb)) — down to ONE card, so the
+  // household never sees one product twice with two independently-computed, possibly-contradictory
+  // verdicts (the F5 double-card). Keys off pwLeadKey POST-CANON IDENTITY ONLY (Becquerel §2.2) —
+  // apple (gala)/(fuji) and red onion/onion have DISTINCT leadKeys → both survive → DC-1 and the
+  // variety split stay intact. SUPPRESS, not demote / not merge-band: the survivor keeps its OWN
+  // already-computed band/delta (no pooling, no verdict-math move); the redundant twin does not
+  // render at all (it is NOT pushed to building — that would print a false "no trend yet"). The
+  // survivor is the BEST-SUPPORTED fragment (most weeks; tie → higher signal → display), the honest
+  // single view of one good. Under-delivery on the rare residual, never a false pooled band.
+  const pwBestByLead={};
+  for(const r of ranked){
+    const lk=pwLeadKey(r.key), cur=pwBestByLead[lk];
+    if(!cur
+       || r.weeks>cur.weeks
+       || (r.weeks===cur.weeks && r.signal>cur.signal)
+       || (r.weeks===cur.weeks && r.signal===cur.signal && r.display<cur.display)) pwBestByLead[lk]=r;
+  }
+  const rankedOut = ranked.filter(r => pwBestByLead[pwLeadKey(r.key)] === r);
   building.sort((a,b)=>(b.weeks-a.weeks)||(a.display<b.display?-1:a.display>b.display?1:0));
-  return {weeksRecorded:hist.length,ranked,building};
+  return {weeksRecorded:hist.length,ranked:rankedOut,building};
 }
 
 // One muted building-history row (1-2 weeks; never a band, colour, or stock-up note).
