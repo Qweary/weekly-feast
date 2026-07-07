@@ -1195,12 +1195,16 @@ const PW_FREEZE_DEPTH  = 0.30;   // min discount below typical for the BUY-AND-F
 const PW_OUTLIER_HI = 5;      // confirmed price > 5x own robust median ⇒ data-entry error (extra digit); Becquerel F2 §1.2
 const PW_OUTLIER_LO = 0.2;    // NON-SALE confirmed price < 1/5 own robust median ⇒ data-entry error (missing decimal); §1.2
 
-// Name-fold (E1-S3): trim+lowercase, then (A) strip a trailing NON-SIZE parenthetical,
-// then (B) singularize-lite — drop ONE trailing 's' from the LAST token, guarded so it
-// never false-merges (greens↛green, molasses↛molasse, chicken breast≠chicken thigh, and
-// two different tuna(…) SIZES stay distinct). Feeds BOTH the grouping key (L1175) and the
-// tier-join key (L1159). Size parens are KEPT on purpose — that leaves the tuna cross-list
-// reconciliation to S4 (its [PENDING-E1] guard stays pending). Read-path only; no schema.
+// Name-fold (E1-S3): trim+lowercase, then (A) FACET-AWARE trailing-paren handling (DC-1) —
+// default PRESERVE the paren as identity (apple (gala) ≠ apple (fuji)), stripping ONLY a
+// size / known pure-form noise / empty paren onto the head; then (B) singularize-lite —
+// drop ONE trailing 's' from the LAST token, guarded so it never false-merges (greens↛green,
+// molasses↛molasse, chicken breast≠chicken thigh, two different tuna(…) SIZES stay distinct);
+// then (C) leading-modifier phrase-canon (DC-2, PW_LEADING_CANON) — collapse an allowlisted
+// redundant leading modifier onto its canonical base ("yellow onion"→"onion"). Feeds BOTH the
+// Price-Watch grouping key and the recipe tier-join key. Size parens are KEPT on purpose —
+// that leaves the tuna cross-list reconciliation to S4 (its [PENDING-E1] guard stays pending).
+// Read-path only; no schema.
 function pwNorm(s){
   let x = String(s==null?'':s).trim().toLowerCase();
   if(!x) return x;
