@@ -114,7 +114,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v8',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v8',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items',wasteLog:'mp:waste-log-v1',wasteDismissed:'mp:waste-dismissed-v1'};
 
 const DEFAULT_PANTRY={tier1:[
 {id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",onHand:4,unit:"lb",par:2,updatedAt:new Date().toISOString()},
@@ -577,6 +577,68 @@ function normalizePantry(p){
   const src=(p&&typeof p==='object')?p:{};
   const norm=(arr,tier)=>Array.isArray(arr)?arr.map(i=>normalizePantryItem(i,tier)).filter(Boolean):[];
   return {tier1:norm(src.tier1,'tier1'),tier2:norm(src.tier2,'tier2'),tier3:norm(src.tier3,'tier3')};
+}
+
+// ── Waste-log normalization (E2-1 CAPTURE; Neumann N5) ───────────────────────
+// House idiom (reuses num0 L545 + str L549): never throws, never fabricates,
+// idempotent. Degrades a hand-edited / truncated / wrong-typed value to a
+// weaker-but-honest record, and COLLAPSES any record carrying neither an
+// affirmative-zero flag nor a valid item down to ABSENT (drops the key) — so a
+// persisted key ALWAYS means a real claim, never an ambiguous empty a reader
+// could misread as zero. Also the forward UPCASTER (the in-record _v lever, N1).
+function normalizeWasteLog(raw){
+  const src=(raw&&typeof raw==='object'&&!Array.isArray(raw))?raw:{};
+  const out={};
+  for(const k of Object.keys(src)){
+    if(typeof k!=='string'||!k) continue;          // key must be a (date) string
+    const rec=normalizeWasteRecord(src[k]);
+    if(rec!==null) out[k]=rec;                      // null → drop key → collapses to absent
+  }
+  return out;
+}
+function normalizeWasteRecord(r){
+  if(r==null||typeof r!=='object'||Array.isArray(r)) return null;   // 0/null/[]/string → absent
+  const zero=r.zeroWaste===true;                                     // affirmative-zero ONLY if strictly true
+  const items=Array.isArray(r.items)?r.items.map(normalizeWasteItem).filter(Boolean):[];
+  if(!zero&&items.length===0) return null;          // tri-state invariant: no zero-flag AND no item → absent
+  const out={_v:1,items};                           // _v pinned to current; upcast older records here in a later slice
+  if(zero) out.zeroWaste=true;
+  if(typeof r.capturedAt==='string'&&r.capturedAt) out.capturedAt=r.capturedAt;
+  return out;
+}
+// Defensive SHELL for the per-item shape. Each line is a SNAPSHOT of its
+// shopping_list source (N2 binding ruling): name/price/price_type/store are
+// COPIED in, so the $ never re-looks-up the plan. Floor: an item with no
+// identity is dropped (never fabricated); price passes through num0 so
+// NaN/negative/null are dropped and a BLANK price stays ABSENT (never coerced
+// to 0 → $ UNKNOWN, per the L545 num0 invariant). Becquerel's waste-quantum
+// (`fraction`, D3) is validated here in the same guarded idiom: a valid
+// fraction in (0,1] is preserved; anything else is dropped and the $ layer
+// defaults an absent fraction to 1.0 ("most/all") — never fabricating a record
+// field, never letting waste_$ exceed the line price.
+function normalizeWasteItem(it){
+  if(it==null||typeof it!=='object') return null;
+  const name=str(it.name!=null?it.name:it.item);    // snapshot of shopping_list item.item — canonical identity + soft pointer
+  if(!name) return null;                            // no name → drop, do not fabricate an identity
+  const out={name};
+  const price=num0(it.price);                       // snapshot of the stored line price; finite>=0 or undefined
+  if(price!==undefined) out.price=price;            // null/NaN/negative price → OMITTED → $ UNKNOWN (never 0)
+  if(typeof it.price_type==='string'&&it.price_type) out.price_type=it.price_type; // preserve estimated flag
+  const store=str(it.store); if(store) out.store=store;                            // context snapshot
+  const f=num0(it.fraction); if(f!==undefined&&f>0&&f<=1) out.fraction=f;          // Becquerel D3 quantum; ≤1 ⇒ waste_$ ≤ price
+  return out;
+}
+// Dismiss-marker normalization (E2-1, Lens surface; Neumann N3-DISMISS) —
+// UI-suppression, structurally SEPARATE from wasteLog. A hand-edited/garbage
+// value degrades to {}; keeps only string week-date keys with a truthy value
+// (coerced to the stored ISO string, else `true`). Never throws; never seeds a key.
+function normalizeWasteDismissed(raw){
+  const src=(raw&&typeof raw==='object'&&!Array.isArray(raw))?raw:{};
+  const out={};
+  for(const k of Object.keys(src)){
+    if(typeof k==='string'&&k&&src[k]) out[k]=(typeof src[k]==='string')?src[k]:true;
+  }
+  return out;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1086,8 +1148,13 @@ const S={
   anchorRecipes:load(KEYS.anchorRecipes,''),
   checkedItems:load(KEYS.checkedItems,{}),
   removedShoppingItems:load(KEYS.removedShoppingItems,[]),
+  wasteLog:normalizeWasteLog(load(KEYS.wasteLog,{})),          // E2-1 waste-capture store (normalize-on-load, like pantry L1080)
+  wasteDismissed:normalizeWasteDismissed(load(KEYS.wasteDismissed,{})), // E2-1 UI-suppression map (NOT domain data, NOT in the backup)
   showRemovedItems:false,
   whyPlanOpen:false, // ephemeral "why this plan" disclosure UI state (NOT persisted, NOT in KEYS)
+  wasteAddOpen:false, // ephemeral waste add-mode expanded flag (NOT persisted, NOT in KEYS) — like whyPlanOpen
+  wasteEditing:null,  // ephemeral: the closed-week date currently being edited over a recorded state (NOT persisted)
+  wasteDraft:[],      // ephemeral in-progress tossed-item draft [{name,price,price_type,store,fraction}] (NOT persisted)
   // Screen-local state
   pantryTab:'tier1',
   pantryNumOpen:{}, // ephemeral per-item numeric-disclosure UI state (NOT persisted, NOT in KEYS, never written by savePantry)
@@ -1117,6 +1184,8 @@ function saveSpecialInstructions(){save(KEYS.specialInstructions,S.specialInstru
 function saveStartDate(){save(KEYS.startDate,S.startDate)}
 function saveImportRaw(){save(KEYS.importRaw,S.importRaw)}
 function saveRemovedItems(){save(KEYS.removedShoppingItems,S.removedShoppingItems)}
+function saveWasteLog(){save(KEYS.wasteLog,S.wasteLog)}                   // E2-1 (mirrors saveCheckedItems)
+function saveWasteDismissed(){save(KEYS.wasteDismissed,S.wasteDismissed)} // E2-1 UI-suppression store
 // Live-update the "N of M items checked" header in place (checkbox toggle skips full render for scroll preservation).
 function updateShopCounter(){
   const el=document.getElementById('shop-counter');
@@ -1862,7 +1931,9 @@ function renderDashboard(){
   // Shopping list first on both mobile and desktop — it's the active working area
   h+=renderShoppingSection(sl,byStore,cc);
   h+=renderMealCards(mp);
-  // Reflective epilogue — the "why" you read after the "what". Last on the populated dashboard.
+  // Reflective epilogue — the loop you close after the week (E2-1 waste capture) + the
+  // "why" you read after the "what". Both below the plan; plan renders first, on top.
+  h+=renderWasteCard();
   h+=renderWhyPlanCard(plan);
   return h;
 }
@@ -1895,6 +1966,197 @@ function renderWhyPlanCard(plan){
     </div>
     ${body}
   </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WASTE CAPTURE (E2-1) — the first new write-path since S1. Reflective-epilogue
+// dashboard card keyed to the just-closed week (planHistory[1]). Classifier +
+// UI-visibility predicate + write contracts (Neumann N6) + Lens surface.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Domain tri-state classifier (Neumann N3). Reads S.wasteLog ONLY — NEVER the
+// dismiss map. The sole classifier E2-2/E2-3 use. Only an affirmative
+// zeroWaste===true is ever 'zero'; absence (incl. a dismissed week) is 'absent'.
+function wasteStateFor(d){
+  const rec=S.wasteLog[d];
+  if(!rec)                 return 'absent';   // (c) no wasteLog key → ABSENT
+  if(rec.zeroWaste===true) return 'zero';     // (b) affirmative-zero — the ONLY zero
+  return 'waste';                             // (a) has ≥1 valid item (normalizer-guaranteed)
+}
+// UI-only card-visibility predicate (Neumann N3-DISMISS) — the SOLE reader of the
+// dismiss map. Dismiss flips the 2nd conjunct (hides the ask) without touching the
+// 1st (domain stays absent). Proven: dismissed ⟹ absent, never zero.
+function showCardFor(d){ return wasteStateFor(d)==='absent' && !S.wasteDismissed[d]; }
+
+// Write contracts (Neumann N6) — pure data writes: each is EXACTLY one keyed write
+// + one save() (Q3 anti-nudge symmetry: dismiss is never cheaper than the safe zero).
+function commitWaste(weekDate,rawItems){
+  const items=(Array.isArray(rawItems)?rawItems:[]).map(normalizeWasteItem).filter(Boolean);
+  if(items.length===0) return false;          // add-mode NEVER persists an empty non-affirmative record
+  S.wasteLog[weekDate]={_v:1,capturedAt:new Date().toISOString(),items};
+  saveWasteLog();
+  return true;
+}
+function markZeroWaste(weekDate){             // the one-tap "nothing wasted" → affirmative-zero (b)
+  S.wasteLog[weekDate]={_v:1,capturedAt:new Date().toISOString(),items:[],zeroWaste:true};
+  saveWasteLog();
+}
+function dismissWaste(weekDate){              // "not now" → UI-suppression ONLY; writes NO domain data (stays absent c)
+  S.wasteDismissed[weekDate]=new Date().toISOString();
+  saveWasteDismissed();
+}
+
+// Becquerel D3 $ realization: waste_$ = SNAPSHOTTED line price × fraction (default
+// 1.0 = "most/all"), quantity NEVER parsed, price NEVER re-derived. fraction ≤ 1 ⇒
+// per-item $ ≤ price (the safe-under-report floor, D6-7). A null/absent price is an
+// UNPRICED item ($ UNKNOWN) — counted separately, NEVER as $0 (absent-never-0 on the
+// dollar axis). `estimated` propagates if any contributing item is estimated (D6-4).
+function wasteDollars(rec){
+  let sum=0,priced=0,unpriced=0,estimated=false;
+  const items=(rec&&Array.isArray(rec.items))?rec.items:[];
+  for(const it of items){
+    const f=(typeof it.fraction==='number'&&it.fraction>0&&it.fraction<=1)?it.fraction:1;
+    if(typeof it.price==='number'){sum+=it.price*f;priced++;if(it.price_type==='estimated')estimated=true;}
+    else unpriced++;
+  }
+  return {sum,priced,unpriced,estimated};
+}
+
+// Perishability ordering (Becquerel D2): shopping_list items carry no shelf_life_tier
+// (it lives on meal_plan ingredients), so join the closing week's OWN meal_plan by
+// normalized name (pwNorm — the S13 fold) to fetch the tier; 0/1 (fresh) sort FIRST.
+// Unknown-tier items sort LAST. Ordering, NEVER exclusion (D2.2); no price-floor (D2.3).
+function wasteTierMap(plan){
+  const map={};
+  const mp=(plan&&Array.isArray(plan.meal_plan))?plan.meal_plan:[];
+  for(const day of mp){
+    const ings=(day&&day.dinner&&Array.isArray(day.dinner.ingredients))?day.dinner.ingredients:[];
+    for(const ing of ings){
+      if(!ing||typeof ing!=='object')continue;
+      const t=ing.shelf_life_tier;
+      if(Number.isInteger(t)&&t>=0&&t<=3){const k=pwNorm(ing.item);if(k&&!(k in map))map[k]=t;}
+    }
+  }
+  return map;
+}
+function wasteChips(plan){
+  const sl=(plan&&Array.isArray(plan.shopping_list))?plan.shopping_list:[];
+  const tm=wasteTierMap(plan);
+  const arr=sl.map((it,i)=>({it,gi:i,tier:(()=>{const k=pwNorm(it&&it.item);return (k&&k in tm)?tm[k]:9;})()}));
+  arr.sort((a,b)=>(a.tier-b.tier)||(a.gi-b.gi));   // fresh first, then original order (stable)
+  return arr;
+}
+
+// ── Surface (Lens L1–L8). Neutral border (trust, not alarm); reflective-epilogue
+// zone below the plan; concerns ONLY planHistory[1] (the just-closed week). ────
+function renderWasteCard(){
+  const hist=Array.isArray(S.planHistory)?S.planHistory:[];
+  if(hist.length<2) return '';                     // no closed week yet → NO card (Lens L6 never-a-brick)
+  const entry=hist[1];                             // the just-closed (pre-import, superseded) week
+  if(!entry||typeof entry!=='object'||typeof entry.date!=='string'||!entry.date) return '';
+  const d=entry.date;
+  const state=wasteStateFor(d);
+  const editing=(S.wasteEditing===d);
+  if(state!=='absent' && !editing) return renderWasteRecorded(d,state);   // (a/b) recorded → quiet muted line
+  if(state==='absent' && S.wasteDismissed[d] && !editing) return '';      // dismissed (showCardFor false) → nothing
+  return renderWasteAsk(d,entry);                                          // ASK / add-mode
+}
+function renderWasteRecorded(d,state){
+  let inner;
+  if(state==='zero'){ inner='nothing wasted'; }
+  else{
+    const dl=wasteDollars(S.wasteLog[d]);
+    const dollar=dl.priced>0?('$'+dl.sum.toFixed(2)):'$—';   // 0 priced items → $— (never a fabricated $0.00)
+    const estTag=dl.estimated?'<span style="font-size:9px;opacity:.8"> (est.)</span>':'';
+    const unp=dl.unpriced>0?` · + ${dl.unpriced} unpriced`:'';
+    inner=`${dollar}${estTag} tossed${unp}`;
+  }
+  return `<div class="card" style="border-color:var(--border)"><div style="display:flex;align-items:center;gap:6px;min-height:36px;font-size:11px;color:var(--fg3)"><span>Last week · ${inner} · </span><button onclick="editWaste('${d}')" style="background:none;border:none;color:var(--fg3);text-decoration:underline;cursor:pointer;font-size:11px;font-family:var(--font);padding:2px 4px;min-height:32px">edit</button></div></div>`;
+}
+function renderWasteAsk(d,entry){
+  const open=S.wasteAddOpen||S.wasteEditing===d;
+  if(!open){
+    // Collapsed card — three PEER one-tap choices (Lens T4): "Nothing wasted" is a quiet
+    // ghost/outline affordance (NOT magnetic filled-green), and "not now" reads as a coequal
+    // choice (peer weight, no corner-escape framing) so a tired user's reflex-tap-to-clear
+    // routes to safe ABSENT, never a fabricated affirmative-zero. Reward = the toast, not fill.
+    return `<div class="card" style="border-color:var(--border)">
+      <div style="font-size:12px;color:var(--fg2);font-weight:600">Last week</div>
+      <div style="font-size:11px;color:var(--fg3);margin-top:2px">Toss anything you meant to eat?</div>
+      <div class="flex gap-10 items-center flex-wrap" style="margin-top:12px">
+        <button onclick="wasteMarkZero('${d}')" style="background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--fg2);cursor:pointer;font-size:11px;font-family:var(--font);padding:7px 14px;min-height:40px">Nothing wasted</button>
+        <button onclick="wasteOpenAdd('${d}')" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:11px;font-family:var(--font);padding:4px;min-height:40px">Log what we tossed →</button>
+        <button onclick="wasteDismiss('${d}')" style="background:none;border:none;color:var(--fg3);cursor:pointer;font-size:11px;font-family:var(--font);padding:4px;min-height:40px">not now</button>
+      </div></div>`;
+  }
+  // Add-mode (expanded) — type-ahead + perishability-ordered tap-chips; NO full-list checklist.
+  const plan=entry.plan||{};
+  const chips=wasteChips(plan).filter(c=>!S.wasteDraft.some(x=>x._gi===c.gi));  // hide already-added on-list items
+  const chipHtml=chips.slice(0,8).map(c=>`<button onclick="wasteAddChip('${d}',${c.gi})" style="background:#1e293b;border:1px solid var(--border);border-radius:14px;color:var(--fg2);cursor:pointer;font-size:11px;font-family:var(--font);padding:5px 12px;min-height:32px;margin:0 6px 6px 0">${esc(c.it.item)}</button>`).join('');
+  const chipBlock=chips.length?`<div style="font-size:9px;color:var(--fg4);margin:8px 0 4px">from last week:</div><div style="display:flex;flex-wrap:wrap">${chipHtml}</div>`:'';
+  const draftHtml=S.wasteDraft.map((ln,idx)=>renderWasteDraftLine(ln,idx)).join('');
+  return `<div class="card" style="border-color:var(--border)">
+    <div style="font-size:12px;color:var(--fg2);font-weight:600">What did you throw out?</div>
+    <div style="font-size:11px;color:var(--fg3);margin-top:2px;margin-bottom:10px">Just the things you meant to eat but tossed.</div>
+    <input class="inp" id="waste-add-input" placeholder="type an item…" onkeydown="if(event.key==='Enter'){event.preventDefault();wasteAddTyped('${d}')}">
+    ${chipBlock}
+    ${draftHtml?`<div style="margin-top:10px">${draftHtml}</div>`:''}
+    <div class="flex gap-8" style="margin-top:12px"><button class="btn btn-primary" onclick="wasteCommit('${d}')" style="width:auto;min-height:40px;font-size:11px">Done</button></div>
+  </div>`;
+}
+// Per-item draft line: name · the 3-pill segmented ordinal (default most/all) · $ · ×.
+// The ordinal is ITEM-level, inside add-mode only — never sharing a row/moment with the
+// WEEK-level "Nothing wasted" tap (Becquerel/Lens conflation guard, structural).
+function renderWasteDraftLine(ln,idx){
+  const f=(typeof ln.fraction==='number'&&ln.fraction>0&&ln.fraction<=1)?ln.fraction:1;
+  const sel=v=>Math.abs(f-v)<1e-9;
+  const pill=(v,label)=>`<button onclick="wasteSetFraction(${idx},${v})" style="background:${sel(v)?'#0369a1':'#1e293b'};border:none;color:${sel(v)?'#fff':'var(--fg2)'};cursor:pointer;font-size:10px;font-family:var(--font);padding:4px 8px;min-height:32px">${label}</button>`;
+  const seg=`<span style="display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;flex-shrink:0">${pill(0.25,'a little')}${pill(0.5,'about half')}${pill(1,'most/all')}</span>`;
+  const priced=(typeof ln.price==='number');
+  const dollar=priced?('$'+(ln.price*f).toFixed(2)):'$—';                       // null price → $— (never $0.00)
+  const estTag=(priced&&ln.price_type==='estimated')?'<span style="font-size:9px;opacity:.8"> (est.)</span>':'';
+  const col=priced?(ln.price_type==='confirmed'?'var(--green)':'var(--amber)'):'var(--fg4)';
+  const offNote=ln._offList?` <span style="font-size:9px;color:var(--fg4)">(not on last week's list)</span>`:'';
+  return `<div class="flex items-center gap-8" style="padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;min-height:40px">
+    <span style="flex:1;min-width:110px;font-size:12px;color:var(--fg)">${esc(ln.name)}${offNote}</span>
+    ${seg}
+    <span style="font-size:11px;color:${col};min-width:56px;text-align:right">${dollar}${estTag}</span>
+    <button class="rm-btn" onclick="wasteRemoveDraft(${idx})" title="Remove">×</button>
+  </div>`;
+}
+
+// ── Waste UI handlers (glue). The pure write contracts stay minimal (above); these
+// wrappers add toast/render/ephemeral-reset. esc() protects every rendered name.
+function wasteOpenAdd(d){ S.wasteAddOpen=true; S.wasteEditing=null; S.wasteDraft=[]; render(); }
+function _wasteClosingSL(){ const e=(Array.isArray(S.planHistory)?S.planHistory:[])[1]; return (e&&e.plan&&Array.isArray(e.plan.shopping_list))?e.plan.shopping_list:[]; }
+function _wasteSnap(it,gi){ // SNAPSHOT the shopping line into a draft item (N2 binding: $ is OWNED by the record)
+  return {name:str(it.item),price:num0(it.price),price_type:(typeof it.price_type==='string'?it.price_type:undefined),store:str(it.store)||undefined,fraction:1,_gi:gi};
+}
+function wasteAddChip(d,gi){ const it=_wasteClosingSL()[gi]; if(!it)return; S.wasteDraft.push(_wasteSnap(it,gi)); render(); }
+function wasteAddTyped(d){
+  const el=document.getElementById('waste-add-input'); if(!el)return;
+  const raw=String(el.value||'').trim(); if(!raw)return;
+  const sl=_wasteClosingSL(); const key=pwNorm(raw); let mi=-1;
+  if(key){ for(let i=0;i<sl.length;i++){ if(sl[i]&&pwNorm(sl[i].item)===key){mi=i;break;} } }   // bind by identity when the typed name resolves to a list item
+  if(mi>=0 && !S.wasteDraft.some(x=>x._gi===mi)){ S.wasteDraft.push(_wasteSnap(sl[mi],mi)); }
+  else{ S.wasteDraft.push({name:raw,fraction:1,_offList:true}); }                                // off-list escape hatch: no price/store → $ UNKNOWN, non-buy-linked
+  render();
+}
+function wasteSetFraction(idx,f){ if(S.wasteDraft[idx])S.wasteDraft[idx].fraction=f; render(); }
+function wasteRemoveDraft(idx){ S.wasteDraft.splice(idx,1); render(); }
+function wasteCommit(d){
+  const wrote=commitWaste(d,S.wasteDraft);          // no-op if the draft normalizes empty (Neumann N6)
+  S.wasteAddOpen=false; S.wasteEditing=null; S.wasteDraft=[];
+  if(wrote)showToast('Logged.');
+  render();
+}
+function wasteMarkZero(d){ markZeroWaste(d); S.wasteAddOpen=false; S.wasteEditing=null; S.wasteDraft=[]; showToast('Logged — nothing wasted.'); render(); }
+function wasteDismiss(d){ dismissWaste(d); S.wasteAddOpen=false; S.wasteEditing=null; S.wasteDraft=[]; render(); }
+function editWaste(d){    // reopen capture over an already-recorded week (user control/freedom)
+  const rec=S.wasteLog[d];
+  S.wasteEditing=d; S.wasteAddOpen=true;
+  S.wasteDraft=(rec&&Array.isArray(rec.items))?rec.items.map(it=>({name:it.name,price:(typeof it.price==='number'?it.price:undefined),price_type:it.price_type,store:it.store,fraction:(typeof it.fraction==='number'?it.fraction:1)})):[];
+  render();
 }
 
 // Non-cook night classifier — leftovers first (common case), then eat-out, else neutral catch-all.
@@ -2437,7 +2699,9 @@ function exportAllData(){
     pantry:S.pantry,preferences:S.prefs,household:S.household,
     currentPlan:S.currentPlan,planHistory:S.planHistory,
     promptTemplate:S.promptTemplate,anchorRecipes:S.anchorRecipes,
-    checkedItems:S.checkedItems
+    checkedItems:S.checkedItems,
+    wasteLog:S.wasteLog   // E2-1 (Neumann N4): enumerated explicitly → MUST be here or a restore silently destroys it.
+                          // wasteDismissed is deliberately OMITTED (UI-suppression, not household data — Neumann Q4).
   };
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -2476,6 +2740,10 @@ function importAllData(event){
       if('anchorRecipes' in data){S.anchorRecipes=data.anchorRecipes;saveAnchors()}
       if(data.checkedItems){S.checkedItems=data.checkedItems;saveCheckedItems()}
       else{S.checkedItems={};saveCheckedItems()}
+      // E2-1 (Neumann N4): guarded, NON-destructive restore — DEPARTS from checkedItems, FOLLOWS
+      // planHistory. NO destructive else: a pre-E2 backup legitimately lacks wasteLog; clearing it
+      // would silently destroy irreplaceable longitudinal waste history. Absent-in-backup ⇒ PRESERVE.
+      if(data.wasteLog&&typeof data.wasteLog==='object'){S.wasteLog=normalizeWasteLog(data.wasteLog);saveWasteLog()}
       S.removedShoppingItems=[];S.showRemovedItems=false;saveRemovedItems();
       showToast(_tplUpgraded?'Data restored — upgraded an old prompt template to the new import format.':'Data restored from backup!');render();
     }catch(err){showToast('Failed to parse backup file: '+err.message)}
