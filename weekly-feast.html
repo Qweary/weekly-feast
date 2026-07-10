@@ -156,7 +156,7 @@ const NAV_ITEMS=[
 {id:"import",label:"Import",icon:"⇩"},
 {id:"preferences",label:"Prefs",icon:"⚙"},
 {id:"pricewatch",label:"Prices",icon:"⇅"},
-{id:"consumption",label:"Log",icon:"📊",disabled:true}
+{id:"consumption",label:"History",icon:"📊"}
 ];
 
 // Production prompt template
@@ -1762,7 +1762,7 @@ function render(){
       case 'import':main.innerHTML=renderImport();break;
       case 'preferences':main.innerHTML=renderPreferences();break;
       case 'pricewatch':main.innerHTML=renderPriceWatch();break;
-      case 'consumption':main.innerHTML='<div style="color:var(--fg4);padding:40px;text-align:center">Consumption Log — Coming in Phase 3</div>';break;
+      case 'consumption':main.innerHTML=renderConsumption();break;
     }
     bindEvents();
   }catch(err){
@@ -2071,7 +2071,15 @@ function renderWasteRecorded(d,state){
     const unp=dl.unpriced>0?` · + ${dl.unpriced} unpriced`:'';
     inner=`${dollar}${estTag} tossed${unp}`;
   }
-  return `<div class="card" style="border-color:var(--border)"><div style="display:flex;align-items:center;gap:6px;min-height:36px;font-size:11px;color:var(--fg3)"><span>Last week · ${inner} · </span><button onclick="editWaste('${d}')" style="background:none;border:none;color:var(--fg3);text-decoration:underline;cursor:pointer;font-size:11px;font-family:var(--font);padding:2px 4px;min-height:32px">edit</button></div></div>`;
+  // C1 dashboard on-ramp (Cascade A1 / Lens C1): a quiet text-weight PULL link to the
+  // History retrospective, rendered ONLY at N≥2 logged weeks (matching D1's floor, so it
+  // never points to a hollow room). Carries NO cross-week figure — a zero-data navigation
+  // OFFER on a line that already renders, not a content-push (does not collide with
+  // Constraint #12). Never labeled "Log" (points to History, via the data-nav router idiom).
+  const onramp=wasteLoggedCount()>=2
+    ?`<button data-nav="consumption" style="background:none;border:none;color:var(--fg3);cursor:pointer;font-size:11px;font-family:var(--font);padding:2px 4px;min-height:32px">· see your waste history →</button>`
+    :'';
+  return `<div class="card" style="border-color:var(--border)"><div style="display:flex;align-items:center;gap:6px;min-height:36px;font-size:11px;color:var(--fg3);flex-wrap:wrap"><span>Last week · ${inner} · </span><button onclick="editWaste('${d}')" style="background:none;border:none;color:var(--fg3);text-decoration:underline;cursor:pointer;font-size:11px;font-family:var(--font);padding:2px 4px;min-height:32px">edit</button>${onramp}</div></div>`;
 }
 function renderWasteAsk(d,entry){
   const open=S.wasteAddOpen||S.wasteEditing===d;
@@ -2157,6 +2165,188 @@ function editWaste(d){    // reopen capture over an already-recorded week (user 
   S.wasteEditing=d; S.wasteAddOpen=true;
   S.wasteDraft=(rec&&Array.isArray(rec.items))?rec.items.map(it=>({name:it.name,price:(typeof it.price==='number'?it.price:undefined),price_type:it.price_type,store:it.store,fraction:(typeof it.fraction==='number'?it.fraction:1)})):[];
   render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E2-2 SURFACE — the cross-week WASTE RETROSPECTIVE (the History / consumption view).
+// READ-PATH ONLY (Cascade Q3/constraint-12): no new KEY, no planHistory shape change,
+// no normalizer touch, promptTemplate byte-frozen. Reads S.wasteLog + the resident
+// S.planHistory window. Every honest floor from Becquerel D1–D8 lives in wasteAggregate;
+// the render honors Cascade A2 (money = 22px/700 --fg glance-HOOK; repeat-offender block
+// = first-class co-equal PAYOFF, never a footnote), UI-Designer U1–U6, and Lens C1–C6.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Count of LOGGED weeks in the resident window — the C1 on-ramp gate (N≥2). Cheap;
+// reads S.wasteLog presence over resident planHistory dates ONLY (never the dismiss map).
+function wasteLoggedCount(){
+  const hist=Array.isArray(S.planHistory)?S.planHistory:[];
+  let n=0;
+  for(const e of hist){ const d=(e&&typeof e.date==='string')?e.date:''; if(d&&S.wasteLog[d]) n++; }
+  return n;
+}
+// Whole-number weeks-ago of the newest logged week (recency disclosure, D1-floor-5).
+// null when the date is unparseable. Uses Date.now() (frozen deterministic in the harness).
+function wasteWeeksAgo(dateISO){
+  if(!dateISO) return null;
+  const t=Date.parse(dateISO);
+  if(!Number.isFinite(t)) return null;
+  const wk=Math.floor((Date.now()-t)/(7*24*3600*1000));
+  return wk>=0?wk:null;
+}
+// Cross-week perishability tier map: merge wasteTierMap (the pwNorm S13 fold) over every
+// resident week, newest-first / first-seen-wins (the pwBuildModel L1476 idiom). Feeds the
+// repeat-offender FRESH-FIRST ordering (U4) — reusing wasteChips' tier source, not a new one.
+function wasteAggTierMap(hist){
+  const map={};
+  for(let wi=0;wi<hist.length;wi++){
+    const tm=wasteTierMap(hist[wi]&&hist[wi].plan);
+    for(const k of Object.keys(tm)){ if(!(k in map)) map[k]=tm[k]; }
+  }
+  return map;
+}
+// THE AGGREGATE (Becquerel D1–D6). Iterates RESIDENT planHistory dates and includes a
+// wasteLog record iff its date is still resident — auto-bounding to ≤52 weeks and
+// excluding orphans WITHOUT destroying them (D6). Reads S.wasteLog ONLY (never the dismiss
+// map — N3). THE SACRED INVARIANT: the denominator is LOGGED weeks, never calendar weeks —
+// an absent week enters NEITHER numerator NOR denominator (absent-never-0, one level up).
+// Zero-waste weeks ARE logged: counted in N, contributing $0 to the numerator (D2). The
+// rate is priced-only → a within-window LOWER bound; unpriced tossed items are EVENTS, not
+// dollars (D4). `estimated` propagates if any contributing dollar is estimated (D5).
+// Repeat offenders fold cross-week by pwNorm over ≥2 DISTINCT logged weeks, unpriced
+// included, buy-linkage-independent (D3).
+function wasteAggregate(){
+  const hist=Array.isArray(S.planHistory)?S.planHistory:[];
+  let n=0,weeksWithWaste=0,weeksZero=0,pricedSum=0,pricedCount=0,unpricedCount=0,estimated=false,newestLoggedDate=null;
+  const offCount={},offDisplay={},offFirst={};
+  for(let wi=0;wi<hist.length;wi++){
+    const e=hist[wi];
+    const d=(e&&typeof e.date==='string')?e.date:'';
+    if(!d) continue;
+    const rec=S.wasteLog[d];
+    if(!rec) continue;                                  // absent (incl. dismissed) → excluded, NEVER a $0
+    n++;
+    if(newestLoggedDate===null) newestLoggedDate=d;     // newest-first iteration → first logged = most recent
+    if(rec.zeroWaste===true){ weeksZero++; continue; }  // affirmative-zero: logged, $0 to numerator (D2)
+    weeksWithWaste++;
+    const dl=wasteDollars(rec);
+    pricedSum+=dl.sum; pricedCount+=dl.priced; unpricedCount+=dl.unpriced;
+    if(dl.estimated) estimated=true;
+    const seen={};                                      // count each pwNorm key ONCE per week (distinct-week fold)
+    for(const it of (Array.isArray(rec.items)?rec.items:[])){
+      const key=pwNorm(it&&it.name);
+      if(!key||seen[key]) continue;
+      seen[key]=true;
+      offCount[key]=(offCount[key]||0)+1;
+      if(!(key in offFirst)){ offFirst[key]=wi; offDisplay[key]=String(it&&it.name==null?'':it.name); }
+    }
+  }
+  const tierMap=wasteAggTierMap(hist);
+  const offenders=Object.keys(offCount).filter(k=>offCount[k]>=2)
+    .map(k=>({key:k,weeks:offCount[k],display:offDisplay[k],first:offFirst[k],tier:(k in tierMap)?tierMap[k]:9}))
+    .sort((a,b)=>(a.tier-b.tier)||(a.first-b.first));   // FRESH-FIRST (U4), never count-descending
+  return {n,weeksWithWaste,weeksZero,pricedSum,pricedCount,unpricedCount,estimated,newestLoggedDate,offenders};
+}
+
+function renderConsumption(){
+  const agg=wasteAggregate();
+  const header=`<div class="section-title"><h2>Waste history</h2><div class="sub">Your food waste across the weeks you've logged — money you could keep, and items worth buying less of.</div></div>`;
+  if(agg.n===0) return header+renderWasteEmpty();
+  if(agg.n===1) return header+renderWasteOneWeek(agg);
+  if(agg.weeksWithWaste===0) return header+renderWasteAllClean(agg);   // ≥2 logged, ALL affirmative-zero: a genuine
+    // zero — but NOT a $0/week hero (that celebrates the clean week → fake-clean reward, WATCH-BQ4/D7). Neutral words.
+  return header+renderWasteRate(agg)+renderWasteOffenders(agg);   // A2: hook (rate) then co-equal payoff (offenders)
+}
+// N=0 empty state (UI-Designer U6 / Lens C4): centered faint 40px/.3 glyph + h2 + one --fg3
+// sub, FORWARD-framed, NO rendered zero, NO warning hue, NO capture CTA. The "door back to
+// the loop" (C4) is a text-weight nav link (data-nav idiom, keyboard-accessible) — NOT a
+// filled/primary button, so it is a route back, not the capture nag U6/Cascade forbid.
+function renderWasteEmpty(){
+  return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:46vh;text-align:center">
+    <div style="font-size:40px;margin-bottom:16px;opacity:.3">📊</div>
+    <div class="section-title"><h2>Your waste history will appear here</h2>
+      <div class="sub">As you close out each week and log what you tossed, this page shows the money you could keep, and the items worth buying less of.</div></div>
+    <div style="margin-top:8px"><button data-nav="dashboard" style="background:none;border:none;color:var(--fg3);text-decoration:underline;cursor:pointer;font-size:12px;font-family:var(--font);min-height:44px;padding:4px">Back to this week's plan</button></div>
+  </div>`;
+}
+// N=1 single-week state (Becquerel D1-floor-3 / Lens C4): show the one week honestly,
+// labeled as ONE week — NEVER a "rate"/"average"/"per week". Calm, un-editorialized, no
+// trend-dressing; forward-point via the VIEW's behavior, never a household demand.
+function renderWasteOneWeek(agg){
+  let body;
+  if(agg.weeksWithWaste===0){
+    body=`You marked nothing wasted the one week you've logged so far.`;
+  }else if(agg.pricedCount===0){
+    const cnt=agg.unpricedCount;
+    body=`In the one week you've logged, you tossed a few things we couldn't price${cnt>0?` (${cnt} item${cnt===1?'':'s'} with no price)`:''}.`;
+  }else{
+    const whole=Math.round(agg.pricedSum);
+    const amt=whole<1?'under $1':'about $'+whole;
+    const estWord=agg.estimated?' (partly estimated)':'';
+    const unp=agg.unpricedCount>0?`, plus ${agg.unpricedCount} we couldn't price`:'';
+    body=`In the one week you've logged, you tossed ${amt}${estWord}${unp}.`;
+  }
+  return `<div class="card">
+    <div style="font-size:13px;color:var(--fg2);line-height:1.6">${body}</div>
+    <div style="font-size:11px;color:var(--fg3);margin-top:8px">Once you've logged another week, this page shows your weekly amount and the items worth buying less of.</div>
+  </div>`;
+}
+// N≥2, every logged week an affirmative-zero (Becquerel D2-ii / D7 / WATCH-BQ4): acknowledge
+// NEUTRALLY — never a celebratory $0 hero (that rewards the clean tap → the fake-clean incentive),
+// never "perfect"/"zero-waste weeks". No rendered figure at all; calm words + a forward pointer.
+function renderWasteAllClean(agg){
+  return `<div class="card">
+    <div style="font-size:13px;color:var(--fg2);line-height:1.6">You marked nothing wasted across the ${agg.n} weeks you logged.</div>
+    <div style="font-size:11px;color:var(--fg3);margin-top:8px">When a week does have something you tossed, your weekly amount and the items worth buying less of show up here.</div>
+  </div>`;
+}
+// The money HOOK (Cascade A2 / UI-Designer U1/U2): the per-logged-week absolute-$ RATE as a
+// 22px/700 color:var(--fg) figure — the money-hero SCALE with the hue NEUTRALIZED (never
+// --blue/--green/--amber/--red; presence via size, neutrality via hue). `/week` is welded to
+// the figure (min readable token, U2). N rides as PROVENANCE (13/400 --fg2), an absolute
+// basis-count, NEVER a calendar fraction (Lens C3). Rate is priced-only → within-window
+// lower bound; unpriced surfaced as a count (D4); `(est.)` rides + figure stays COARSE (D5).
+function renderWasteRate(agg){
+  const rate=agg.n>0?(agg.pricedSum/agg.n):0;
+  const whole=Math.round(rate);
+  let figureNum,unit;
+  if(agg.pricedCount===0){ figureNum='$—'; unit=''; }              // no priced dollars → honest unknown, never $0 (U5)
+  else{
+    figureNum=whole<1?'under $1':'$'+whole;                              // coarse whole-$ (D5); never a false $0 for real priced waste
+    unit='<span style="font-size:15px;font-weight:700;color:var(--fg)">/week</span>';
+  }
+  const est=(agg.estimated&&agg.pricedCount>0)?'<span style="font-size:11px;font-weight:400;color:var(--fg);opacity:.85"> (est.)</span>':'';
+  const figure=`<span style="font-size:22px;font-weight:700;color:var(--fg)">${figureNum}</span>${unit}${est}`;
+  let prov=`across the ${agg.n} weeks you logged`;                       // absolute basis-count, never a calendar fraction (C3)
+  if(agg.weeksZero>0) prov+=` · ${agg.weeksWithWaste} with waste, ${agg.weeksZero} you marked nothing wasted`;   // D2 decomposition; neutral naming
+  const wk=wasteWeeksAgo(agg.newestLoggedDate);
+  const recency=(wk!=null&&wk>=3)?` · most recent: ${wk} weeks ago`:'';  // disclose staleness (D1-floor-5)
+  const unp=(agg.unpricedCount>0)?` · + ${agg.unpricedCount} we couldn't price`:'';   // unpriced = events, never dollars (D4)
+  const estWord=(agg.estimated&&agg.pricedCount>0)?', partly estimated':'';
+  return `<div class="card">
+    <div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Money you could keep</div>
+    <div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap">${figure}</div>
+    <div style="font-size:13px;font-weight:400;color:var(--fg2);margin-top:4px;line-height:1.5">${prov}${recency}${unp}${estWord}</div>
+  </div>`;
+}
+// The co-equal PAYOFF (Cascade A2 / UI-Designer U4 / Lens C5): repeat-offender items as an
+// AGENCY-framed inventory, NOT a scoreboard. Weight on the item NAME (13px --fg); the
+// occurrence is a quiet ≤11px --fg3 TRAILING clause, never a right-aligned/bold/colored
+// numeral, never a verified exact count; FRESH-FIRST order (already sorted), unranked; a
+// small handful, not exhaustive; no valence hue on any row. Its own first-class card —
+// never nested under the figure (C2).
+function renderWasteOffenders(agg){
+  if(!agg.offenders.length) return '';
+  const rows=agg.offenders.slice(0,5).map(o=>{
+    const clause=o.weeks>=3?'in several of your logged weeks':'in more than one of your logged weeks';   // coarse band, never a verified exact count (D3/C5)
+    return `<div style="display:flex;align-items:baseline;gap:8px;padding:5px 0;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--fg)">${esc(o.display)}</span>
+      <span style="font-size:11px;color:var(--fg3)">· ${clause}</span>
+    </div>`;
+  }).join('');
+  return `<div class="card">
+    <div class="section-title" style="margin-bottom:10px"><h2 style="font-size:14px">Worth buying less of</h2><div class="sub">These turned up in your waste more than once — buying a little less could help.</div></div>
+    ${rows}
+  </div>`;
 }
 
 // Non-cook night classifier — leftovers first (common case), then eat-out, else neutral catch-all.
