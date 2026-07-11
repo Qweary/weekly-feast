@@ -2601,7 +2601,24 @@ function serializePantry(){
 // (NET-BIAS-UNDETERMINED). Consumes wasteAggregate().offenders (fresh-first, ≥2 distinct logged
 // weeks) + .n; re-derives NOTHING (BQ-E23-REFOLD); reads NO dollar field (BQ-E23-NODOLLAR).
 function wasteFeedbackBlock(){
-  return '';
+  const n=wasteLoggedCount();
+  const agg=wasteAggregate();
+  if(n<2||!agg.offenders||agg.offenders.length===0) return '';
+  const lines=agg.offenders.slice(0,5).map(o=>{
+    // {display} inserted RAW (plain-text prompt, not HTML — no esc()); strip {{/}} as
+    // defense-in-depth against a waste item literally named as a template token (BQ-E23-SLOTINJECT).
+    const name=String(o&&o.display==null?'':o.display).replace(/\{\{|\}\}/g,'');
+    return `- ${name}: recorded in the waste log in at least ${o.weeks} of the ${agg.n} weeks logged`;
+  }).join('\n');
+  return `RECURRING WASTE — ITEMS THIS HOUSEHOLD HAS LOGGED TOSSING BEFORE
+
+In the weeks this household has recorded what they threw away, a few items have turned up in the waste log more than once:
+
+${lines}
+
+Treat this as a consideration, not an instruction. It is a record of what was logged, not a measurement of how much is actually wasted — a household logs some weeks and not others, so this list may over- or under-state the real pattern, and it says nothing about the weeks that were not logged. Weigh it against freshness, price, seasonality, variety, and whatever the household plans to cook this week.
+
+Where an item above recurs, consider whether a smaller quantity, a different pack size, a longer-life substitute, or routing it across more meals would fit the week better. Do NOT simply cut these items, do NOT drop one the household clearly wants, and do NOT pass up a genuinely strong deal on one — running short is worse than a little surplus of a cheap perishable. If you do size an amount down because of this history, keep the change small and reversible and say so briefly in that item's note (for example: "1 bunch, not 2 — spinach has recurred in your waste log; buy more any week you'll use it"), so the household can override it.`;
 }
 
 function generatePrompt(){
