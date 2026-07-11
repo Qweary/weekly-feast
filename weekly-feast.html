@@ -114,7 +114,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v8',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items',wasteLog:'mp:waste-log-v1',wasteDismissed:'mp:waste-dismissed-v1'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v9',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items',wasteLog:'mp:waste-log-v1',wasteDismissed:'mp:waste-dismissed-v1'};
 
 const DEFAULT_PANTRY={tier1:[
 {id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",onHand:4,unit:"lb",par:2,updatedAt:new Date().toISOString()},
@@ -277,6 +277,7 @@ Pantry consumption check: After drafting the full week's plan, review cumulative
 
 Single-use audit: in the same pass, walk every fresh or perishable ingredient the plan buys and flag any that only one meal uses — especially a Tier-0 or Tier-1 bunch or multi-serving item whose remainder will spoil before a second occasion. Prefer to fix each one in place (add a second meal that uses the remainder, downsize the purchase to the amount actually needed, or substitute a longer-life pantry alternative) rather than leave a stranded remainder. If a single-use perishable purchase is genuinely unavoidable, say so explicitly in the narrative and name what happens to the leftover, so the waste is a visible choice and not an accident.
 
+{{WASTE_FEEDBACK}}
 
 STEP 3.5 — WEEKLY NUTRITION BALANCE (apply while placing the STEP 3 meals, before the shopping list)
 
@@ -1126,6 +1127,36 @@ const PREV_TEMPLATE_V7_HASH=2198782153; // djb2 of the pristine v7 DEFAULT_PROMP
       }
     }
     try{localStorage.removeItem(V7)}catch(e){}
+    localStorage.setItem(DONE,'1');
+  }catch(e){/* migration is best-effort */}
+})();
+
+// Same contract as migrateTemplateV8: exact-equality test against the pristine v8 default via
+// djb2. A non-customizing user (stored v8 === pristine v8 default) is force-upgraded to the v9
+// WASTE-FEEDBACK default (STEP 3.5 now carries the {{WASTE_FEEDBACK}} consideration slot); a user
+// who hand-edited their template is carried forward untouched under the new key and can re-pull via
+// the editor. The hash test can only ever false-PRESERVE (a drifted/edited template is kept), never
+// false-REPLACE. Chains after the v7→v8 guard above (which removed the v7 key first).
+const PREV_TEMPLATE_V8_HASH=3481872628; // djb2 of the pristine v8 DEFAULT_PROMPT_TEMPLATE (pre-waste-feedback, HEAD b17f1b8)
+(function migrateTemplateV9(){
+  try{
+    const DONE='mp:migrated-template-v9';
+    if(localStorage.getItem(DONE))return;
+    const V8='mp:prompt-template-v8',V9=KEYS.promptTemplate;
+    const oldV8=localStorage.getItem(V8);
+    const hasV9=localStorage.getItem(V9)!=null;
+    if(oldV8!=null&&!hasV9){
+      let parsed;try{parsed=JSON.parse(oldV8)}catch(e){parsed=oldV8}
+      const oldText=typeof parsed==='string'?parsed:'';
+      if(oldText&&_djb2(oldText)===PREV_TEMPLATE_V8_HASH){
+        // pristine v8 default: adopt the new v9 waste-feedback default (no user edits to preserve)
+        _pendingUpgradeToast='Prompt template upgraded — Claude now considers items you’ve repeatedly wasted when sizing next week’s quantities.';
+      }else if(oldText){
+        // hand-edited: carry the user's template forward under the new key, untouched
+        try{localStorage.setItem(V9,JSON.stringify(oldText))}catch(e){}
+      }
+    }
+    try{localStorage.removeItem(V8)}catch(e){}
     localStorage.setItem(DONE,'1');
   }catch(e){/* migration is best-effort */}
 })();
@@ -2562,10 +2593,27 @@ function serializePantry(){
   return body||'No pantry items tracked.';
 }
 
+// E2-3 FEED-BACK serializer (Neumann shape / Becquerel content). Reads S.wasteLog + the resident
+// S.planHistory window via the EXISTING E2-2 aggregate — no new projection, no write-path;
+// promptTemplate is the ONLY new state. Returns the direction-safe recurring-waste OBSERVATION
+// block, or '' when Becquerel's inclusion floor is unmet (≥2 logged weeks AND ≥1 repeat offender);
+// the slot then vanishes cleanly at the call site. A CONSIDERATION, never a quantitative command
+// (NET-BIAS-UNDETERMINED). Consumes wasteAggregate().offenders (fresh-first, ≥2 distinct logged
+// weeks) + .n; re-derives NOTHING (BQ-E23-REFOLD); reads NO dollar field (BQ-E23-NODOLLAR).
+function wasteFeedbackBlock(){
+  return '';
+}
+
 function generatePrompt(){
   let prompt=S.promptTemplate;
   const r={'{{HOUSEHOLD_SIZE}}':String(S.household.size),'{{PLAN_DAYS}}':String(S.household.planDays||7),'{{START_DATE}}':S.startDate,'{{REGION}}':S.household.region||'Seattle, WA','{{STARTER_ACTIVE}}':S.household.starterActive?'yes':'no','{{PANTRY_STATE}}':serializePantry(),'{{ALLERGIES}}':S.prefs.allergies.length?S.prefs.allergies.join(', '):'None','{{DISLIKES}}':S.prefs.dislikes.length?S.prefs.dislikes.join(', '):'None','{{PREFERENCES}}':S.prefs.positives.length?S.prefs.positives.join(', '):'None','{{STORES}}':storesList(S.household).join(', ')||'QFC, Kroger, Safeway, Walmart','{{WALMART_BLOCK}}':hasWalmartStore(S.household)?'Walmart threshold: '+(WALMART_PROMPT[S.household.walmartThreshold]||WALMART_PROMPT['only-major'])+'.':'','{{SPECIAL_INSTRUCTIONS}}':S.specialInstructions.trim()||'None','{{ANCHOR_RECIPES}}':S.anchorRecipes.trim()||'None specified'};
   Object.entries(r).forEach(([k,v])=>{prompt=prompt.replaceAll(k,v)});
+  // E2-3 — WASTE_FEEDBACK is whole-line, clean-vanish (NOT in r, so an empty value cannot leave a
+  // stray blank line). Run LAST so an empty floor scrubs the slot + its trailing newline (leaving the
+  // canonical two-blank section separator), and so a waste-item value cannot re-expand a {{...}} token
+  // (BQ-E23-SLOTINJECT insert-last guard). Present → block + one trailing newline.
+  const wf=wasteFeedbackBlock();
+  prompt=prompt.replace(/\{\{WASTE_FEEDBACK\}\}\n?/, wf?wf+'\n':'');
   return prompt;
 }
 
