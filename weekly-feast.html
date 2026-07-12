@@ -140,7 +140,7 @@ const DEFAULT_PANTRY={tier1:[
 ]};
 
 const DEFAULT_PREFERENCES={allergies:[],dislikes:[],positives:["Mexican food","One-pot meals","Seasonal vegetables"]};
-const DEFAULT_HOUSEHOLD={size:2,mealStructure:"Simple breakfasts and lunches, larger dinners",starterActive:false,walmartThreshold:"only-major",region:"Seattle, WA",planDays:7,stores:"QFC, Kroger, Safeway, Walmart"};
+const DEFAULT_HOUSEHOLD={size:2,mealStructure:"Simple breakfasts and lunches, larger dinners",starterActive:false,walmartThreshold:"only-major",region:"Your city, ST",planDays:7,stores:"Store A, Store B, Store C"};
 
 const WALMART_LABELS={"only-major":"Only for major savings (>20%)","moderate":"Moderate savings okay (10-15%)","include-freely":"Include Walmart freely"};
 const WALMART_PROMPT={"only-major":"Only recommend Walmart when savings exceed 20% on enough items to justify a separate trip.","moderate":"Recommend Walmart when savings exceed 10-15% on key items.","include-freely":"Treat Walmart as an equal-priority store."};
@@ -194,7 +194,7 @@ STORE CONFIGURATION
 
 Target stores in priority order: {{STORES}}.
 Many regional grocery chains share a corporate parent and a loyalty/ad backend (for example
-QFC and Kroger both run on the Kroger backend, as do other Kroger-family banners like King
+Store A and Store B both run on the Store B backend, as do other Store B-family banners like King
 Soopers, Fred Meyer, and Ralphs), so their weekly ads overlap heavily. When two of the stores
 above share such a backend, search that backend's ad once and apply the findings to both — it
 saves search calls and surfaces the same deals.
@@ -214,7 +214,7 @@ Important — Research Strategy and Tool Call Budget:
 You have a budget of approximately 15-20 total web search and web fetch calls. Plan your research to maximize information per call. Here is the priority order:
 
 Phase 1 (Ad Research — aim for 4-6 total calls):
-  Start with one or two broad aggregator searches (e.g., "Kroger QFC Safeway weekly ad deals [region] this week") that are likely to surface deal blog summaries or Flipp-style roundups covering multiple stores at once. If the aggregator results are rich enough, you may not need per-store searches. Only escalate to individual store ad page searches for stores that were not covered by the aggregator results. Do not attempt to fetch interactive circular pages unless the simpler approaches returned nothing usable — these rarely yield good text content. Remember that QFC and Kroger share a backend, so one Kroger ad search often covers both.
+  Start with one or two broad aggregator searches (e.g., "Store B Store A Store C weekly ad deals [region] this week") that are likely to surface deal blog summaries or Flipp-style roundups covering multiple stores at once. If the aggregator results are rich enough, you may not need per-store searches. Only escalate to individual store ad page searches for stores that were not covered by the aggregator results. Do not attempt to fetch interactive circular pages unless the simpler approaches returned nothing usable — these rarely yield good text content. Remember that Store A and Store B share a backend, so one Store B ad search often covers both.
 
 Phase 2 (Recipe Research — aim for 6-10 total calls):
   Identify the top 3-4 best sale items from Phase 1 (typically the proteins and high-value produce). Search for recipes featuring those specific items on the preferred recipe sites. You can combine multiple preferred sites into a single search query (e.g., "budget chicken thigh recipe site:gracefullittlehoneybee.com OR site:thepioneerwoman.com"). Only fetch the actual recipe page for recipes you intend to include in the final plan — do not fetch pages for candidates you are just evaluating from search snippets. If the sourdough starter is active, allocate one of your recipe searches to pantrymama.com for a sourdough-based recipe. If the starter is not active, redistribute that search to the other preferred sites.
@@ -454,8 +454,8 @@ safety net, not a target: emit the schema exactly.
     "plan_date": "YYYY-MM-DD",
     "plan_days": 7,
     "household_size": 4,
-    "stores_searched": ["QFC", "Kroger", "Safeway", "Walmart"],
-    "stores_confirmed": ["QFC", "Kroger", "Safeway"],
+    "stores_searched": ["Store A", "Store B", "Store C", "Walmart"],
+    "stores_confirmed": ["Store A", "Store B", "Store C"],
     "stores_estimated": ["Walmart"],
     "confidence": "normal"
   },
@@ -486,14 +486,14 @@ bare numbers, null usage, and dinner-as-object on the leftovers night):
 
 BEGIN_WEEKLY_FEAST_JSON
 {
-  "metadata": {"plan_date":"2026-03-09","plan_days":7,"household_size":2,"stores_searched":["QFC","Kroger","Safeway","Walmart"],"stores_confirmed":["QFC","Safeway"],"stores_estimated":["Walmart"],"confidence":"normal"},
+  "metadata": {"plan_date":"2026-03-09","plan_days":7,"household_size":2,"stores_searched":["Store A","Store B","Store C","Walmart"],"stores_confirmed":["Store A","Store C"],"stores_estimated":["Walmart"],"confidence":"normal"},
   "meal_plan": [
-    {"day":1,"date":"2026-03-09","breakfast":"Oatmeal with banana","lunch":"Turkey sandwiches","dinner":{"name":"One-Pot Chicken and Rice","source_url":"https://example.com/chicken-rice","source_site":"Budget Bytes","servings":2,"cost_per_serving":1.85,"perishability_note":"Uses fresh cilantro — early in week","quality_note":null,"ingredients":[{"item":"chicken thighs","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null,"shelf_life_tier":0,"freezable":true,"cook_by":"2026-03-10","freeze_by":null},{"item":"onion","quantity":"1","source":"staple","store":"QFC","price_estimate":0.75,"shelf_life_tier":3,"freezable":false,"cook_by":null,"freeze_by":null}]}},
+    {"day":1,"date":"2026-03-09","breakfast":"Oatmeal with banana","lunch":"Turkey sandwiches","dinner":{"name":"One-Pot Chicken and Rice","source_url":"https://example.com/chicken-rice","source_site":"Budget Bytes","servings":2,"cost_per_serving":1.85,"perishability_note":"Uses fresh cilantro — early in week","quality_note":null,"ingredients":[{"item":"chicken thighs","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null,"shelf_life_tier":0,"freezable":true,"cook_by":"2026-03-10","freeze_by":null},{"item":"onion","quantity":"1","source":"staple","store":"Store A","price_estimate":0.75,"shelf_life_tier":3,"freezable":false,"cook_by":null,"freeze_by":null}]}},
     {"day":2,"date":"2026-03-10","breakfast":"Eggs and toast","lunch":"Leftover chicken and rice","dinner":{"name":"Leftovers — Day 1 chicken and rice","source_url":null,"source_site":null,"servings":2,"cost_per_serving":null,"perishability_note":null,"quality_note":null,"ingredients":[]}}
   ],
-  "shopping_list": [{"item":"Onion","quantity":"1","store":"QFC","price":0.75,"price_type":"confirmed","category":"staple","notes":null,"meals_spanned":2}],
+  "shopping_list": [{"item":"Onion","quantity":"1","store":"Store A","price":0.75,"price_type":"confirmed","category":"staple","notes":null,"meals_spanned":2}],
   "pantry_alerts": [],
-  "cost_summary": {"total_estimated":18.40,"per_person_per_day":1.31,"by_store":{"QFC":10.20,"Safeway":8.20}},
+  "cost_summary": {"total_estimated":18.40,"per_person_per_day":1.31,"by_store":{"Store A":10.20,"Store C":8.20}},
   "nutrition_summary": {"protein_sources":["chicken","eggs"],"veg_subgroups":["starchy"],"seafood_servings":0,"produce_half_plate":false,"shortfalls":["Vegetable subgroups — only starchy represented; a real week should span at least three of the five subgroups.","No seafood — aim for about two servings a week (canned tuna/salmon count and are cheap)."],"notes":"Short worked example — a real week should rotate more protein and produce."},
   "overlap_map": {"Onion":[1]}
 }
@@ -507,7 +507,7 @@ If your dynamic recipe search returns sparse results for a given protein or prod
 {{ANCHOR_RECIPES}}`;
 
 // Mock data
-const MOCK_PLAN={"metadata":{"plan_date":"2026-03-09","plan_days":7,"household_size":2,"stores_searched":["QFC","Kroger","Safeway","Walmart"],"stores_confirmed":["QFC","Safeway"],"stores_estimated":["Walmart"],"confidence":"normal"},"meal_plan":[{"day":1,"date":"2026-03-09","breakfast":"Oatmeal with banana and honey","lunch":"Turkey and cheese sandwiches","dinner":{"name":"One-Pot Chicken Thigh and Rice","source_url":"https://example.com/chicken-rice","source_site":"Budget Bytes","servings":4,"cost_per_serving":1.85,"perishability_note":"Uses fresh cilantro — scheduled early in week","quality_note":null,"ingredients":[{"item":"chicken thighs","quantity":"1.5 lbs","source":"pantry","store":null,"price_estimate":null},{"item":"rice","quantity":"1.5 cups","source":"pantry","store":null,"price_estimate":null},{"item":"onion","quantity":"1","source":"staple","store":"QFC","price_estimate":0.75},{"item":"chicken broth","quantity":"2 cups","source":"sale","store":"QFC","price_estimate":2.49}]}},{"day":2,"date":"2026-03-10","breakfast":"Scrambled eggs with toast","lunch":"Leftover chicken and rice from Day 1","dinner":{"name":"Black Bean Tacos","source_url":"https://example.com/bean-tacos","source_site":"Cookie and Kate","servings":4,"cost_per_serving":2.10,"perishability_note":"Avocados — use within 2 days","quality_note":null,"ingredients":[{"item":"black beans","quantity":"2 cans","source":"sale","store":"QFC","price_estimate":1.78},{"item":"tortillas","quantity":"1 pack","source":"staple","store":"QFC","price_estimate":2.99},{"item":"avocado","quantity":"2","source":"sale","store":"QFC","price_estimate":2.00},{"item":"lime","quantity":"2","source":"staple","store":"QFC","price_estimate":0.60}]}},{"day":3,"date":"2026-03-11","breakfast":"Yogurt with granola","lunch":"PB&J sandwiches","dinner":{"name":"Sheet Pan Italian Sausage and Vegetables","source_url":"https://example.com/sausage-veggies","source_site":"Damn Delicious","servings":4,"cost_per_serving":2.65,"perishability_note":"Uses fresh bell peppers and zucchini — scheduled early in week","quality_note":null,"ingredients":[{"item":"Italian sausage","quantity":"1 lb","source":"sale","store":"Safeway","price_estimate":4.99},{"item":"bell peppers","quantity":"3","source":"sale","store":"Safeway","price_estimate":2.49},{"item":"zucchini","quantity":"2","source":"staple","store":"Safeway","price_estimate":1.98}]}},{"day":4,"date":"2026-03-12","breakfast":"Toast with peanut butter","lunch":"Quesadillas with leftover beans from Day 2","dinner":{"name":"Beef and Broccoli Stir-Fry","source_url":"https://example.com/beef-broccoli","source_site":"RecipeTin Eats","servings":4,"cost_per_serving":2.25,"perishability_note":null,"quality_note":null,"ingredients":[{"item":"ground beef","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null},{"item":"broccoli","quantity":"2 crowns","source":"staple","store":"QFC","price_estimate":2.98},{"item":"soy sauce","quantity":"3 tbsp","source":"pantry","store":null,"price_estimate":null}]}},{"day":5,"date":"2026-03-13","breakfast":"Cereal with milk","lunch":"Leftover stir-fry from Day 4","dinner":{"name":"Baked Potato Bar","source_url":"https://example.com/baked-potato","source_site":"A Couple Cooks","servings":4,"cost_per_serving":1.95,"perishability_note":null,"quality_note":null,"ingredients":[{"item":"russet potatoes","quantity":"4 large","source":"sale","store":"Safeway","price_estimate":2.99},{"item":"sour cream","quantity":"1 tub","source":"staple","store":"Safeway","price_estimate":2.49},{"item":"cheddar cheese","quantity":"1 block","source":"staple","store":"QFC","price_estimate":3.49}]}},{"day":6,"date":"2026-03-14","breakfast":"Oatmeal with berries","lunch":"Grilled cheese sandwiches","dinner":{"name":"Chicken Tortilla Soup","source_url":"https://example.com/tortilla-soup","source_site":"Gimme Some Oven","servings":6,"cost_per_serving":2.05,"perishability_note":null,"quality_note":"Great for using leftover chicken","ingredients":[{"item":"chicken thighs","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null},{"item":"diced tomatoes","quantity":"2 cans","source":"sale","store":"QFC","price_estimate":1.78},{"item":"corn","quantity":"1 can","source":"staple","store":"QFC","price_estimate":0.89},{"item":"tortilla chips","quantity":"1 bag","source":"staple","store":"any","price_estimate":3.49}]}},{"day":7,"date":"2026-03-15","breakfast":"Eggs and toast","lunch":"Soup leftovers from Day 6","dinner":{"name":"Pasta with Meat Sauce","source_url":"https://example.com/meat-sauce","source_site":"Smitten Kitchen","servings":4,"cost_per_serving":1.75,"perishability_note":null,"quality_note":null,"ingredients":[{"item":"spaghetti","quantity":"1 lb","source":"staple","store":"any","price_estimate":1.29},{"item":"crushed tomatoes","quantity":"1 can (28oz)","source":"sale","store":"QFC","price_estimate":2.49},{"item":"ground beef","quantity":"0.5 lb","source":"sale","store":"Safeway","price_estimate":3.49}]}}],"shopping_list":[{"item":"Onion","quantity":"3","store":"QFC","price":2.25,"price_type":"confirmed","category":"staple","notes":null},{"item":"Chicken broth","quantity":"1 carton","store":"QFC","price":2.49,"price_type":"confirmed","category":"sale","notes":null},{"item":"Black beans","quantity":"2 cans","store":"QFC","price":1.78,"price_type":"confirmed","category":"sale","notes":null},{"item":"Tortillas","quantity":"1 pack","store":"QFC","price":2.99,"price_type":"confirmed","category":"staple","notes":null},{"item":"Avocado","quantity":"2","store":"QFC","price":2.00,"price_type":"confirmed","category":"sale","notes":"Use within 2 days"},{"item":"Limes","quantity":"2","store":"QFC","price":0.60,"price_type":"confirmed","category":"staple","notes":null},{"item":"Broccoli","quantity":"2 crowns","store":"QFC","price":2.98,"price_type":"confirmed","category":"staple","notes":null},{"item":"Cheddar cheese","quantity":"1 block","store":"QFC","price":3.49,"price_type":"confirmed","category":"staple","notes":null},{"item":"Diced tomatoes","quantity":"2 cans","store":"QFC","price":1.78,"price_type":"confirmed","category":"sale","notes":null},{"item":"Corn","quantity":"1 can","store":"QFC","price":0.89,"price_type":"confirmed","category":"staple","notes":null},{"item":"Crushed tomatoes","quantity":"1 can (28oz)","store":"QFC","price":2.49,"price_type":"confirmed","category":"sale","notes":null},{"item":"Italian sausage","quantity":"1 lb","store":"Safeway","price":4.99,"price_type":"confirmed","category":"sale","notes":null},{"item":"Bell peppers","quantity":"3","store":"Safeway","price":2.49,"price_type":"confirmed","category":"sale","notes":null},{"item":"Zucchini","quantity":"2","store":"Safeway","price":1.98,"price_type":"confirmed","category":"staple","notes":null},{"item":"Russet potatoes","quantity":"4 large","store":"Safeway","price":2.99,"price_type":"confirmed","category":"sale","notes":null},{"item":"Sour cream","quantity":"1 tub","store":"Safeway","price":2.49,"price_type":"confirmed","category":"staple","notes":null},{"item":"Ground beef","quantity":"0.5 lb","store":"Safeway","price":3.49,"price_type":"estimated","category":"sale","notes":null},{"item":"Tortilla chips","quantity":"1 bag","store":"any","price":3.49,"price_type":"estimated","category":"staple","notes":null},{"item":"Spaghetti","quantity":"1 lb","store":"any","price":1.29,"price_type":"estimated","category":"staple","notes":null},{"item":"Soy sauce","quantity":"1 bottle","store":"any","price":2.99,"price_type":"estimated","category":"restock","notes":"Getting low per pantry. Consider restocking this week."}],"pantry_alerts":[{"item":"rice","concern":"Rice is used heavily this week — plan calls for rice in 3 of 7 dinners. May deplete faster than expected."},{"item":"soy sauce","concern":"Soy sauce is getting low and used in 3 recipes this week. Added to shopping list as a restock item."}],"cost_summary":{"total_estimated":50.29,"per_person_per_day":3.59,"by_store":{"QFC":23.75,"Safeway":18.43,"any":8.11}}};
+const MOCK_PLAN={"metadata":{"plan_date":"2026-03-09","plan_days":7,"household_size":2,"stores_searched":["Store A","Store B","Store C","Walmart"],"stores_confirmed":["Store A","Store C"],"stores_estimated":["Walmart"],"confidence":"normal"},"meal_plan":[{"day":1,"date":"2026-03-09","breakfast":"Oatmeal with banana and honey","lunch":"Turkey and cheese sandwiches","dinner":{"name":"One-Pot Chicken Thigh and Rice","source_url":"https://example.com/chicken-rice","source_site":"Budget Bytes","servings":4,"cost_per_serving":1.85,"perishability_note":"Uses fresh cilantro — scheduled early in week","quality_note":null,"ingredients":[{"item":"chicken thighs","quantity":"1.5 lbs","source":"pantry","store":null,"price_estimate":null},{"item":"rice","quantity":"1.5 cups","source":"pantry","store":null,"price_estimate":null},{"item":"onion","quantity":"1","source":"staple","store":"Store A","price_estimate":0.75},{"item":"chicken broth","quantity":"2 cups","source":"sale","store":"Store A","price_estimate":2.49}]}},{"day":2,"date":"2026-03-10","breakfast":"Scrambled eggs with toast","lunch":"Leftover chicken and rice from Day 1","dinner":{"name":"Black Bean Tacos","source_url":"https://example.com/bean-tacos","source_site":"Cookie and Kate","servings":4,"cost_per_serving":2.10,"perishability_note":"Avocados — use within 2 days","quality_note":null,"ingredients":[{"item":"black beans","quantity":"2 cans","source":"sale","store":"Store A","price_estimate":1.78},{"item":"tortillas","quantity":"1 pack","source":"staple","store":"Store A","price_estimate":2.99},{"item":"avocado","quantity":"2","source":"sale","store":"Store A","price_estimate":2.00},{"item":"lime","quantity":"2","source":"staple","store":"Store A","price_estimate":0.60}]}},{"day":3,"date":"2026-03-11","breakfast":"Yogurt with granola","lunch":"PB&J sandwiches","dinner":{"name":"Sheet Pan Italian Sausage and Vegetables","source_url":"https://example.com/sausage-veggies","source_site":"Damn Delicious","servings":4,"cost_per_serving":2.65,"perishability_note":"Uses fresh bell peppers and zucchini — scheduled early in week","quality_note":null,"ingredients":[{"item":"Italian sausage","quantity":"1 lb","source":"sale","store":"Store C","price_estimate":4.99},{"item":"bell peppers","quantity":"3","source":"sale","store":"Store C","price_estimate":2.49},{"item":"zucchini","quantity":"2","source":"staple","store":"Store C","price_estimate":1.98}]}},{"day":4,"date":"2026-03-12","breakfast":"Toast with peanut butter","lunch":"Quesadillas with leftover beans from Day 2","dinner":{"name":"Beef and Broccoli Stir-Fry","source_url":"https://example.com/beef-broccoli","source_site":"RecipeTin Eats","servings":4,"cost_per_serving":2.25,"perishability_note":null,"quality_note":null,"ingredients":[{"item":"ground beef","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null},{"item":"broccoli","quantity":"2 crowns","source":"staple","store":"Store A","price_estimate":2.98},{"item":"soy sauce","quantity":"3 tbsp","source":"pantry","store":null,"price_estimate":null}]}},{"day":5,"date":"2026-03-13","breakfast":"Cereal with milk","lunch":"Leftover stir-fry from Day 4","dinner":{"name":"Baked Potato Bar","source_url":"https://example.com/baked-potato","source_site":"A Couple Cooks","servings":4,"cost_per_serving":1.95,"perishability_note":null,"quality_note":null,"ingredients":[{"item":"russet potatoes","quantity":"4 large","source":"sale","store":"Store C","price_estimate":2.99},{"item":"sour cream","quantity":"1 tub","source":"staple","store":"Store C","price_estimate":2.49},{"item":"cheddar cheese","quantity":"1 block","source":"staple","store":"Store A","price_estimate":3.49}]}},{"day":6,"date":"2026-03-14","breakfast":"Oatmeal with berries","lunch":"Grilled cheese sandwiches","dinner":{"name":"Chicken Tortilla Soup","source_url":"https://example.com/tortilla-soup","source_site":"Gimme Some Oven","servings":6,"cost_per_serving":2.05,"perishability_note":null,"quality_note":"Great for using leftover chicken","ingredients":[{"item":"chicken thighs","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null},{"item":"diced tomatoes","quantity":"2 cans","source":"sale","store":"Store A","price_estimate":1.78},{"item":"corn","quantity":"1 can","source":"staple","store":"Store A","price_estimate":0.89},{"item":"tortilla chips","quantity":"1 bag","source":"staple","store":"any","price_estimate":3.49}]}},{"day":7,"date":"2026-03-15","breakfast":"Eggs and toast","lunch":"Soup leftovers from Day 6","dinner":{"name":"Pasta with Meat Sauce","source_url":"https://example.com/meat-sauce","source_site":"Smitten Kitchen","servings":4,"cost_per_serving":1.75,"perishability_note":null,"quality_note":null,"ingredients":[{"item":"spaghetti","quantity":"1 lb","source":"staple","store":"any","price_estimate":1.29},{"item":"crushed tomatoes","quantity":"1 can (28oz)","source":"sale","store":"Store A","price_estimate":2.49},{"item":"ground beef","quantity":"0.5 lb","source":"sale","store":"Store C","price_estimate":3.49}]}}],"shopping_list":[{"item":"Onion","quantity":"3","store":"Store A","price":2.25,"price_type":"confirmed","category":"staple","notes":null},{"item":"Chicken broth","quantity":"1 carton","store":"Store A","price":2.49,"price_type":"confirmed","category":"sale","notes":null},{"item":"Black beans","quantity":"2 cans","store":"Store A","price":1.78,"price_type":"confirmed","category":"sale","notes":null},{"item":"Tortillas","quantity":"1 pack","store":"Store A","price":2.99,"price_type":"confirmed","category":"staple","notes":null},{"item":"Avocado","quantity":"2","store":"Store A","price":2.00,"price_type":"confirmed","category":"sale","notes":"Use within 2 days"},{"item":"Limes","quantity":"2","store":"Store A","price":0.60,"price_type":"confirmed","category":"staple","notes":null},{"item":"Broccoli","quantity":"2 crowns","store":"Store A","price":2.98,"price_type":"confirmed","category":"staple","notes":null},{"item":"Cheddar cheese","quantity":"1 block","store":"Store A","price":3.49,"price_type":"confirmed","category":"staple","notes":null},{"item":"Diced tomatoes","quantity":"2 cans","store":"Store A","price":1.78,"price_type":"confirmed","category":"sale","notes":null},{"item":"Corn","quantity":"1 can","store":"Store A","price":0.89,"price_type":"confirmed","category":"staple","notes":null},{"item":"Crushed tomatoes","quantity":"1 can (28oz)","store":"Store A","price":2.49,"price_type":"confirmed","category":"sale","notes":null},{"item":"Italian sausage","quantity":"1 lb","store":"Store C","price":4.99,"price_type":"confirmed","category":"sale","notes":null},{"item":"Bell peppers","quantity":"3","store":"Store C","price":2.49,"price_type":"confirmed","category":"sale","notes":null},{"item":"Zucchini","quantity":"2","store":"Store C","price":1.98,"price_type":"confirmed","category":"staple","notes":null},{"item":"Russet potatoes","quantity":"4 large","store":"Store C","price":2.99,"price_type":"confirmed","category":"sale","notes":null},{"item":"Sour cream","quantity":"1 tub","store":"Store C","price":2.49,"price_type":"confirmed","category":"staple","notes":null},{"item":"Ground beef","quantity":"0.5 lb","store":"Store C","price":3.49,"price_type":"estimated","category":"sale","notes":null},{"item":"Tortilla chips","quantity":"1 bag","store":"any","price":3.49,"price_type":"estimated","category":"staple","notes":null},{"item":"Spaghetti","quantity":"1 lb","store":"any","price":1.29,"price_type":"estimated","category":"staple","notes":null},{"item":"Soy sauce","quantity":"1 bottle","store":"any","price":2.99,"price_type":"estimated","category":"restock","notes":"Getting low per pantry. Consider restocking this week."}],"pantry_alerts":[{"item":"rice","concern":"Rice is used heavily this week — plan calls for rice in 3 of 7 dinners. May deplete faster than expected."},{"item":"soy sauce","concern":"Soy sauce is getting low and used in 3 recipes this week. Added to shopping list as a restock item."}],"cost_summary":{"total_estimated":50.29,"per_person_per_day":3.59,"by_store":{"Store A":23.75,"Store C":18.43,"any":8.11}}};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STATE MANAGEMENT
@@ -580,7 +580,7 @@ function normalizePantry(p){
   return {tier1:norm(src.tier1,'tier1'),tier2:norm(src.tier2,'tier2'),tier3:norm(src.tier3,'tier3')};
 }
 
-// ── Waste-log normalization (E2-1 CAPTURE; Neumann N5) ───────────────────────
+// ── Waste-log normalization (E2-1 CAPTURE) ───────────────
 // House idiom (reuses num0 L545 + str L549): never throws, never fabricates,
 // idempotent. Degrades a hand-edited / truncated / wrong-typed value to a
 // weaker-but-honest record, and COLLAPSES any record carrying neither an
@@ -612,7 +612,7 @@ function normalizeWasteRecord(r){
 // COPIED in, so the $ never re-looks-up the plan. Floor: an item with no
 // identity is dropped (never fabricated); price passes through num0 so
 // NaN/negative/null are dropped and a BLANK price stays ABSENT (never coerced
-// to 0 → $ UNKNOWN, per the L545 num0 invariant). Becquerel's waste-quantum
+// to 0 → $ UNKNOWN, per the L545 num0 invariant). The waste-quantum
 // (`fraction`, D3) is validated here in the same guarded idiom: a valid
 // fraction in (0,1] is preserved; anything else is dropped and the $ layer
 // defaults an absent fraction to 1.0 ("most/all") — never fabricating a record
@@ -626,10 +626,10 @@ function normalizeWasteItem(it){
   if(price!==undefined) out.price=price;            // null/NaN/negative price → OMITTED → $ UNKNOWN (never 0)
   if(typeof it.price_type==='string'&&it.price_type) out.price_type=it.price_type; // preserve estimated flag
   const store=str(it.store); if(store) out.store=store;                            // context snapshot
-  const f=num0(it.fraction); if(f!==undefined&&f>0&&f<=1) out.fraction=f;          // Becquerel D3 quantum; ≤1 ⇒ waste_$ ≤ price
+  const f=num0(it.fraction); if(f!==undefined&&f>0&&f<=1) out.fraction=f;          // D3 quantum; ≤1 ⇒ waste_$ ≤ price
   return out;
 }
-// Dismiss-marker normalization (E2-1, Lens surface; Neumann N3-DISMISS) —
+// Dismiss-marker normalization (E2-1) —
 // UI-suppression, structurally SEPARATE from wasteLog. A hand-edited/garbage
 // value degrades to {}; keeps only string week-date keys with a truthy value
 // (coerced to the stored ISO string, else `true`). Never throws; never seeds a key.
@@ -1240,7 +1240,7 @@ function showToast(msg){
 function nav(screen){S.screen=screen;render()}
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PRICE WATCH (PRISM-08) — read-only projection over S.planHistory
+// PRICE WATCH — read-only projection over S.planHistory
 // ═══════════════════════════════════════════════════════════════════════════
 // A pure reader: computes a fresh in-memory band/trend model from the household's
 // OWN confirmed prices each call and returns an HTML string. ZERO writes — never
@@ -1248,13 +1248,13 @@ function nav(screen){S.screen=screen;render()}
 // bump). The sparse-history floor holds on its own: 0 / 1-2 weeks / <3-confirmed /
 // all-estimated / mixed-vintage (pre-shelf_life_tier) / malformed history all render
 // gracefully, never throw, never render min==max as a trend. Band math + stock-up
-// gate per Becquerel (median=lower-of-two, pooled cross-store band with store-on-low,
+// gate (median=lower-of-two, pooled cross-store band with store-on-low,
 // tier-3-only stock-up, most-recent non-null tier join); latest-vs-typical delta
-// colours per Lens's dead-band thresholds. Every pasted item/store name goes through
+// colours per the dead-band thresholds. Every pasted item/store name goes through
 // esc() before insertion (names are untrusted pasted-Claude JSON).
 // Mass/plural-invariant grocery nouns that slip past the ss/us/is guards and must
 // NOT singularize (would false-merge onto a different item). Intentionally tight;
-// extend by one line when a real field collision is observed. (E1-S3 / Becquerel)
+// extend by one line when a real field collision is observed. (E1-S3)
 const PW_PLURAL_STOP = new Set(['greens','molasses']);
 
 // Regular English -is plurals to RECOVER (kiwi→kiwis): a tiny, closed, preserve-biased
@@ -1268,7 +1268,7 @@ const PW_PLURAL_STOP = new Set(['greens','molasses']);
 // recovers → this set can NEVER false-merge an unknown -is word by construction. Ships with ONE
 // entry; extend by one vetted line only when a real regular -is plural is seen fragmenting in the
 // field, never a guess (padding = the over-merge risk). Hard-coded code allowlist like
-// PW_PAREN_NOISE/PW_LEADING_CANON — NOT a persisted/user-editable map. (DC-3 / Becquerel E1-S3-N1)
+// PW_PAREN_NOISE/PW_LEADING_CANON — NOT a persisted/user-editable map. (DC-3 / E1-S3-N1)
 const PW_IS_RECOVER = new Set(['kiwis']);
 
 // Trailing-paren NOISE tokens: pure packaging-FORM descriptors that name how the
@@ -1277,7 +1277,7 @@ const PW_IS_RECOVER = new Set(['kiwis']);
 // (variety/cut/grade/provenance/prep, organic/fresh price-regime markers, and any
 // UNRECOGNIZED token) is PRESERVED as identity — the invariant's under-merge-on-doubt
 // side. Intentionally tiny + preserve-biased; extend by one line when a real benign
-// descriptor is observed harmlessly fragmenting in the field. (DC-1 / Becquerel)
+// descriptor is observed harmlessly fragmenting in the field. (DC-1)
 const PW_PAREN_NOISE = new Set(['loose','bagged','bag']);
 
 // Leading-descriptor canon (DC-2): a tiny, closed, PAIR-SPECIFIC allowlist of redundant
@@ -1290,10 +1290,10 @@ const PW_PAREN_NOISE = new Set(['loose','bagged','bag']);
 // "does the bare name already mean exactly this, with no price-regime shift?". Ships with
 // ONE entry; extend by one vetted line, never a guess (padding = the over-merge risk).
 // This is a hard-coded code allowlist (like PW_PAREN_NOISE/PW_PLURAL_STOP), NOT a persisted
-// or user-editable alias map — no reload-surviving state, no djb2/schema. (DC-2 / Becquerel)
+// or user-editable alias map — no reload-surviving state, no djb2/schema. (DC-2)
 const PW_LEADING_CANON = new Map([['yellow onion', 'onion']]);
 
-// DC-4 / S4-N1 (Becquerel): UNAMBIGUOUS shelf-stable FORM words (USDA-FSIS shelf-stable =
+// DC-4 / S4-N1: UNAMBIGUOUS shelf-stable FORM words (USDA-FSIS shelf-stable =
 // moisture-removed OR hermetically sealed). Ambiguous preservation (smoked/cured/pickled/
 // fermented) is EXCLUDED — those span refrigerated grocery forms. Growth bar (WATCH): an added
 // word must denote shelf-stable with NO refrigerated grocery form.
@@ -1304,20 +1304,20 @@ const PW_KEEPS_FORM = new Set(['canned','tinned','dried','dry','dehydrated','pow
 // denote a fresh/perishable item — a mis-add RE-OPENS S4-N1, so add only on observed fragmentation.
 const PW_KEEPS_STAPLE = new Set(['rice','flour','sugar','pasta','oat']);
 
-// E1-S5 store-aware typical thresholds (Becquerel F4). A "structural store gap" is a
+// E1-S5 store-aware typical thresholds (F4). A "structural store gap" is a
 // PERSISTENT price difference between stores (a store effect), not week-to-week noise:
 // real staple price gaps across store types (warehouse/discount vs conventional) run
 // ~10-30% and persist; within-store non-sale noise is a few %. STORE_GAP_PCT separates them.
 const PW_STORE_MIN_N   = 2;      // min own NON-SALE points for a store to count as a "pattern"
 const PW_STORE_GAP_PCT = 0.08;   // between-store typical spread (÷ pooled median) that is structural
-const PW_STOCKUP_DEPTH = 0.18;   // min discount below typical for the stock-up IMPERATIVE (Becquerel F3a)
-const PW_FREEZE_DEPTH  = 0.30;   // min discount below typical for the BUY-AND-FREEZE imperative (Becquerel F3c) — its OWN constant, > PW_STOCKUP_DEPTH
+const PW_STOCKUP_DEPTH = 0.18;   // min discount below typical for the stock-up IMPERATIVE (F3a)
+const PW_FREEZE_DEPTH  = 0.30;   // min discount below typical for the BUY-AND-FREEZE imperative (F3c) — its OWN constant, > PW_STOCKUP_DEPTH
 
-// E1-S8 reader outlier/sanity clamp (Becquerel F2 8a). A confirmed price more than a
+// E1-S8 reader outlier/sanity clamp (F2 8a). A confirmed price more than a
 // factor of 5 off its item's OWN robust median is a data-entry error (extra-digit / missing-
 // decimal), not a real shelf event — a real single-item price lives within ~[0.25x,3x] of its
 // typical, a decimal-slip is ~10x. 5 sits in the gap (2x log-margin each edge); §1.2 grounding.
-const PW_OUTLIER_HI = 5;      // confirmed price > 5x own robust median ⇒ data-entry error (extra digit); Becquerel F2 §1.2
+const PW_OUTLIER_HI = 5;      // confirmed price > 5x own robust median ⇒ data-entry error (extra digit); F2 §1.2
 const PW_OUTLIER_LO = 0.2;    // NON-SALE confirmed price < 1/5 own robust median ⇒ data-entry error (missing decimal); §1.2
 
 // Name-fold (E1-S3): trim+lowercase, then (A) FACET-AWARE trailing-paren handling (DC-1) —
@@ -1369,7 +1369,7 @@ function pwNorm(s){
   return x;
 }
 
-// Join-only derived key (E1-S4 / Becquerel): strip a trailing SIZE paren from an
+// Join-only derived key (E1-S4): strip a trailing SIZE paren from an
 // already-pwNorm'd key and re-normalize the exposed head, so a recipe tier key that
 // carries a size paren (canned tuna (5 oz)) can reconcile onto a bare shopping group
 // key (canned tuna) WITHOUT ever loosening pwNorm (which would re-merge tuna 5oz/12oz
@@ -1387,7 +1387,7 @@ function pwBaseKey(k){
   return k;                                      // no trailing size paren → base == k
 }
 
-// Shelf-stable AFFIRMATION for the DC-4 / S4-N1 category-agreement guard (Becquerel). Answers ONE
+// Shelf-stable AFFIRMATION for the DC-4 / S4-N1 category-agreement guard. Answers ONE
 // question: does the bare shopping item's OWN NAME affirm it is shelf-stable ("keeps"), so a
 // recipe-derived tier-3 may be inherited across the base-fallback? TRUE only on an UNAMBIGUOUS
 // signal in the name itself — a shelf-stable FORM word (canned/dried/…) OR a certified pantry
@@ -1401,7 +1401,7 @@ function pwKeeps(k){
   return PW_KEEPS_STAPLE.has(s);                                          // OR whole-name inherently-shelf-stable staple
 }
 
-// AC-L4 near-twin projection (DC-2; Becquerel-defined, Lens OWNS the gate that consumes it).
+// AC-L4 near-twin projection (DC-2).
 // The SAME PW_LEADING_CANON collapse, reaching THROUGH a trailing paren so two ranked cards
 // that are the same good at the same size but escaped step (C)'s exact-bare match
 // ("yellow onion (2 lb)" vs "onion (2 lb)") map to ONE near-twin key. Keys off POST-CANON
@@ -1417,7 +1417,7 @@ function pwLeadKey(k){
   return (PW_LEADING_CANON.has(head) ? PW_LEADING_CANON.get(head) : head) + suf;
 }
 
-// Lower-of-two median (Becquerel 1b: a real observed price, deterministic, safe delta
+// Lower-of-two median (1b: a real observed price, deterministic, safe delta
 // direction). Odd count → the single central value.
 function pwMedian(nums){
   const a=nums.slice().sort((x,y)=>x-y);const n=a.length;
@@ -1425,7 +1425,7 @@ function pwMedian(nums){
   return (n%2===1)?a[(n-1)/2]:a[n/2-1];
 }
 
-// Latest-vs-typical delta → {color,caret,phrase,mag} (Lens §4c dead-band, first-match
+// Latest-vs-typical delta → {color,caret,phrase,mag} (§4c dead-band, first-match
 // order). Direction is carried by the caret AND the phrase, never colour alone. Green
 // is rationed to the exact recorded floor; the ±2% dead-band only softens neutral/amber.
 function pwDelta(latest,min,max,median,band){
@@ -1439,12 +1439,12 @@ function pwDelta(latest,min,max,median,band){
   return {color:'var(--fg)',caret:'–',phrase:'right around your typical',mag:''};
 }
 
-// Stock-up gate (Becquerel Ruling 3, verbatim): fire iff at the recorded floor AND
+// Stock-up gate (Ruling 3, verbatim): fire iff at the recorded floor AND
 // provably shelf-stable (tier===3). meals_spanned/category NEVER enter the gate;
 // unknown/absent tier → suppress (the Number.isInteger guard).
 function pwStockUp(latest,min,tier){return (latest<=min+0.005)&&Number.isInteger(tier)&&tier===3;}
 
-// Store-aware typical classifier (E1-S5 / Becquerel F4): given a group's points, the LATEST
+// Store-aware typical classifier (E1-S5 / F4): given a group's points, the LATEST
 // observation's store, and the pooled non-sale median, decide whether the stores are
 // STRUCTURALLY different (a persistent gap, not noise) and, if so, return the latest store's
 // OWN cut-line + floor operands. Pure; no writes. Returns one of:
@@ -1542,7 +1542,7 @@ function pwBuildModel(){
     for(const it of sl){
       if(!it||typeof it!=='object')continue;
       const price=toNum(it.price);
-      // Geiger F6: drop non-positive prices — a stray -/0 in a hand-edited or corrupted
+      // F6: drop non-positive prices — a stray -/0 in a hand-edited or corrupted
       // backup is a data error, not a real trough; it must never render a negative-dollar
       // band or a false "your lowest recorded price."
       if(price==null||!Number.isFinite(price)||price<=0||it.price_type!=='confirmed')continue;
@@ -1557,7 +1557,7 @@ function pwBuildModel(){
   const ranked=[],building=[];
   for(const key of Object.keys(groups)){
     const g=groups[key];
-    // E1-S8 (Becquerel F2 8a): domain-plausibility clamp — drop confirmed-but-IMPLAUSIBLE
+    // E1-S8 (F2 8a): domain-plausibility clamp — drop confirmed-but-IMPLAUSIBLE
     // prices (fat-finger $299 / missing-decimal $0.29) BEFORE any stat, so they can neither
     // set the floor, saturate the F6b band, nor false-rank. Robust center = median over ALL
     // raw points (survives one outlier at ≥3 weeks). Sale-tagged points are EXEMPT from the
@@ -1593,20 +1593,20 @@ function pwBuildModel(){
       let tier=tierMap[key];                                    // EXACT match wins — unchanged
       if(tier===undefined && pwBaseKey(key)===key){             // exact miss AND shopping key is SIZE-FREE (the gate)
         const bt=tierMapBase[key];                              // key === its own base here
-        // DC-4 / S4-N1 category-agreement guard (Becquerel Option B): a tier-3 "keeps" may be inherited
+        // DC-4 / S4-N1 category-agreement guard (Option B): a tier-3 "keeps" may be inherited
         // across the base-fallback ONLY when the bare shopping item's OWN NAME affirms shelf-stable
         // (pwKeeps) — else the inheritance is SUPPRESSED to inert (under-merge on ambiguity closes the
         // false "it keeps" on a possibly-fresh item). Non-tier-3 inheritance is the conservative/
         // perishable direction (drives at most freshNote) and is UNGUARDED. The EXACT path above is the
-        // recipe's own ground-truth tier (Geiger F5) and is never guarded — S4-N1 is a cross-item
+        // recipe's own ground-truth tier (F5) and is never guarded — S4-N1 is a cross-item
         // base-inheritance defect only.
         if(bt!==undefined && (bt!==3 || pwKeeps(key))) tier=bt;  // reconcile; undefined/ambiguous-keeps → stays inert
       }
-      // E1-S5 store-aware typical (Becquerel F4): when stores are STRUCTURALLY different (a persistent
+      // E1-S5 store-aware typical (F4): when stores are STRUCTURALLY different (a persistent
       // gap, not week-to-week noise), de-pool the typical CUT-LINE + its dead-band onto the latest
       // observation's OWN store, and judge the stock-up/freshNote trough against that store's OWN floor —
       // never the pooled floor, which IS the cheap store's baseline. The pooled min/max (GREEN/steady +
-      // record) stay POOLED (Cascade boundary). Single store / same-price / thin per-store ⇒ 'pooled' ⇒
+      // record) stay POOLED (pooling boundary). Single store / same-price / thin per-store ⇒ 'pooled' ⇒
       // every value below is byte-identical to pre-S5 (see spec §4).
       const st=pwStoreAware(pts,sLatest,median);   // ← pts (admitted), was g.points
       let dTypical=median, dBand=band, troughMin=min, troughMax=max;
@@ -1617,9 +1617,9 @@ function pwBuildModel(){
         troughMin=st.sMin; troughMax=st.sMax;        // own-store trough, not the pooled floor
       }
       let delta=(st.mode==='suppress')
-        ? {color:'var(--fg)',caret:'–',phrase:'prices vary by store',mag:''}  // NON-VERDICT; phrase = Lens AC-L1-S5 (§9)
+        ? {color:'var(--fg)',caret:'–',phrase:'prices vary by store',mag:''}  // NON-VERDICT; phrase = AC-L1-S5 (§9)
         : pwDelta(latest,min,max,dTypical,dBand);    // min/max POOLED (green/steady unchanged); typical/band per-store when perstore
-      // Lens AC-L2-S5 (green-neutralize on the flat cheap-store baseline — §9): at the pooled floor
+      // AC-L2-S5 (green-neutralize on the flat cheap-store baseline — §9): at the pooled floor
       // BUT the latest store's OWN baseline is flat (troughMax/troughMin are the own-store floor in
       // perstore) ⇒ a PLACE signal, not a TIME deal ⇒ neutralize the pooled-floor green to the honest
       // per-store neutral. Complement of the stock-up gate (which needs spread>0.005); a genuine sale
@@ -1639,7 +1639,7 @@ function pwBuildModel(){
         && depthOK;                                  // NEW depth floor
       const fireStockUp = stockupCandidate && !stillFalling;   // deep, at-floor, NOT a ramp → imperative
       const trendHold   = stockupCandidate &&  stillFalling;   // deep, at-floor, still-ramping → "no rush"
-      // Freeze-buy gate (Becquerel F3c, verbatim §3.1): DISJOINT from pwStockUp by the tier
+      // Freeze-buy gate (F3c, verbatim §3.1): DISJOINT from pwStockUp by the tier
       // predicate (freeze needs tier<3, stockup needs tier===3 → never both). freezableMap[key]
       // is strictly-true only (absent/null/non-bool → inert); own constant PW_FREEZE_DEPTH=0.30
       // (deeper hurdle than the 0.18 shelf-stable floor — freezer space is scarce/rivalrous).
@@ -1660,7 +1660,7 @@ function pwBuildModel(){
         freshNote:(st.mode!=='suppress') && (latest<=troughMin+0.005)&&Number.isInteger(tier)&&tier<3&&(troughMax-troughMin>0.005),
         storeMode:st.mode,
         storeTypical:(st.mode==='perstore'?st.typical:null),
-        storeWeeks:(st.mode==='perstore'?st.sWeeks:null),   // Lens AC-L4-S5: own-store n backing the typical (closes S5-N1)
+        storeWeeks:(st.mode==='perstore'?st.sWeeks:null),   // AC-L4-S5: own-store n backing the typical (closes S5-N1)
         storeLatest:(st.mode!=='pooled'?sLatest:''),
         storeMedians:(st.mode!=='pooled'?st.medians:null)});
     }else{ // 1-2 confirmed weeks — building history: NEVER a band/colour/trend
@@ -1668,11 +1668,11 @@ function pwBuildModel(){
     }
   }
   ranked.sort((a,b)=>(b.signal-a.signal)||(b.weeks-a.weeks)||(a.display<b.display?-1:a.display>b.display?1:0));
-  // AC-L4 near-twin double-rank gate (DC-2; Lens OWNS the form). After the ranked sort, collapse
+  // AC-L4 near-twin double-rank gate (DC-2). After the ranked sort, collapse
   // any RESIDUAL near-twin — two ranked cards that are the SAME good at the SAME size but escaped
   // step (C)'s exact-bare match (yellow onion (2 lb) ~ onion (2 lb)) — down to ONE card, so the
   // household never sees one product twice with two independently-computed, possibly-contradictory
-  // verdicts (the F5 double-card). Keys off pwLeadKey POST-CANON IDENTITY ONLY (Becquerel §2.2) —
+  // verdicts (the F5 double-card). Keys off pwLeadKey POST-CANON IDENTITY ONLY (§2.2) —
   // apple (gala)/(fuji) and red onion/onion have DISTINCT leadKeys → both survive → DC-1 and the
   // variety split stay intact. SUPPRESS, not demote / not merge-band: the survivor keeps its OWN
   // already-computed band/delta (no pooling, no verdict-math move); the redundant twin does not
@@ -1757,7 +1757,7 @@ function renderPriceWatch(){
   const header=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>Price Watch</h2><div class="sub">Trends from your household's own confirmed prices · ${weeks} week${s} recorded</div></div>${reentryBtn()}</div>`;
   // State B — history exists but no item has ≥3 confirmed weeks yet.
   if(model.ranked.length===0){
-    // Lens F3: floor-framed (not the stale "3-4 weeks in" calendar promise), plus a live
+    // F3: floor-framed (not the stale "3-4 weeks in" calendar promise), plus a live
     // accrual hint derived from the item closest to the 3-week floor (building is sorted
     // weeks-desc). Guard: no confirmed observations yet (building empty) → floor line only.
     const top=model.building[0];
@@ -2002,10 +2002,10 @@ function renderWhyPlanCard(plan){
 // ═══════════════════════════════════════════════════════════════════════════
 // WASTE CAPTURE (E2-1) — the first new write-path since S1. Reflective-epilogue
 // dashboard card keyed to the just-closed week (planHistory[1]). Classifier +
-// UI-visibility predicate + write contracts (Neumann N6) + Lens surface.
+// UI-visibility predicate + write contracts + surface.
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Domain tri-state classifier (Neumann N3). Reads S.wasteLog ONLY — NEVER the
+// Domain tri-state classifier (N3). Reads S.wasteLog ONLY — NEVER the
 // dismiss map. The sole classifier E2-2/E2-3 use. Only an affirmative
 // zeroWaste===true is ever 'zero'; absence (incl. a dismissed week) is 'absent'.
 function wasteStateFor(d){
@@ -2014,12 +2014,12 @@ function wasteStateFor(d){
   if(rec.zeroWaste===true) return 'zero';     // (b) affirmative-zero — the ONLY zero
   return 'waste';                             // (a) has ≥1 valid item (normalizer-guaranteed)
 }
-// UI-only card-visibility predicate (Neumann N3-DISMISS) — the SOLE reader of the
+// UI-only card-visibility predicate (N3-DISMISS) — the SOLE reader of the
 // dismiss map. Dismiss flips the 2nd conjunct (hides the ask) without touching the
 // 1st (domain stays absent). Proven: dismissed ⟹ absent, never zero.
 function showCardFor(d){ return wasteStateFor(d)==='absent' && !S.wasteDismissed[d]; }
 
-// Write contracts (Neumann N6) — pure data writes: each is EXACTLY one keyed write
+// Write contracts (N6) — pure data writes: each is EXACTLY one keyed write
 // + one save() (Q3 anti-nudge symmetry: dismiss is never cheaper than the safe zero).
 function commitWaste(weekDate,rawItems){
   const items=(Array.isArray(rawItems)?rawItems:[]).map(normalizeWasteItem).filter(Boolean);
@@ -2037,7 +2037,7 @@ function dismissWaste(weekDate){              // "not now" → UI-suppression ON
   saveWasteDismissed();
 }
 
-// Becquerel D3 $ realization: waste_$ = SNAPSHOTTED line price × fraction (default
+// D3 $ realization: waste_$ = SNAPSHOTTED line price × fraction (default
 // 1.0 = "most/all"), quantity NEVER parsed, price NEVER re-derived. fraction ≤ 1 ⇒
 // per-item $ ≤ price (the safe-under-report floor, D6-7). A null/absent price is an
 // UNPRICED item ($ UNKNOWN) — counted separately, NEVER as $0 (absent-never-0 on the
@@ -2053,7 +2053,7 @@ function wasteDollars(rec){
   return {sum,priced,unpriced,estimated};
 }
 
-// Perishability ordering (Becquerel D2): shopping_list items carry no shelf_life_tier
+// Perishability ordering (D2): shopping_list items carry no shelf_life_tier
 // (it lives on meal_plan ingredients), so join the closing week's OWN meal_plan by
 // normalized name (pwNorm — the S13 fold) to fetch the tier; 0/1 (fresh) sort FIRST.
 // Unknown-tier items sort LAST. Ordering, NEVER exclusion (D2.2); no price-floor (D2.3).
@@ -2078,11 +2078,11 @@ function wasteChips(plan){
   return arr;
 }
 
-// ── Surface (Lens L1–L8). Neutral border (trust, not alarm); reflective-epilogue
+// ── Surface (L1–L8). Neutral border (trust, not alarm); reflective-epilogue
 // zone below the plan; concerns ONLY planHistory[1] (the just-closed week). ────
 function renderWasteCard(){
   const hist=Array.isArray(S.planHistory)?S.planHistory:[];
-  if(hist.length<2) return '';                     // no closed week yet → NO card (Lens L6 never-a-brick)
+  if(hist.length<2) return '';                     // no closed week yet → NO card (L6 never-a-brick)
   const entry=hist[1];                             // the just-closed (pre-import, superseded) week
   if(!entry||typeof entry!=='object'||typeof entry.date!=='string'||!entry.date) return '';
   const d=entry.date;
@@ -2102,7 +2102,7 @@ function renderWasteRecorded(d,state){
     const unp=dl.unpriced>0?` · + ${dl.unpriced} unpriced`:'';
     inner=`${dollar}${estTag} tossed${unp}`;
   }
-  // C1 dashboard on-ramp (Cascade A1 / Lens C1): a quiet text-weight PULL link to the
+  // Dashboard on-ramp: a quiet text-weight PULL link to the
   // History retrospective, rendered ONLY at N≥2 logged weeks (matching D1's floor, so it
   // never points to a hollow room). Carries NO cross-week figure — a zero-data navigation
   // OFFER on a line that already renders, not a content-push (does not collide with
@@ -2115,7 +2115,7 @@ function renderWasteRecorded(d,state){
 function renderWasteAsk(d,entry){
   const open=S.wasteAddOpen||S.wasteEditing===d;
   if(!open){
-    // Collapsed card — three PEER one-tap choices (Lens T4): "Nothing wasted" is a quiet
+    // Collapsed card — three PEER one-tap choices (T4): "Nothing wasted" is a quiet
     // ghost/outline affordance (NOT magnetic filled-green), and "not now" reads as a coequal
     // choice (peer weight, no corner-escape framing) so a tired user's reflex-tap-to-clear
     // routes to safe ABSENT, never a fabricated affirmative-zero. Reward = the toast, not fill.
@@ -2145,7 +2145,7 @@ function renderWasteAsk(d,entry){
 }
 // Per-item draft line: name · the 3-pill segmented ordinal (default most/all) · $ · ×.
 // The ordinal is ITEM-level, inside add-mode only — never sharing a row/moment with the
-// WEEK-level "Nothing wasted" tap (Becquerel/Lens conflation guard, structural).
+// WEEK-level "Nothing wasted" tap (conflation guard, structural).
 function renderWasteDraftLine(ln,idx){
   const f=(typeof ln.fraction==='number'&&ln.fraction>0&&ln.fraction<=1)?ln.fraction:1;
   const sel=v=>Math.abs(f-v)<1e-9;
@@ -2184,7 +2184,7 @@ function wasteAddTyped(d){
 function wasteSetFraction(idx,f){ if(S.wasteDraft[idx])S.wasteDraft[idx].fraction=f; render(); }
 function wasteRemoveDraft(idx){ S.wasteDraft.splice(idx,1); render(); }
 function wasteCommit(d){
-  const wrote=commitWaste(d,S.wasteDraft);          // no-op if the draft normalizes empty (Neumann N6)
+  const wrote=commitWaste(d,S.wasteDraft);          // no-op if the draft normalizes empty (N6)
   S.wasteAddOpen=false; S.wasteEditing=null; S.wasteDraft=[];
   if(wrote)showToast('Logged.');
   render();
@@ -2200,11 +2200,11 @@ function editWaste(d){    // reopen capture over an already-recorded week (user 
 
 // ═══════════════════════════════════════════════════════════════════════════
 // E2-2 SURFACE — the cross-week WASTE RETROSPECTIVE (the History / consumption view).
-// READ-PATH ONLY (Cascade Q3/constraint-12): no new KEY, no planHistory shape change,
+// READ-PATH ONLY (Q3/constraint-12): no new KEY, no planHistory shape change,
 // no normalizer touch, promptTemplate byte-frozen. Reads S.wasteLog + the resident
-// S.planHistory window. Every honest floor from Becquerel D1–D8 lives in wasteAggregate;
-// the render honors Cascade A2 (money = 22px/700 --fg glance-HOOK; repeat-offender block
-// = first-class co-equal PAYOFF, never a footnote), UI-Designer U1–U6, and Lens C1–C6.
+// S.planHistory window. Every honest floor from D1–D8 lives in wasteAggregate;
+// the render honors A2 (money = 22px/700 --fg glance-HOOK; repeat-offender block
+// = first-class co-equal PAYOFF, never a footnote), U1–U6, and C1–C6.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Count of LOGGED weeks in the resident window — the C1 on-ramp gate (N≥2). Cheap;
@@ -2235,7 +2235,7 @@ function wasteAggTierMap(hist){
   }
   return map;
 }
-// THE AGGREGATE (Becquerel D1–D6). Iterates RESIDENT planHistory dates and includes a
+// THE AGGREGATE (D1–D6). Iterates RESIDENT planHistory dates and includes a
 // wasteLog record iff its date is still resident — auto-bounding to ≤52 weeks and
 // excluding orphans WITHOUT destroying them (D6). Reads S.wasteLog ONLY (never the dismiss
 // map — N3). THE SACRED INVARIANT: the denominator is LOGGED weeks, never calendar weeks —
@@ -2287,10 +2287,10 @@ function renderConsumption(){
     // zero — but NOT a $0/week hero (that celebrates the clean week → fake-clean reward, WATCH-BQ4/D7). Neutral words.
   return header+renderWasteRate(agg)+renderWasteOffenders(agg);   // A2: hook (rate) then co-equal payoff (offenders)
 }
-// N=0 empty state (UI-Designer U6 / Lens C4): centered faint 40px/.3 glyph + h2 + one --fg3
+// N=0 empty state (U6 / C4): centered faint 40px/.3 glyph + h2 + one --fg3
 // sub, FORWARD-framed, NO rendered zero, NO warning hue, NO capture CTA. The "door back to
 // the loop" (C4) is a text-weight nav link (data-nav idiom, keyboard-accessible) — NOT a
-// filled/primary button, so it is a route back, not the capture nag U6/Cascade forbid.
+// filled/primary button, so it is a route back, not the capture nag U6 forbids.
 function renderWasteEmpty(){
   return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:46vh;text-align:center">
     <div style="font-size:40px;margin-bottom:16px;opacity:.3">📊</div>
@@ -2299,7 +2299,7 @@ function renderWasteEmpty(){
     <div style="margin-top:8px"><button data-nav="dashboard" style="background:none;border:none;color:var(--fg3);text-decoration:underline;cursor:pointer;font-size:12px;font-family:var(--font);min-height:44px;padding:4px">Back to this week's plan</button></div>
   </div>`;
 }
-// N=1 single-week state (Becquerel D1-floor-3 / Lens C4): show the one week honestly,
+// N=1 single-week state (D1-floor-3 / C4): show the one week honestly,
 // labeled as ONE week — NEVER a "rate"/"average"/"per week". Calm, un-editorialized, no
 // trend-dressing; forward-point via the VIEW's behavior, never a household demand.
 function renderWasteOneWeek(agg){
@@ -2321,7 +2321,7 @@ function renderWasteOneWeek(agg){
     <div style="font-size:11px;color:var(--fg3);margin-top:8px">Once you've logged another week, this page shows your weekly amount and the items worth buying less of.</div>
   </div>`;
 }
-// N≥2, every logged week an affirmative-zero (Becquerel D2-ii / D7 / WATCH-BQ4): acknowledge
+// N≥2, every logged week an affirmative-zero (D2-ii / D7 / WATCH-BQ4): acknowledge
 // NEUTRALLY — never a celebratory $0 hero (that rewards the clean tap → the fake-clean incentive),
 // never "perfect"/"zero-waste weeks". No rendered figure at all; calm words + a forward pointer.
 function renderWasteAllClean(agg){
@@ -2330,11 +2330,11 @@ function renderWasteAllClean(agg){
     <div style="font-size:11px;color:var(--fg3);margin-top:8px">When a week does have something you tossed, your weekly amount and the items worth buying less of show up here.</div>
   </div>`;
 }
-// The money HOOK (Cascade A2 / UI-Designer U1/U2): the per-logged-week absolute-$ RATE as a
+// The money HOOK (A2 / U1/U2): the per-logged-week absolute-$ RATE as a
 // 22px/700 color:var(--fg) figure — the money-hero SCALE with the hue NEUTRALIZED (never
 // --blue/--green/--amber/--red; presence via size, neutrality via hue). `/week` is welded to
 // the figure (min readable token, U2). N rides as PROVENANCE (13/400 --fg2), an absolute
-// basis-count, NEVER a calendar fraction (Lens C3). Rate is priced-only → within-window
+// basis-count, NEVER a calendar fraction (C3). Rate is priced-only → within-window
 // lower bound; unpriced surfaced as a count (D4); `(est.)` rides + figure stays COARSE (D5).
 function renderWasteRate(agg){
   const rate=agg.n>0?(agg.pricedSum/agg.n):0;
@@ -2359,7 +2359,7 @@ function renderWasteRate(agg){
     <div style="font-size:13px;font-weight:400;color:var(--fg2);margin-top:4px;line-height:1.5">${prov}${recency}${unp}${estWord}</div>
   </div>`;
 }
-// The co-equal PAYOFF (Cascade A2 / UI-Designer U4 / Lens C5): repeat-offender items as an
+// The co-equal PAYOFF (A2 / U4 / C5): repeat-offender items as an
 // AGENCY-framed inventory, NOT a scoreboard. Weight on the item NAME (13px --fg); the
 // occurrence is a quiet ≤11px --fg3 TRAILING clause, never a right-aligned/bold/colored
 // numeral, never a verified exact count; FRESH-FIRST order (already sorted), unranked; a
@@ -2593,10 +2593,10 @@ function serializePantry(){
   return body||'No pantry items tracked.';
 }
 
-// E2-3 FEED-BACK serializer (Neumann shape / Becquerel content). Reads S.wasteLog + the resident
+// E2-3 FEED-BACK serializer. Reads S.wasteLog + the resident
 // S.planHistory window via the EXISTING E2-2 aggregate — no new projection, no write-path;
 // promptTemplate is the ONLY new state. Returns the direction-safe recurring-waste OBSERVATION
-// block, or '' when Becquerel's inclusion floor is unmet (≥2 logged weeks AND ≥1 repeat offender);
+// block, or '' when the inclusion floor is unmet (≥2 logged weeks AND ≥1 repeat offender);
 // the slot then vanishes cleanly at the call site. A CONSIDERATION, never a quantitative command
 // (NET-BIAS-UNDETERMINED). Consumes wasteAggregate().offenders (fresh-first, ≥2 distinct logged
 // weeks) + .n; re-derives NOTHING (BQ-E23-REFOLD); reads NO dollar field (BQ-E23-NODOLLAR).
@@ -2623,7 +2623,7 @@ Where an item above recurs, consider whether a smaller quantity, a different pac
 
 function generatePrompt(){
   let prompt=S.promptTemplate;
-  const r={'{{HOUSEHOLD_SIZE}}':String(S.household.size),'{{PLAN_DAYS}}':String(S.household.planDays||7),'{{START_DATE}}':S.startDate,'{{REGION}}':S.household.region||'Seattle, WA','{{STARTER_ACTIVE}}':S.household.starterActive?'yes':'no','{{PANTRY_STATE}}':serializePantry(),'{{ALLERGIES}}':S.prefs.allergies.length?S.prefs.allergies.join(', '):'None','{{DISLIKES}}':S.prefs.dislikes.length?S.prefs.dislikes.join(', '):'None','{{PREFERENCES}}':S.prefs.positives.length?S.prefs.positives.join(', '):'None','{{STORES}}':storesList(S.household).join(', ')||'QFC, Kroger, Safeway, Walmart','{{WALMART_BLOCK}}':hasWalmartStore(S.household)?'Walmart threshold: '+(WALMART_PROMPT[S.household.walmartThreshold]||WALMART_PROMPT['only-major'])+'.':'','{{SPECIAL_INSTRUCTIONS}}':S.specialInstructions.trim()||'None','{{ANCHOR_RECIPES}}':S.anchorRecipes.trim()||'None specified'};
+  const r={'{{HOUSEHOLD_SIZE}}':String(S.household.size),'{{PLAN_DAYS}}':String(S.household.planDays||7),'{{START_DATE}}':S.startDate,'{{REGION}}':S.household.region||'Your city, ST','{{STARTER_ACTIVE}}':S.household.starterActive?'yes':'no','{{PANTRY_STATE}}':serializePantry(),'{{ALLERGIES}}':S.prefs.allergies.length?S.prefs.allergies.join(', '):'None','{{DISLIKES}}':S.prefs.dislikes.length?S.prefs.dislikes.join(', '):'None','{{PREFERENCES}}':S.prefs.positives.length?S.prefs.positives.join(', '):'None','{{STORES}}':storesList(S.household).join(', ')||'Store A, Store B, Store C','{{WALMART_BLOCK}}':hasWalmartStore(S.household)?'Walmart threshold: '+(WALMART_PROMPT[S.household.walmartThreshold]||WALMART_PROMPT['only-major'])+'.':'','{{SPECIAL_INSTRUCTIONS}}':S.specialInstructions.trim()||'None','{{ANCHOR_RECIPES}}':S.anchorRecipes.trim()||'None specified'};
   Object.entries(r).forEach(([k,v])=>{prompt=prompt.replaceAll(k,v)});
   // E2-3 — WASTE_FEEDBACK is whole-line, clean-vanish (NOT in r, so an empty value cannot leave a
   // stray blank line). Run LAST so an empty floor scrubs the slot + its trailing newline (leaving the
@@ -2690,9 +2690,9 @@ function renderPreferences(){
   // Household
   h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:12px">Household Configuration</div><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px">
     <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Household Size</label><input type="number" class="inp" value="${hh.size}" min="1" max="20" style="width:80px" onchange="S.household.size=parseInt(this.value)||1;saveHousehold();render()"></div>
-    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Region</label><input class="inp" value="${esc(hh.region)}" placeholder="e.g., Seattle, WA" oninput="S.household.region=this.value;saveHousehold()"></div>
+    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Region</label><input class="inp" value="${esc(hh.region)}" placeholder="e.g., Your city, ST" oninput="S.household.region=this.value;saveHousehold()"></div>
     <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Stores (priority order)</label>
-      <input class="inp" value="${esc(hh.stores)}" placeholder="e.g., QFC, Kroger, Safeway, Walmart"
+      <input class="inp" value="${esc(hh.stores)}" placeholder="e.g., Store A, Store B, Store C, Walmart"
         onchange="S.household.stores=this.value;saveHousehold();render()">
       <div style="font-size:10px;color:var(--fg3);margin-top:3px;line-height:1.4">Comma-separated, most-preferred first. Claude searches these stores' weekly ads.</div></div>
     <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Plan Days</label><input type="number" class="inp" value="${hh.planDays||7}" min="1" max="14" style="width:80px" onchange="S.household.planDays=parseInt(this.value)||7;saveHousehold();render()"></div>
@@ -2955,8 +2955,8 @@ function exportAllData(){
     currentPlan:S.currentPlan,planHistory:S.planHistory,
     promptTemplate:S.promptTemplate,anchorRecipes:S.anchorRecipes,
     checkedItems:S.checkedItems,
-    wasteLog:S.wasteLog   // E2-1 (Neumann N4): enumerated explicitly → MUST be here or a restore silently destroys it.
-                          // wasteDismissed is deliberately OMITTED (UI-suppression, not household data — Neumann Q4).
+    wasteLog:S.wasteLog   // E2-1 (N4): enumerated explicitly → MUST be here or a restore silently destroys it.
+                          // wasteDismissed is deliberately OMITTED (UI-suppression, not household data — Q4).
   };
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -2995,7 +2995,7 @@ function importAllData(event){
       if('anchorRecipes' in data){S.anchorRecipes=data.anchorRecipes;saveAnchors()}
       if(data.checkedItems){S.checkedItems=data.checkedItems;saveCheckedItems()}
       else{S.checkedItems={};saveCheckedItems()}
-      // E2-1 (Neumann N4): guarded, NON-destructive restore — DEPARTS from checkedItems, FOLLOWS
+      // E2-1 (N4): guarded, NON-destructive restore — DEPARTS from checkedItems, FOLLOWS
       // planHistory. NO destructive else: a pre-E2 backup legitimately lacks wasteLog; clearing it
       // would silently destroy irreplaceable longitudinal waste history. Absent-in-backup ⇒ PRESERVE.
       if(data.wasteLog&&typeof data.wasteLog==='object'){S.wasteLog=normalizeWasteLog(data.wasteLog);saveWasteLog()}
