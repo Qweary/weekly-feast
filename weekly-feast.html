@@ -114,7 +114,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v9',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items',wasteLog:'mp:waste-log-v1',wasteDismissed:'mp:waste-dismissed-v1'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v10',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items',wasteLog:'mp:waste-log-v1',wasteDismissed:'mp:waste-dismissed-v1',safetyNoticeV10:'mp:safety-notice-v10-dismissed'};
 
 const DEFAULT_PANTRY={tier1:[
 {id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",onHand:4,unit:"lb",par:2,updatedAt:new Date().toISOString()},
@@ -250,24 +250,46 @@ When evaluating recipes, scale them to {{HOUSEHOLD_SIZE}} servings. Reflect the 
 
 STEP 3 — BUILD THE MEAL PLAN
 
-Dinners: Select recipes for each planned dinner night (accounting for any skipped nights from special instructions). Maximize ingredient overlap across the week, and enforce it as a hard rule rather than an aspiration: any perishable bought in a bunch or multi-serving format that a single meal cannot finish (a bunch of cilantro or scallions, a head of cabbage, a bag of greens, a tub of sour cream, a block of cheese) MUST be routed to at least two — ideally three — meals scheduled close enough together to use it before it decays (one bunch of cilantro → tacos, a grain bowl, and a soup garnish within four days). Use cascade cooking to build that overlap on purpose: cook a base once and redeploy it across days (a roast chicken → sliced for dinner day 1, shredded into wraps or a salad day 2, the carcass into soup or stock day 3; one pot of grains or one tray of roasted vegetables fanned across several meals as a shared component). Planned leftovers and shared components are a design choice that cuts cost and waste at once — build them in deliberately. Sequence meals by perishability as a descending staircase, not a coarse first-half/second-half split. Place the most perishable ingredients earliest and pin them tightly: Tier-0 items with a 1-2 day refrigerated life (fresh fish and shellfish, fresh ground meat and ground poultry, delicate soft herbs like cilantro and basil, tender salad greens, fresh berries, ripe avocado) MUST be cooked on day 1 or day 2 — this is the first-48 rule: highly perishable meat and produce is cooked or frozen within 48 hours of purchase. Schedule Tier-1 items with a 3-5 day life (large raw cuts of beef and pork, broccoli, asparagus, green beans, mushrooms, bell peppers) on days 2-4. Spread Tier-2 items with a 1-2 week life (carrots, celery, cabbage, citrus, apples, hard cheeses, eggs) across the mid-to-late week. Backfill the last days (day 5 onward) with Tier-3, frozen, and pantry-stable items (potatoes, onions, winter squash, canned and dried goods, anything frozen). Read the finished week top to bottom: perishability should fall, never rise, from the first dinner to the last. Freezer offload is the pressure valve — if the plan or a sale-driven bulk buy brings in more Tier-0 or Tier-1 protein than can be cooked within its refrigerated window (common for a small household buying a family pack), direct the household to portion and freeze the surplus on day 0, the shopping day, dated and rotated first-in-first-out, and pull it to a back-half night. Freezing pauses the decay clock and suits proteins, cooked components, and stock; do not freeze high-water raw produce or tender greens for fresh use. Call out each freeze-on-day-0 action in that day's perishability_note and in the narrative so the household actually freezes it in time. For each dinner, calculate approximate cost per serving using confirmed sale prices where available and estimates where not, and judge value on cost per serving actually eaten rather than sticker or shelf-unit price. When comparing package sizes or a bulk buy, use spoilage-adjusted unit cost: divide the price by the quantity the household will realistically consume before it spoils, not the quantity printed on the label — a larger, cheaper-per-ounce pack is only cheaper if it is fully used, and for a small household a family-size perishable is often more expensive per serving eaten once the spoiled remainder is priced in. When cost and perishability conflict, favor the plan that is fully consumed. When two options cost similarly, favor the one using fresh seasonal produce over processed ingredients, and note this choice. Compute actual calendar dates for each day by counting forward from {{START_DATE}}.
+Dinners: Select recipes for each planned dinner night (accounting for any skipped nights from special instructions). Maximize ingredient overlap across the week, and enforce it as a hard rule rather than an aspiration: any perishable bought in a bunch or multi-serving format that a single meal cannot finish (a bunch of cilantro or scallions, a head of cabbage, a bag of greens, a tub of sour cream, a block of cheese) MUST be routed to at least two — ideally three — meals scheduled close enough together to use it before it decays (one bunch of cilantro → tacos, a grain bowl, and a soup garnish within four days). Use cascade cooking to build that overlap on purpose: cook a base once and redeploy it across days (a roast chicken → sliced for dinner day 1, shredded into wraps or a salad day 2, the carcass into soup or stock day 3; one pot of grains or one tray of roasted vegetables fanned across several meals as a shared component). Planned leftovers and shared components are a design choice that cuts cost and waste at once — build them in deliberately, but respect their window: USDA FSIS gives refrigerated cooked meat or poultry, and soups and stews, 3 to 4 days. A leftover or cooked make-ahead component must therefore be eaten or frozen within 4 DAYS OF THE DAY IT WAS COOKED. That is a count of days AFTER COOKING, not a plan-day number: a component cooked on day 1 must be eaten by day 5, and one cooked on day 3 may run as late as day 7. Never schedule a leftover 5 or more days after its own cooking day. If a cascade cannot place it inside that 4-day window, freeze it on the cooking day instead of stretching the date. Sequence meals by perishability as a descending staircase, not a coarse first-half/second-half split. Place the most perishable ingredients earliest and pin them tightly: Tier-0 items with a 1-2 day refrigerated life (fresh poultry — whole birds and pieces alike, including chicken thighs, chicken breasts and a whole roasting chicken; raw sausage; fresh ground meat and ground poultry; fresh fin fish and raw shellfish; delicate soft herbs like cilantro and basil; tender salad greens; fresh berries; ripe avocado) MUST be cooked on day 1 or day 2 — this is the first-48 rule: highly perishable meat and produce is cooked or frozen within 48 hours of purchase. Fresh poultry and raw sausage are Tier 0 no matter how big the cut — a whole chicken is NOT a "large raw cut" for this purpose: USDA FSIS gives whole and cut-up chicken and turkey 1 to 2 days, the same window as ground meat, and raw sausage the same. Fresh seafood is scheduled Tier 0 as a deliberate safety margin: FSIS gives fin fish 1-3 days and spreads shellfish from 1 day (live crab and lobster) to 5-10 days (live clams, mussels, oysters and scallops), and cooking all of it within 2 days sits at or inside every one of those windows — never schedule seafood later on the strength of the wider end of that range. Schedule Tier-1 items with a 3-5 day life (large raw cuts of beef, veal, lamb and pork — steaks, chops and roasts; broccoli, asparagus, green beans, mushrooms, bell peppers) on days 2-4. These day-placement rules — Tier-0 on days 1-2, Tier-1 on days 2-4 — govern PURCHASED RAW ingredients, whose shelf-life clock starts on the shopping day. A cooked leftover's clock starts on the day it was COOKED instead, so a leftover is never placed by this rule; it is placed by its own window, below. Spread Tier-2 items with a 1-2 week life (carrots, celery, cabbage, citrus, apples, hard cheeses, eggs) across the mid-to-late week. Backfill the last days (day 5 onward) with Tier-3, frozen, and pantry-stable items (potatoes, onions, winter squash, canned and dried goods, food PURCHASED frozen) and with the day-0-frozen proteins from the freezer interlock below — which keep their own Tier-0 or Tier-1 classification even while they sit in the freezer. Read the finished week top to bottom: perishability should fall, never rise, from the first dinner to the last. Freezer offload is the pressure valve, and under these tiers it is the NORMAL fate of the second and third fresh protein in a week, not an exception for greedy shopping. Its trigger is the SCHEDULE, not the quantity: any freezable Tier-0 item — every raw protein — whose dinner falls on day 3 or later MUST be frozen on day 0, the shopping day. Set freeze_by to that date and leave cook_by null. Day 0 is the shopping day — the day the food comes home; set freeze_by to that date, and where the shopping date is not known use the day-1 date, which is the latest safe moment to freeze a Tier-0 protein and is never a date already past. THE ITEM KEEPS ITS AS-PURCHASED shelf_life_tier: freezing an item sets its freeze_by, it does NOT re-classify the food. A fresh whole chicken you route to the freezer on day 0 is still shelf_life_tier 0 — never 3. Tier 3's "anything frozen" means food you BOUGHT frozen, never food this plan sends through the freezer. And never emit cook_by and freeze_by BOTH null for a raw protein: every raw protein carries exactly one of the two, never neither. This is NOT conditional on the item being a surplus, a bulk buy or a family pack: a single whole chicken bought for one Thursday dinner, fully needed, with nothing left over, takes this path in full. Holding a Tier-0 protein in the refrigerator past its 1-2 day window to reach a later dinner is never an option — do not stretch a cook_by to make a schedule work. The same interlock applies to a Tier-1 raw item whose dinner would fall past its 3-5 day window. Relieve the CALENDAR, never the CART: the answer to a crowded week is to freeze the protein, never to buy less of it. A Tier-0 item that is NOT freezable — tender greens, soft herbs, berries and ripe avocado bought for fresh use — has no freezer path at all: it cannot be deferred by any means, so its meal must sit on day 1 or day 2, or the ingredient must leave the plan. Never mark such an item frozen to make the calendar fit. Portion and freeze on day 0, dated and rotated first-in-first-out.
+
+Thawing is part of the plan and MUST be scheduled, because a frozen protein cannot be cooked on its night unless it was pulled in time — and the shortcut a household reaches for is the dangerous one. USDA FSIS: perishable foods must NEVER be thawed on the counter or in hot water, and must not be left at room temperature for more than two hours; the outside of the package sits in the 40-140F danger zone while the middle is still frozen. Thaw in the REFRIGERATOR. Refrigerator thawing is slow, and its slowness is the whole planning problem: FSIS allows at least one full day (24 hours) for EVERY 5 pounds of weight, and even a one-pound pack of ground meat or boneless chicken breasts needs a FULL DAY. Thaw time is a RATE, never a flat allowance. Allow ONE FULL DAY in the refrigerator for every 4 POUNDS, ROUNDED UP, with a floor of one full day: 1 day for a pack, tray or pieces up to 4 pounds; 2 days for a 4-to-8 pound bird or roast; 3 days for 8 to 12 pounds; 4 days for 12 to 16 pounds; 5 days for a 16-to-20 pound turkey. NEVER cap the lead time at two days for a large bird — a 20-pound turkey given 2 days is still frozen at dinner time, and a household standing over a frozen turkey at 5pm is a household about to reach for the hot tap, which is the one thing this rule exists to prevent. If a large item cannot be thawed in the days available before its planned dinner, move that dinner later in the week or cook the item from frozen; never shorten the thaw. Once it has thawed the clock RESTARTS as though the food were fresh: FSIS gives thawed poultry, seafood and ground meat an additional 1 to 2 days before cooking, and thawed beef, pork and lamb roasts, chops and steaks 3 to 5 days. Plan the thaw TO its night and cook it there; do not thaw early and hold for several days. But plans slip, and when they do the household has TWO safe moves and you MUST tell them BOTH, in plain words, in the plan itself: they may still cook it inside that post-thaw window (1 to 2 more days for poultry, ground meat and seafood; 3 to 5 days for red-meat cuts), or they may put it BACK in the freezer — FSIS confirms that food thawed in the refrigerator can be refrozen without cooking, at some cost in quality but none in safety, provided it was never left out of the refrigerator for more than 2 hours. A household told only to cook it on Thursday, and told nothing else, has no safe move on Friday and will invent an unsafe one.
+
+If a thaw was never started at all, the safe recovery is to cook the item STRAIGHT FROM FROZEN, which FSIS confirms is safe and takes about 50 percent longer than the normal cooking time. Name that recovery first: it works for a roast, a bake, a braise or a simmer. It does NOT work for everything — you cannot brown frozen ground meat or sear a frozen chop, and a whole frozen bird takes far longer than a weeknight allows. So there is exactly ONE other FSIS-sanctioned fast method, and it is a SAME-DAY RESCUE ONLY: never plan a meal around it. COLD-WATER THAWING: seal the item in a leak-proof bag, submerge it in COLD tap water, change the water EVERY 30 MINUTES, and COOK IT IMMEDIATELY once it has thawed. Never warm water, never hot water, never the counter. A one-pound package thaws in an hour or less and a 3-to-4 pound package in 2 to 3 hours, but a whole turkey runs about 30 minutes per POUND — so a large bird has NO fast rescue, and for a large bird the only safe answers are to cook it from frozen or to move the dinner. An item thawed in cold water may NOT be refrozen without being cooked first: the refreeze-without-cooking allowance applies ONLY to refrigerator-thawed food.
+
+Freezing pauses the decay clock — food held at 0F stays safe indefinitely, and an item frozen on day 0 goes into the freezer at its peak — and it suits proteins, cooked components, and stock; do not freeze high-water raw produce or tender greens for fresh use. SURFACING THE FREEZE AND THE THAW IS MANDATORY, NOT OPTIONAL, and it takes care, because an item routed to the freezer carries a freeze_by and a NULL cook_by, so its dinner card shows NO cook-by date at all: these notes are the only thing standing between the household and a silently missing instruction. Route them exactly like this. (a) THE DAY-0 FREEZE: there is no day-0 card, because meal_plan starts at day 1, so do NOT try to put the freeze in a perishability_note. For every item you set freeze_by on, write the freeze instruction into the notes field of that item in the shopping_list — that is the list the household reads on the shopping day, which is the day the freeze must happen — naming the item and telling them to portion and freeze it that day. (b) THE THAW-START: write it into the perishability_note of the day the item must COME OUT of the freezer, naming the item, naming the dinner it is for, stating how long it keeps once thawed, and stating that it may be refrozen if plans change. (c) Name both in the narrative as well. A freeze or thaw instruction that appears only in the narrative, or only in a field the household never reads, HAS NOT SHIPPED. For each dinner, calculate approximate cost per serving using confirmed sale prices where available and estimates where not, and judge value on cost per serving actually eaten rather than sticker or shelf-unit price. When comparing package sizes or a bulk buy, use spoilage-adjusted unit cost: divide the price by the quantity the household will realistically consume before it spoils, not the quantity printed on the label — a larger, cheaper-per-ounce pack is only cheaper if it is fully used, and for a small household a family-size perishable is often more expensive per serving eaten once the spoiled remainder is priced in. For this calculation, any portion that will be portioned and frozen on the shopping day counts as CONSUMED BEFORE IT SPOILS, not as waste — count the frozen portions as eaten. Freezing holds an item safely for its planned use, so a family pack of a freezable protein routed through the freezer keeps its full per-ounce advantage: do NOT downsize a good deal on a freezable protein on spoilage grounds, and do not let the tightened Tier-0 windows argue you out of the cheapest protein in the store. Freeze it instead. This exemption applies ONLY to items you have marked freezable true — a family pack of tender greens or berries has no freezer path, so it is still costed on what will actually be eaten fresh. And when the freezable item is a LARGE one — a whole turkey or a big roast — remember that it also needs a long refrigerator thaw (one day per 4 pounds, rounded up), so schedule its dinner late enough in the week that the thaw fits. When cost and perishability conflict, favor the plan that is fully consumed. When two options cost similarly, favor the one using fresh seasonal produce over processed ingredients, and note this choice. Compute actual calendar dates for each day by counting forward from {{START_DATE}}.
 
 For each ingredient, also record its shelf-life tier and, for any Tier-0 or Tier-1 perishable, the
-date by which it must be cooked or frozen: shelf_life_tier is 0 (fish/shellfish, ground meat/poultry,
-soft herbs, tender greens, berries, ripe avocado — 1-2 days), 1 (large raw beef/pork cuts, broccoli,
-asparagus, green beans, mushrooms, bell peppers, cooked leftovers — 3-5 days), 2 (carrots, celery,
-cabbage, citrus, apples, hard cheese, eggs — 1-2 weeks), or 3 (onions, potatoes, winter squash, canned,
-dried grains/pasta/legumes, oils, anything frozen — weeks to months). Set cook_by (Tier-0/1) or
-freeze_by (if it will be frozen on day 0) to the actual calendar date; leave both null for Tier-2/3
-shelf-stable items. These tiers follow USDA FSIS / FoodSafety.gov cold-storage guidance — do not invent
-shorter or longer windows. Also record freezable (true or false) for each ingredient: true when a
-surplus of the item, portioned and frozen on the shopping day and thawed later, is still fit for the
+date by which it must be cooked or frozen: shelf_life_tier is 0 (fresh poultry — whole or in pieces; raw sausage; ground
+meat/poultry; fin fish and shellfish; soft herbs, tender greens, berries, ripe avocado — 1-2 days),
+1 (large raw beef/veal/lamb/pork cuts, broccoli, asparagus, green beans, mushrooms, bell peppers —
+3-5 days), 2 (carrots, celery, cabbage, citrus, apples, hard cheese, eggs — 1-2 weeks), or 3 (onions,
+potatoes, winter squash, canned, dried grains/pasta/legumes, oils, food you BOUGHT frozen — weeks to
+months).
+Tier 3 covers food PURCHASED frozen. An item bought FRESH and routed to the freezer on day 0 KEEPS its
+as-purchased tier and is NEVER re-tiered to 3 — a fresh whole chicken frozen on day 0 is still Tier 0,
+and it still carries the Tier-0 handling rules. The tier records how perishable the food was WHEN YOU
+BOUGHT IT; freezing sets freeze_by, it does not re-classify the food.
+Fresh poultry and raw sausage are Tier 0 at any size — a whole bird is never a Tier-1 large raw cut.
+Cooked leftovers are Tier 1 for ordering, but they take a SHORTER window than the rest of that tier and
+their clock starts on the day they were COOKED, not the shopping day: a leftover's cook_by (read it as
+eat-or-freeze-by) is at most 4 days after its own cooking day, because FSIS gives cooked meat, poultry,
+soups and stews 3 to 4 days. Never emit a leftover cook_by more than 4 days after the day that leftover
+was cooked. Count days after cooking here — this is not a plan-day number. Set cook_by (Tier-0/1) or
+freeze_by (if it will be frozen on day 0) to the actual calendar date; leave both null ONLY for Tier-2/3
+shelf-stable items. A raw protein is NEVER both-null: it carries either a cook_by or a freeze_by, exactly
+one of the two. The meat, poultry, seafood, egg and leftover windows follow USDA FSIS /
+FoodSafety.gov cold-storage guidance; the produce and dairy windows are this planner's own conservative
+working estimates, not FSIS figures — the FSIS cold-storage chart covers no produce, no milk and no
+cheese, and USDA FoodKeeper is the reference for those. Do not invent
+shorter or longer windows. Also record freezable (true or false) for each ingredient: true when the
+item — all of it or any part of it, whether or not any of it is a surplus — portioned and frozen on the
+shopping day and thawed later, is still fit for the
 same use you bought it for — raw proteins, cooked components and planned leftovers, stock and soups,
 bread, butter and hard cheese, and produce destined for a cooked application. Set false when freezing
 yields a different-use or ruined product — high-water raw produce and tender greens for fresh use,
 berries and melon for fresh eating, soft herbs for garnish, in-shell eggs, soft and cream dairy, and
 fried foods. freezable is the machine-readable form of the freezer-offload rule above and is orthogonal
-to shelf_life_tier: a fresh chicken thigh is Tier 0-1 but freezable true, while a fresh strawberry
+to shelf_life_tier: a fresh chicken thigh is Tier 0 but freezable true, while a fresh strawberry
 bought for a fruit salad is Tier 0 but freezable false. Omit the field only if you genuinely cannot
 judge it — a missing value is treated as not-freezable, never as freezable.
 
@@ -275,7 +297,7 @@ Breakfasts and lunches: Provide simple text suggestions (oatmeal, sandwiches, eg
 
 Pantry consumption check: After drafting the full week's plan, review cumulative ingredient usage against the pantry state. If any pantry item categorized as "well-stocked" or "getting low" would be substantially depleted by the week's meals (e.g., the plan uses rice in 5 of 7 dinners, or multiple recipes draw heavily on the same spice), flag it in the pantry_alerts section of the JSON. This helps the household anticipate restock needs before they run out.
 
-Single-use audit: in the same pass, walk every fresh or perishable ingredient the plan buys and flag any that only one meal uses — especially a Tier-0 or Tier-1 bunch or multi-serving item whose remainder will spoil before a second occasion. Prefer to fix each one in place (add a second meal that uses the remainder, downsize the purchase to the amount actually needed, or substitute a longer-life pantry alternative) rather than leave a stranded remainder. If a single-use perishable purchase is genuinely unavoidable, say so explicitly in the narrative and name what happens to the leftover, so the waste is a visible choice and not an accident.
+Single-use audit: in the same pass, walk every fresh or perishable ingredient the plan buys and flag any that only one meal uses — especially a Tier-0 or Tier-1 bunch or multi-serving item whose remainder will spoil before a second occasion. Prefer to fix each one in place (add a second meal that uses the remainder; freeze the remainder on day 0 and fan it across later meals, which is the preferred fix for any freezable protein because it raises meals_spanned instead of shrinking the cart; downsize the purchase to the amount actually needed; or substitute a longer-life pantry alternative) rather than leave a stranded remainder. If a single-use perishable purchase is genuinely unavoidable, say so explicitly in the narrative and name what happens to the leftover, so the waste is a visible choice and not an accident.
 
 {{WASTE_FEEDBACK}}
 
@@ -473,29 +495,35 @@ Field notes:
 - "price_type" in shopping_list: "confirmed" from actual ad/coupon listing, "estimated" from general knowledge.
 - "category" in shopping_list: "sale" for deal-driven purchases, "staple" for regular-price necessities, "restock" for items the pantry shows as low or out.
 - "pantry_alerts": Include entries only when cumulative weekly usage warrants a heads-up. An empty array is fine if no alerts are needed.
-- "shelf_life_tier" (ingredient): integer 0-3 per USDA FSIS cold-storage tiers — 0 = 1-2 day (ground meat/poultry, fish, soft herbs, tender greens, berries, ripe avocado), 1 = 3-5 day (large raw cuts, broccoli, peppers, mushrooms, leftovers), 2 = 1-2 week (carrots, cabbage, citrus, apples, hard cheese, eggs), 3 = weeks-plus / shelf-stable / frozen. null if not applicable.
-- "cook_by"/"freeze_by" (ingredient): calendar date the item must be cooked (Tier-0/1) or frozen if offloaded day-0. Both null for shelf-stable items.
-- "freezable" (ingredient): boolean — true if a surplus can be portioned, frozen on the shopping day, and thawed for the SAME use (raw proteins, cooked components, stock, bread, butter, hard cheese, produce for cooked dishes); false if freezing ruins it or changes its use (high-water raw produce and tender greens for fresh use, berries/melon for fresh eating, soft herbs, in-shell eggs, soft/cream dairy, fried foods). Orthogonal to shelf_life_tier. Omit only if genuinely unknown; a missing value is treated as not-freezable.
+- "shelf_life_tier" (ingredient): integer 0-3 — 0 = 1-2 day (fresh poultry whole or in pieces, raw sausage, ground meat/poultry, fin fish and shellfish, soft herbs, tender greens, berries, ripe avocado), 1 = 3-5 day (large raw beef/veal/lamb/pork cuts, broccoli, peppers, mushrooms, asparagus, green beans), 2 = 1-2 week (carrots, cabbage, citrus, apples, hard cheese, eggs), 3 = weeks-plus / shelf-stable / PURCHASED frozen. null if not applicable. An item bought FRESH and routed to the freezer on day 0 KEEPS its as-purchased tier and is NEVER re-tiered to 3 — a fresh whole chicken frozen on day 0 is still tier 0. Freezing sets freeze_by; it does not re-classify the food. Fresh poultry and raw sausage are Tier 0 at ANY size — a whole bird is never Tier 1. Cooked leftovers are Tier 1 for ordering but capped at a cook_by no more than 4 days after the day they were COOKED (a count of days after cooking, not a plan-day number). The meat, poultry, seafood, egg and leftover windows follow USDA FSIS / FoodSafety.gov cold-storage guidance; the produce and dairy windows are this planner's own conservative estimates, NOT FSIS figures (the FSIS chart lists no produce, milk or cheese — USDA FoodKeeper is the reference for those).
+- "cook_by"/"freeze_by" (ingredient): calendar date the item must be cooked (Tier-0/1) or frozen if offloaded day-0. Both null ONLY for shelf-stable Tier-2/3 items — a raw protein is NEVER both-null, it carries exactly one of the two. WARNING — the day card renders a date chip from cook_by ONLY. An item with freeze_by set and cook_by null therefore displays NO date to the household at all, so its freeze and thaw instructions MUST be carried in text or they do not reach the kitchen: (a) any shopping_list item whose ingredient carries a freeze_by MUST have a non-null "notes" value telling the household to portion and freeze it on the shopping day; (b) the "perishability_note" of the day a frozen item must come OUT of the freezer is REQUIRED, not null, and must name the item, the dinner it is for, how long it keeps once thawed, and that it may be refrozen if plans change.
+- "freezable" (ingredient): boolean — true if the item, or any portion of it (surplus or not), can be portioned, frozen on the shopping day, and thawed for the SAME use (raw proteins, cooked components, stock, bread, butter, hard cheese, produce for cooked dishes); false if freezing ruins it or changes its use (high-water raw produce and tender greens for fresh use, berries/melon for fresh eating, soft herbs, in-shell eggs, soft/cream dairy, fried foods). Orthogonal to shelf_life_tier. Omit only if genuinely unknown; a missing value is treated as not-freezable.
 - "meals_spanned" (shopping_list): count of meals a purchased item feeds. A perishable with meals_spanned = 1 is a stranded-remainder risk (single-use audit).
 - "nutrition_summary" (top-level): weekly-level MyPlate balance result (see STEP 3.5) — the protein sources actually used, vegetable subgroups represented, seafood servings, and whether produce ~half-fills the plate across the week. "shortfalls" is an array of honest entries, one per weekly target the budget-optimal plan could not meet (protein rotation ≥3, ~2 seafood servings, ≥3 of 5 veg subgroups, ~half-plate produce), each naming the gap and its cost/availability reason; an empty array [] means every target was met. General healthy-eating guidance for weekly variety, not medical nutrition therapy. May be null.
 - "overlap_map" (top-level): optional map of item -> list of day numbers that use it. May be null.
 
 
-WORKED EXAMPLE (one day shown — output ALL planned days in this exact shape; note
-bare numbers, null usage, and dinner-as-object on the leftovers night):
+WORKED EXAMPLE (three days shown — output ALL planned days in this exact shape; note
+bare numbers, null usage, dinner-as-object on the leftovers night, and the FREEZE PATH on
+day 3: a fresh whole chicken bought for a day-3 dinner is frozen on the shopping day, so it
+carries freeze_by with cook_by NULL and it KEEPS shelf_life_tier 0 — never 3 — while its
+freeze instruction rides in the shopping_list notes and its thaw instruction rides in the
+day-2 perishability_note. The shopping_list and cost_summary below are abbreviated; a real
+plan lists every item):
 
 BEGIN_WEEKLY_FEAST_JSON
 {
   "metadata": {"plan_date":"2026-03-09","plan_days":7,"household_size":2,"stores_searched":["Store A","Store B","Store C","Walmart"],"stores_confirmed":["Store A","Store C"],"stores_estimated":["Walmart"],"confidence":"normal"},
   "meal_plan": [
     {"day":1,"date":"2026-03-09","breakfast":"Oatmeal with banana","lunch":"Turkey sandwiches","dinner":{"name":"One-Pot Chicken and Rice","source_url":"https://example.com/chicken-rice","source_site":"Budget Bytes","servings":2,"cost_per_serving":1.85,"perishability_note":"Uses fresh cilantro — early in week","quality_note":null,"ingredients":[{"item":"chicken thighs","quantity":"1 lb","source":"pantry","store":null,"price_estimate":null,"shelf_life_tier":0,"freezable":true,"cook_by":"2026-03-10","freeze_by":null},{"item":"onion","quantity":"1","source":"staple","store":"Store A","price_estimate":0.75,"shelf_life_tier":3,"freezable":false,"cook_by":null,"freeze_by":null}]}},
-    {"day":2,"date":"2026-03-10","breakfast":"Eggs and toast","lunch":"Leftover chicken and rice","dinner":{"name":"Leftovers — Day 1 chicken and rice","source_url":null,"source_site":null,"servings":2,"cost_per_serving":null,"perishability_note":null,"quality_note":null,"ingredients":[]}}
+    {"day":2,"date":"2026-03-10","breakfast":"Eggs and toast","lunch":"Leftover chicken and rice","dinner":{"name":"Leftovers — Day 1 chicken and rice","source_url":null,"source_site":null,"servings":2,"cost_per_serving":null,"perishability_note":"Take the whole chicken OUT of the freezer today and put it in the REFRIGERATOR to thaw for tomorrow's roast chicken (day 3). A 4 lb bird needs a full day in the fridge. Never thaw it on the counter or in hot water. Once thawed it keeps 1 to 2 days in the refrigerator, and if plans change you may put it back in the freezer uncooked, provided it never sat out of the fridge for more than 2 hours.","quality_note":null,"ingredients":[]}},
+    {"day":3,"date":"2026-03-11","breakfast":"Yogurt and banana","lunch":"Bean and rice bowls","dinner":{"name":"Roast Chicken with Potatoes","source_url":"https://example.com/roast-chicken","source_site":"Budget Bytes","servings":4,"cost_per_serving":2.10,"perishability_note":"Roast the whole chicken that came out of the freezer yesterday — cook it today. The carcass goes into stock.","quality_note":null,"ingredients":[{"item":"whole chicken","quantity":"1 (4 lb)","source":"sale","store":"Store A","price_estimate":5.96,"shelf_life_tier":0,"freezable":true,"cook_by":null,"freeze_by":"2026-03-09"},{"item":"potatoes","quantity":"2 lb","source":"staple","store":"Store A","price_estimate":2.49,"shelf_life_tier":3,"freezable":false,"cook_by":null,"freeze_by":null}]}}
   ],
-  "shopping_list": [{"item":"Onion","quantity":"1","store":"Store A","price":0.75,"price_type":"confirmed","category":"staple","notes":null,"meals_spanned":2}],
+  "shopping_list": [{"item":"Onion","quantity":"1","store":"Store A","price":0.75,"price_type":"confirmed","category":"staple","notes":null,"meals_spanned":2},{"item":"Whole chicken","quantity":"1 (4 lb)","store":"Store A","price":5.96,"price_type":"confirmed","category":"sale","notes":"FREEZE THIS ON THE SHOPPING DAY. It is for the day-3 dinner, which is past its 1-2 day fresh window, so bag it, date it and put it straight into the freezer when you get home. Take it out into the refrigerator on day 2 to thaw — never on the counter.","meals_spanned":2}],
   "pantry_alerts": [],
-  "cost_summary": {"total_estimated":18.40,"per_person_per_day":1.31,"by_store":{"Store A":10.20,"Store C":8.20}},
+  "cost_summary": {"total_estimated":24.36,"per_person_per_day":1.74,"by_store":{"Store A":16.16,"Store C":8.20}},
   "nutrition_summary": {"protein_sources":["chicken","eggs"],"veg_subgroups":["starchy"],"seafood_servings":0,"produce_half_plate":false,"shortfalls":["Vegetable subgroups — only starchy represented; a real week should span at least three of the five subgroups.","No seafood — aim for about two servings a week (canned tuna/salmon count and are cheap)."],"notes":"Short worked example — a real week should rotate more protein and produce."},
-  "overlap_map": {"Onion":[1]}
+  "overlap_map": {"Onion":[1],"Whole chicken":[3]}
 }
 END_WEEKLY_FEAST_JSON
 
@@ -1161,6 +1189,56 @@ const PREV_TEMPLATE_V8_HASH=3481872628; // djb2 of the pristine v8 DEFAULT_PROMP
   }catch(e){/* migration is best-effort */}
 })();
 
+// ── One-time template migration v9 → v10 (S30 shelf-life tier correction — SAFETY) ──
+// Same contract as migrateTemplateV9: exact-equality test against the pristine v9 default via
+// djb2. A non-customizing user (stored v9 === pristine v9 default) is force-upgraded to the v10
+// TIER-CORRECTION default (fresh poultry and raw sausage are Tier 0 at any size; leftovers capped
+// at a 3-4 day cook_by; false USDA FSIS provenance struck from the produce/dairy windows); a user
+// who hand-edited their template is carried forward untouched under the new key and can re-pull via
+// the editor. The hash test can only ever false-PRESERVE (a drifted/edited template is kept), never
+// false-REPLACE. Chains after the v8→v9 guard above (which removed the v8 key first).
+// SAFETY NOTE: this migration carries a food-safety correction, so a carried-forward (hand-edited)
+// template is a template that still runs LONG on raw poultry, raw sausage and leftovers. We still do
+// not touch it — never clobber user data — but the content-derived safety notice below (see
+// TEMPLATE_SAFETY_MARKER_V10) tells that user what is wrong and how to fix it. The notice is
+// deliberately NOT fired from inside this block: a user carried forward here by an EARLIER
+// migration's one-hop write never enters this branch at all.
+const PREV_TEMPLATE_V9_HASH=3166374987; // djb2 of the pristine v9 DEFAULT_PROMPT_TEMPLATE (pre-tier-correction, HEAD 8bbd2a0)
+(function migrateTemplateV10(){
+  try{
+    const DONE='mp:migrated-template-v10';
+    if(localStorage.getItem(DONE))return;
+    const V9='mp:prompt-template-v9',V10=KEYS.promptTemplate;
+    const oldV9=localStorage.getItem(V9);
+    const hasV10=localStorage.getItem(V10)!=null;
+    if(oldV9!=null&&!hasV10){
+      let parsed;try{parsed=JSON.parse(oldV9)}catch(e){parsed=oldV9}
+      const oldText=typeof parsed==='string'?parsed:'';
+      if(oldText&&_djb2(oldText)===PREV_TEMPLATE_V9_HASH){
+        // pristine v9 default: adopt the new v10 tier-correction default (no user edits to preserve)
+        _pendingUpgradeToast='Prompt template upgraded — corrected the refrigerator windows for fresh poultry, raw sausage and leftovers, and added freezer, thawing and refreezing rules for proteins cooked later in the week.';
+      }else if(oldText){
+        // hand-edited: carry the user's template forward under the new key, untouched
+        try{localStorage.setItem(V10,JSON.stringify(oldText))}catch(e){}
+      }
+    }
+    try{localStorage.removeItem(V9)}catch(e){}
+    localStorage.setItem(DONE,'1');
+  }catch(e){/* migration is best-effort */}
+})();
+
+// S30 SAFETY PROBE. Content-derived, NOT migration-derived: it asks "does the user's effective
+// template carry the corrected shelf-life rule?", not "which key did their data arrive in?" — so it
+// also catches the one population no migration can ever reach: a user who restored a pre-S30 backup
+// (the restore path writes a sentinel-bearing v9 template straight into the current key, and the v10
+// DONE flag is already set, so no migration will ever inspect it again).
+// ASYMMETRY (mirrors the djb2 rule): this probe may only ever false-WARN (nag a user whose template
+// is actually fine), NEVER false-CLEAR (stay silent for a user whose template is unsafe). Absence of
+// the marker ⇒ warn. It writes NO domain data and destroys nothing; its worst case is a dismissible
+// banner shown to someone who did not need it.
+const TEMPLATE_SAFETY_MARKER_V10='Fresh poultry and raw sausage are Tier 0';
+function templateIsSafetyCorrected(t){return typeof t==='string'&&t.indexOf(TEMPLATE_SAFETY_MARKER_V10)!==-1;}
+
 // Store-list helpers (S6 P1-6). Ordered, comma-separated, empty-entry-filtered — feeds both the
 // Prefs Stores field and the {{STORES}}/{{WALMART_BLOCK}} template placeholders. filter(Boolean)
 // drops empty entries so a trailing/double comma cannot leak a blank store into the prompt.
@@ -1181,6 +1259,7 @@ const S={
   removedShoppingItems:load(KEYS.removedShoppingItems,[]),
   wasteLog:normalizeWasteLog(load(KEYS.wasteLog,{})),          // E2-1 waste-capture store (normalize-on-load, like pantry L1080)
   wasteDismissed:normalizeWasteDismissed(load(KEYS.wasteDismissed,{})), // E2-1 UI-suppression map (NOT domain data, NOT in the backup)
+  safetyNoticeDismissed:load(KEYS.safetyNoticeV10,false), // S30 UI-suppression flag for the v10 safety banner (NOT domain data, NOT in the backup)
   showRemovedItems:false,
   whyPlanOpen:false, // ephemeral "why this plan" disclosure UI state (NOT persisted, NOT in KEYS)
   wasteAddOpen:false, // ephemeral waste add-mode expanded flag (NOT persisted, NOT in KEYS) — like whyPlanOpen
@@ -1777,6 +1856,30 @@ function renderPriceWatch(){
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RENDERING
+// S30 persistent safety banner — Notice B. Shown to any user whose EFFECTIVE template still lacks
+// the corrected shelf-life rule, regardless of how it got there (hand-edited, carried forward from
+// an old key by an earlier migration's one-hop write, or restored from a pre-S30 backup). Reuses the
+// wasteDismissed UI-suppression idiom. Self-healing: fixing the template clears it with no dismissal.
+function safetyNoticeBanner(){
+  if(templateIsSafetyCorrected(S.promptTemplate))return '';
+  if(S.safetyNoticeDismissed)return '';
+  return `<div class="card" style="border-left:3px solid var(--red);margin-bottom:12px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:6px">⚠ Your custom prompt template has out-of-date food-safety rules</div>
+    <div style="font-size:11px;color:var(--fg2);line-height:1.5">
+      You've customized your prompt template, so we left it exactly as you wrote it — we never overwrite your edits.
+      But this update corrected shelf-life rules that were <strong>unsafe</strong>, and your copy still has the old ones:
+      <ul style="margin:6px 0 6px 16px;padding:0">
+        <li><strong>Fresh poultry and raw sausage are Tier 0</strong> — cook or freeze within <strong>2 days</strong>, at any size. A whole chicken is not a "large raw cut"; the old rule let it run 3–5 days.</li>
+        <li><strong>Leftovers</strong> — cook by <strong>4 days</strong> after cooking, <strong>never day 5</strong>. The old rule filed them in a 3–5 day band.</li>
+        <li>The produce and dairy windows are this planner's own estimates, <strong>not</strong> USDA FSIS figures — the old template claimed federal backing they never had.</li>
+      </ul>
+      Until you fix your template, plans it generates may give you a <strong>cook-by date that is too late</strong> on raw poultry, raw sausage and leftovers.
+      To take the corrections, open <strong>Prompt → Reset to Default</strong> (this replaces your customizations), or paste the three rules above into your own template by hand.
+    </div>
+    <button class="btn btn-default" onclick="dismissSafetyNotice();render()" style="margin-top:8px;width:auto;font-size:10px;min-height:32px">I've handled this — dismiss</button>
+  </div>`;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Error boundary: one malformed field in state/plan must not brick the whole app.
 // On any exception in a screen renderer, show an in-UI recovery panel (never a white
@@ -1795,6 +1898,7 @@ function render(){
       case 'pricewatch':main.innerHTML=renderPriceWatch();break;
       case 'consumption':main.innerHTML=renderConsumption();break;
     }
+    main.innerHTML=safetyNoticeBanner()+main.innerHTML;
     bindEvents();
   }catch(err){
     try{console.error('render failed',err);}catch(e){}
@@ -2035,6 +2139,10 @@ function markZeroWaste(weekDate){             // the one-tap "nothing wasted" �
 function dismissWaste(weekDate){              // "not now" → UI-suppression ONLY; writes NO domain data (stays absent c)
   S.wasteDismissed[weekDate]=new Date().toISOString();
   saveWasteDismissed();
+}
+function dismissSafetyNotice(){              // S30 Notice B → UI-suppression ONLY; writes NO domain data (mirrors dismissWaste)
+  S.safetyNoticeDismissed=true;
+  save(KEYS.safetyNoticeV10,true);
 }
 
 // D3 $ realization: waste_$ = SNAPSHOTTED line price × fraction (default
@@ -2414,6 +2522,8 @@ function renderMealCards(mp){
         ${dinnerBlock}
         ${d.perishability_note?`<div style="font-size:10px;color:var(--amber);margin-top:3px">⏱ ${esc(d.perishability_note)}</div>`:''}
         ${(()=>{const cbs=(d.ingredients||[]).map(x=>x&&x.cook_by).filter(Boolean).sort();return cbs.length?`<div style="font-size:10px;color:var(--fg3);margin-top:3px">🍳 cook by ${esc(cbs[0])}</div>`:'';})()}
+        ${(()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by).map(x=>x.freeze_by).sort();return fbs.length?`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 from freezer (frozen ${esc(fbs[0])}) — thaw in the refrigerator, never on the counter</div>`:'';})()}
+        ${(()=>{const un=(d.ingredients||[]).filter(x=>x&&(x.shelf_life_tier===0||x.shelf_life_tier===1)&&!x.cook_by&&!x.freeze_by).map(x=>x.item);return un.length?`<div style="font-size:10px;color:var(--red);margin-top:3px">⚠ no cook-by or freeze-by date on a highly perishable item (${esc(un[0])}) — cook it within 2 days of shopping, or freeze it the day you buy it</div>`:'';})()}
         ${d.quality_note?`<div style="font-size:10px;color:#a78bfa;margin-top:3px">★ ${esc(d.quality_note)}</div>`:''}
       </div></div>`}).join('')}</div>`;
 }
