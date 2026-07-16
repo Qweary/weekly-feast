@@ -2761,7 +2761,27 @@ function renderMealCards(mp){
                     : due.length              ? `the ${esc(andList(due))}`
                     :                           `the ${esc(andList(hf))}, if frozen as planned,`;
           return `<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 TAKE IT OUT TONIGHT — move ${obj} to the REFRIGERATOR to thaw. Never on the counter, never in hot water.</div>`;})()}
-        ${d.perishability_note?`<div style="font-size:10px;color:var(--amber);margin-top:3px">⏱ ${esc(d.perishability_note)}</div>`:''}
+        ${/* 🔴 S36 DAY-1 FREEZE CHIP (DURABLE half of AMB-1). Class-1 sole-channel closure: a
+              home-frozen fresh raw protein's day-0/day-1 FREEZE imperative had NO structured chip — it
+              survived only as buried ⏱ prose (hazard-map B3, OBSERVED N=5 on DEFAULT_PANTRY). This gives
+              it its own amber home so it stops being the one freeze warning a household never reads.
+              Fires on the FREEZE-DAY card by EXACT freeze_by↦day.date match (forward-scan mirror of the
+              come-out chip); collision-free with come-out (:2763 strict >), plate-day (:2801), purchased
+              (:2802). Same 11px/w600/--amber action register as the come-out chip. Copy = FSIS first-48,
+              plan-not-observation, every-item-named (guards the [0]-drop). No schema field. */''}
+        ${(()=>{const fz=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(pfCoherent(x)||!x.freeze_by)continue;if(!ISO_DATE.test(String(x.freeze_by))||!ISO_DATE.test(String(day.date)))continue;if(String(day.date)!==String(x.freeze_by))continue;fz.push(x.item);}}
+          const items=[...new Set(fz)]; if(!items.length) return '';
+          const pl=items.length>1, subj=pl?"They're":"It's", obj=pl?'them':'it', prot=pl?'fresh raw proteins':'a fresh raw protein', din=pl?'dinners':'a dinner';
+          return `<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 PUT IT IN THE FREEZER TODAY — portion and freeze the ${esc(andList(items))} now. ${subj} for ${din} later this week, and ${prot} won't keep in the fridge past a day or two — freezing ${obj} today is what keeps ${obj} safe to cook then.</div>`;})()}
+        ${/* 🔴 S36 AMBER-WALL DEMOTE + FLOOR GUARD (taxonomy demote + AMB-1 (ii) FLOOR). The ⏱ note is
+              the model's free-text quality/timing/waste NARRATION — 34/35 cards, ~90% of day-card amber,
+              the wall that drowns the genuine imperatives. DEMOTE it 10px/--amber → 11px/--fg2 (6.89:1,
+              AA+AAA) so amber means "act on this". But the demote is CONDITIONAL: AMB-1 was ruled (ii)
+              — the ⏱ note CAN be a sole safety carrier (Class-2 unparseable-weight thaw; and any freeze
+              prose the guard must not declassify). Fail-toward-amber content guard: any freeze/thaw/
+              refrigerate/do-not-cook/never-counter/hot-water match KEEPS it amber (current tier); only
+              pure narration demotes. Uncertain ⇒ amber. This is a LOGIC change reading note content. */''}
+        ${(()=>{if(!d.perishability_note)return'';const perishIsSafety=/\b(freez\w*|thaw\w*|refrigerat\w*|do ?n['o]?t cook|never (on the )?counter|hot water)\b/i.test(d.perishability_note||'');return `<div style="${perishIsSafety?'font-size:10px;color:var(--amber)':'font-size:11px;color:var(--fg2)'};margin-top:3px">⏱ ${esc(d.perishability_note)}</div>`;})()}
         ${/* 🔴 P1. WAS 10px `--fg3` = 3.71:1 (I recomputed it: #64748b on #161822), BELOW the
               4.5:1 WCAG 2.1 AA 1.4.3 floor. This chip carries the FRESH-protein pathogen deadline — 11 raw
               rows across the five real runs, against the frozen fish's 5 — and it was rendered MORE FAINTLY
