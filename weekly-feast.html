@@ -2653,6 +2653,67 @@ function comeOutDay(x,dinnerDay){
   const d=dinnerDay-thawDaysFor(lb);
   return d>=1?d:null;                                          // no room to thaw ⇒ V16b's problem, not a chip's
 }
+
+// 🔴 V16b. THE HOME-FROZEN THAW GAP.
+// The come-out chip was gated on pfCoherent() alone — purchased_frozen AND tier 3. A protein the
+// household FROZE THEMSELVES is protein_state 'fresh' with freeze_by set, and is therefore excluded
+// BY CONSTRUCTION. Driven through the real render path against the five real blind runs: 5 home-frozen
+// raw proteins, 0 thaw chips, in 4 of 5 runs — on the app's OWN shipped DEFAULT_PANTRY chicken, on the
+// first plan a new household ever generates. N=5 OBSERVED, not mutated.
+//   THE APP TOLD THEM TO TAKE THE FISH OUT AND NEVER TOLD THEM TO TAKE THE CHICKEN OUT. SAME FREEZER.
+// And it was worse than silence: on the PLATE day the app fired "thaw it in the refrigerator" over a
+// frozen brick with dinner scheduled that night — a fridge thaw the app's own ladder prices at a full
+// day. The only two ways to obey it by dinner are the counter and hot water: the exact two acts
+// V26c-counter exists to prohibit. A confident wrong imperative is worse than no imperative.
+//
+// 🔴 THE GUARD, AND WHY THE ONE-LINE FIX IS NOT ENOUGH.
+// The proposed fix was `if(!pfCoherent(x) && !x.freeze_by) continue;` — one predicate, no guard.
+// A home-frozen item is only IN the freezer from its freeze day ONWARD. With no guard, any item whose
+// comeOutDay lands ON or BEFORE its freeze_by fires "🧊 TAKE IT OUT TONIGHT" on — or before — the very
+// day the shopping note says "freeze it today." Reachable on any home-frozen protein eaten the day
+// after the freeze, and on any heavy pack whose ladder reaches back past the freeze day. That is a NEW
+// confident wrong imperative: the turkey defect, re-introduced by the fix for the turkey defect.
+// FAIL SAFE: if we cannot prove the item is already in the freezer on this day, we render NO imperative.
+const ISO_DATE=/^\d{4}-\d{2}-\d{2}$/;
+// True only when `cardDate` is strictly AFTER the day the item was told to go into the freezer.
+// Unparseable/absent dates are UNDECIDABLE ⇒ false ⇒ no chip. ISO-8601 dates compare correctly as strings.
+function inFreezerOn(x,cardDate){
+  const fb=String((x&&x.freeze_by)||''), cd=String(cardDate||'');
+  if(!ISO_DATE.test(fb)||!ISO_DATE.test(cd)) return false;
+  return cd>fb;
+}
+
+// 🔴 THE `[0]` BUG. Review #6 forced R3m ("the chip must name EVERY item due out
+// tonight — not just the first"). THAT FIX REACHED THE TAKEOUT CHIP AND NOTHING ELSE: cbs[0], fbs[0],
+// pf[0] and — inside the RED SAFETY CHANNEL — un[0] each still rendered only the first item.
+// Two undated raw proteins on one dinner ⇒ the red names the chicken and SILENTLY DROPS the ground
+// beef. The household freezes the chicken, believes the job is done, and the beef sits for seven days.
+// That is R3mn's own "false completeness" failure mode, living inside the one channel built to stop it.
+//
+// I AM OVERTURNING THE HARNESS'S OWN STATED REASONING FOR EXEMPTING THE RED CHIP. R3m's comment
+// argued: "the ⚠ is an ALARM — the item name is an EXAMPLE; naming one STILL FIRES IT ⇒ safe."
+// That is wrong, because the red chip's TAIL IS AN INSTRUCTION — "cook it within 2 days of shopping,
+// or freeze it the day you buy it" — and an instruction that names one of two items is wrong by
+// omission. A false ALARM is acceptable; a false INSTRUCTION never is. This chip carries both, so it
+// is bound by the stricter rule.
+const andList=(a)=>a.join(' and the ');
+// Item→date lines that NEVER attribute a date to an item that does not carry it. Collapses to a single
+// date only when every item genuinely shares it; otherwise each item keeps its own.
+function cookByText(p){
+  const ds=[...new Set(p.map(x=>x.d))];
+  if(ds.length===1) return `cook the ${andList(p.map(x=>x.i))} by ${ds[0]}`;
+  return 'cook '+p.map(x=>`the ${x.i} by ${x.d}`).join(', ');
+}
+// PARTICIPIAL, not finite: "the chicken thighs — MEANT TO GO in the freezer on DATE", never "…WAS meant".
+// Grammatical number cannot be inferred from a food name, and the entry count is not the noun count, so any
+// finite verb here ("was"/"were") is a coin-flip on every card. The participle is invariant, it keeps the design's
+// load-bearing "meant to go in the freezer on" wording verbatim (it states the PLAN, never an OBSERVATION —
+// the property R5 exists to hold), and it cannot disagree with its subject.
+function freezeText(p){
+  const ds=[...new Set(p.map(x=>x.d))];
+  if(ds.length===1) return `the ${andList(p.map(x=>x.i))} — meant to go in the freezer on ${ds[0]}`;
+  return p.map((x,i)=>`the ${x.i}${i===0?' — meant to go in the freezer on ':' on '}${x.d}`).join(', ');
+}
 function renderMealCards(mp){
   return `<div class="grid grid-3" style="margin-bottom:24px">${mp.map(day=>{
     const d=day.dinner||{};
@@ -2685,9 +2746,33 @@ function renderMealCards(mp){
               (no new model field): if TOMORROW's dinner carries a coherent purchased-frozen protein,
               tonight is the come-out night. It leads the card and it is weight-600, because it is
               the only thing on this card that is an ACTION and not a NARRATION. */''}
-        ${(()=>{const due=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!pfCoherent(x))continue;if(comeOutDay(x,z.day)===day.day)due.push(x.item);}}return due.length?`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 TAKE IT OUT TONIGHT — move the ${esc(due.join(' and the '))} to the REFRIGERATOR to thaw. Never on the counter, never in hot water.</div>`:'';})()}
+        ${(()=>{const due=[],hf=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;const isPF=pfCoherent(x);const isHF=!isPF&&!!x.freeze_by;if(!isPF&&!isHF)continue;if(comeOutDay(x,z.day)!==day.day)continue;if(isHF&&!inFreezerOn(x,day.date))continue;(isPF?due:hf).push(x.item);}}if(!due.length&&!hf.length)return'';
+          /* A PURCHASED-frozen pack's freezer state is a property of the PRODUCT — the app may assert it.
+             A HOME-frozen one is a HOUSEHOLD ACT the app only ever INSTRUCTED, and THE APP CANNOT SEE THE
+             FREEZER (IQ-0256). So the home-frozen items — and ONLY those — carry a conditional qualifier.
+             NO PRONOUN, AND NO PARENTHETICAL. Grammatical number CANNOT be inferred from a food name:
+             "chicken thighs" is plural, "ground beef" is a mass noun, and the count of ARRAY ENTRIES is not
+             the count of the NOUN — my first draft emitted "if the chicken thighs went in the freezer, move
+             IT". A parenthetical qualifier was no better: the model's own item names already END in one
+             ("chicken thighs (frozen on the shopping day)"), so it rendered a double-paren. The qualifier is
+             therefore a comma-clause on the noun phrase — correct for one item or many, count or mass — and
+             the PF-only string stays BYTE-IDENTICAL to the copy R3m/R3u/R3h already gate. */
+          const obj = (due.length&&hf.length) ? `the ${esc(andList(due))}, and the ${esc(andList(hf))} if frozen as planned,`
+                    : due.length              ? `the ${esc(andList(due))}`
+                    :                           `the ${esc(andList(hf))}, if frozen as planned,`;
+          return `<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 TAKE IT OUT TONIGHT — move ${obj} to the REFRIGERATOR to thaw. Never on the counter, never in hot water.</div>`;})()}
         ${d.perishability_note?`<div style="font-size:10px;color:var(--amber);margin-top:3px">⏱ ${esc(d.perishability_note)}</div>`:''}
-        ${(()=>{const cbs=(d.ingredients||[]).map(x=>x&&x.cook_by).filter(Boolean).sort();return cbs.length?`<div style="font-size:10px;color:var(--fg3);margin-top:3px">🍳 cook by ${esc(cbs[0])}</div>`:'';})()}
+        ${/* 🔴 P1. WAS 10px `--fg3` = 3.71:1 (I recomputed it: #64748b on #161822), BELOW the
+              4.5:1 WCAG 2.1 AA 1.4.3 floor. This chip carries the FRESH-protein pathogen deadline — 11 raw
+              rows across the five real runs, against the frozen fish's 5 — and it was rendered MORE FAINTLY
+              THAN THE PROSE THAT DESCRIBES IT (amber, 10.59:1), and in the SAME 10px `--fg3` as the price
+              line beside it. The deadline for raw chicken and the cost-per-serving were the same colour and
+              the same size. It is the IDENTICAL defect a reviewer found in the shopping list, which S33 fixed
+              there (`.shop-note` → 11px `--fg2`, 6.89:1) AND LEFT STANDING HERE — the fix went to the aisle
+              and not to the kitchen. Now 11px `--fg2` = 6.89:1 (recomputed): clears AA and AAA.
+              And it named NO ITEM AT ALL: one card in run A carries THREE items with a cook_by and rendered
+              a single bare date. It now names every item it speaks for. */''}
+        ${(()=>{const cbs=(d.ingredients||[]).filter(x=>x&&x.cook_by).map(x=>({i:x.item,d:x.cook_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);return cbs.length?`<div style="font-size:11px;color:var(--fg2);margin-top:3px">🍳 ${esc(cookByText(cbs))}</div>`:'';})()}
         ${/* 🔴 RE-GATE / DESIGN-L3(a), RULED BLOCKING. THE APP MUST NOT ASSERT A PHYSICAL
               EVENT IT CANNOT OBSERVE. This chip previously read "🧊 from freezer (frozen 2026-07-13)"
               — stating a past event as ACCOMPLISHED FACT, WITH A DATE — derived from nothing but a
@@ -2697,9 +2782,25 @@ function renderMealCards(mp){
               prints a confirmation, to exactly the household that erred. DESIGN NOTE: "they didn't open the app
               to check their memory; they opened it because it IS their memory."
               Copy below is the design's own wording, verbatim from the L3 fix option (a). */''}
-        ${(()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by).map(x=>x.freeze_by).sort();return fbs.length?`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 this was meant to go in the freezer on ${esc(fbs[0])}. If it did — thaw it in the refrigerator, never on the counter. If it did not, do not cook it.</div>`:'';})()}
-        ${(()=>{const pf=(d.ingredients||[]).filter(pfCoherent).map(x=>x.item);return pf.length?`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 bought frozen (${esc(pf[0])}) — keep it frozen until its thaw day, then thaw in the refrigerator, never on the counter. Once thawed it keeps 1–2 days.</div>`:'';})()}
-        ${(()=>{const un=(d.ingredients||[]).filter(x=>x&&!x.cook_by&&!x.freeze_by&&!pfCoherent(x)&&(x.protein_state==='fresh'||x.shelf_life_tier===0||x.shelf_life_tier===1)).map(x=>x.item);return un.length?`<div style="font-size:10px;color:var(--red);margin-top:3px">⚠ no cook-by or freeze-by date on a highly perishable item (${esc(un[0])}) — cook it within 2 days of shopping, or freeze it the day you buy it</div>`:'';})()}
+        ${/* 🔴 THE UN-OBEYABLE IMPERATIVE IS REMOVED FROM THE PLATE DAY.
+              This chip fires on the day the item is EATEN, and it used to say "If it did — thaw it in the
+              refrigerator, never on the counter." A refrigerator thaw costs a full day by the app's own
+              ladder (thawDaysFor(3)=1). Issued at 5pm over a frozen brick with dinner scheduled TONIGHT, the
+              only two ways to comply by dinner are the counter and hot water — THE EXACT TWO ACTS THE SAME
+              SENTENCE PROHIBITS. The app handed the household an instruction it was too late to obey, and the
+              compliant response to it was the hazard.
+              The thaw imperative now lives on the COME-OUT day (the chip above), where it CAN be obeyed. What
+              remains here is what this chip is actually for: a retrospective audit + the do-not-cook, in the design's
+              L3(a) register — it states the PLAN, never an OBSERVATION, because THE APP CANNOT SEE THE FREEZER.
+              🔴 KNOWN GAP, NAMED NOT BURIED: a household that froze the item but MISSED the come-out chip
+              still has a frozen brick at 5pm, and this chip now gives them a PROHIBITION with no alternative.
+              The safe same-day options (cold-water thaw, cook-from-frozen) are FOOD-SAFETY DOCTRINE — the
+              authority, not mine — and I will not invent a kill step on a surface the operator's household
+              eats from. Flagged for food-safety + review. Removing a false instruction is strictly safer than
+              keeping it; filling the hole it leaves requires an authority I do not have. */''}
+        ${(()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);const pl=fbs.length>1;return fbs.length?`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 ${esc(freezeText(fbs))}. If that did not happen, do not cook ${pl?'them':'it'}. Never thaw on the counter or in hot water.</div>`:'';})()}
+        ${(()=>{const pf=(d.ingredients||[]).filter(pfCoherent).map(x=>x.item);const pl=pf.length>1;return pf.length?`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 bought frozen (${esc(pf.join(', '))}) — keep ${pl?'them':'it'} frozen until ${pl?'their':'its'} thaw day, then thaw in the refrigerator, never on the counter. Once thawed ${pl?'they keep':'it keeps'} 1–2 days.</div>`:'';})()}
+        ${(()=>{const un=(d.ingredients||[]).filter(x=>x&&!x.cook_by&&!x.freeze_by&&!pfCoherent(x)&&(x.protein_state==='fresh'||x.shelf_life_tier===0||x.shelf_life_tier===1)).map(x=>x.item);const pl=un.length>1;return un.length?`<div style="font-size:10px;color:var(--red);margin-top:3px">⚠ no cook-by or freeze-by date on ${pl?'highly perishable items':'a highly perishable item'} (${esc(un.join(', '))}) — cook ${pl?'them':'it'} within 2 days of shopping, or freeze ${pl?'them':'it'} the day you buy ${pl?'them':'it'}</div>`:'';})()}
         ${d.quality_note?`<div style="font-size:10px;color:#a78bfa;margin-top:3px">★ ${esc(d.quality_note)}</div>`:''}
       </div></div>`}).join('')}</div>`;
 }
