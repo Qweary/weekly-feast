@@ -828,7 +828,18 @@ function parseCandidate(str){
 
 function normalizeIngredient(ing){
   if(ing==null)return null;
-  if(typeof ing==='string')return{item:ing,quantity:'',source:'staple',store:null,price_estimate:null,shelf_life_tier:null,freezable:null,protein_state:null,cook_by:null,freeze_by:null};
+  // 🔴 S39 — NO `protein_state` KEY HERE, AND THAT IS THE POINT. A bare string ingredient asserts
+  // NOTHING: the model supplied no object at all. Stamping `protein_state:null` here would claim the
+  // model ASSERTED "not a protein" when it said nothing — the same laundering as :847, one path over.
+  // Same property, stated by OMISSION: normalized-object-owns-key ⟺ model-asserted-key. R-D1 quantifies
+  // over EVERY code path, so "fixed at :847" does not discharge it here.
+  // NOT a live hazard, and the reason is worth keeping: this path forces BOTH dates null and tier null,
+  // so the plate-day freeze gate (`x.freeze_by&&isRawProtein(x)`) can never arm on a string, and the red ⚠
+  // (the no-date warn, needs tier 0/1) cannot either. So this line hosts NO chip loss — property-hygiene.
+  // :847 IS THE HAZARD LINE; this one keeps the invariant true as WRITTEN. An invariant that holds on
+  // one path is not an invariant, and the next person to consult the UNKNOWN branch for a string
+  // ingredient should find silence recorded as silence, not a manufactured "known".
+  if(typeof ing==='string')return{item:ing,quantity:'',source:'staple',store:null,price_estimate:null,shelf_life_tier:null,freezable:null,cook_by:null,freeze_by:null};
   if(typeof ing!=='object')return null;
   return{
     item: ing.item!=null?String(ing.item):'',
@@ -844,7 +855,53 @@ function normalizeIngredient(ing){
     // reduce to v10 and every invariant would pass VACUOUSLY (schema note H2/T16 — "parsed, stored, never
     // rendered"). Strict allow-list, mirroring freezable/shelf_life_tier: anything that is not exactly
     // 'fresh' or 'purchased_frozen' normalizes to null ⇒ v10 semantics, byte-for-byte.
-    protein_state: (ing.protein_state==='fresh'||ing.protein_state==='purchased_frozen')?ing.protein_state:null,
+    //
+    // 🔴 S39 — THE KEY IS STAMPED IF AND ONLY IF THE MODEL ASSERTED IT. DO NOT COLLAPSE THIS BACK.
+    // 🔴 THE PROPERTY THAT MUST HOLD: normalized-object-owns-key ⟺ model-asserted-key.
+    // This importer holds the RAW model payload, so HERE — and nowhere downstream — `undefined` (the
+    // model was SILENT) and `null` (the model asserted "not a protein") are still DISTINGUISHABLE.
+    // They are DIFFERENT FACTS WITH DIFFERENT REMEDIES. The bare ternary collapsed them into one `null`,
+    // manufacturing a "known" out of silence and killing the UNKNOWN⇒chip branch in `isRawProtein`
+    // — which fails toward the chip on ABSENCE, and so was DEAD ON THIS PATH while the importer
+    // always wrote the key. Cost, driven: v10-era model text through this importer lost 11 real amber
+    // chips on real raw proteins — the SAME 11 the load-path fix restored one door over.
+    // The absence was never missing. It was DISCARDED, by us, at this line.
+    // The load path already defends this exact property at :1355-1371 ("KEY-ABSENCE SURVIVES THIS LOAD",
+    // seventeen lines of it). This is that same property, applied to the path that lacked it — guarded
+    // there, violated here, for one release. `normalizeIngredient`'s STRING path states it by omitting the key.
+    //
+    // ⚠ THE PREDICATE IS `Object.prototype.hasOwnProperty.call` — NOT the `in` operator, and NOT
+    // `ing.hasOwnProperty(...)`. `in` walks the PROTOTYPE CHAIN: an inherited protein_state forges the
+    // stamp, the render reads a "known", and THE MODEL BUYS SILENCE — fail-UNSAFE, driven. The render
+    // asks this question with hasOwnProperty in `isRawProtein`; asking it here with a DIFFERENT predicate is two
+    // artifacts that can disagree about one property, which is the defect class this app keeps hitting.
+    // ONE QUESTION, ONE PREDICATE. That `JSON.parse` happens not to pollute Object.prototype is a
+    // COINCIDENCE, not a floor — and `.call` also survives a null-prototype or shadowed-hasOwnProperty
+    // payload, which `ing.hasOwnProperty(...)` would not.
+    //
+    // WHAT THIS EDIT DOES, AS A PROPERTY: IT REMOVES A FALSE VETO. IT DOES NOT CREATE A CHIP.
+    // The allow-list below is a TOTAL function with exactly two outcomes, and `hasOwnProperty` a TOTAL
+    // predicate with exactly two states — so the model's reachable effect on this field is a CLOSED
+    // 3-CELL PARTITION. Closed BY CONSTRUCTION, not by enumerating examples. (Enumerating remembered
+    // examples is precisely how this file acquired four false sentences in one session — including one
+    // in THIS comment. Do not reach for a list of cases; reach for the partition.)
+    //   A  the field is NOT EMITTED   ⇒ key ABSENT, `isRawProtein` TRUE  ⇒ does NOT veto a chip
+    //   B  an EXACT allow-list hit    ⇒ key owned, value kept,      TRUE  ⇒ does NOT veto a chip
+    //   C  ANY other emitted value    ⇒ key owned, value null,     FALSE  ⇒ ★ VETOES the chip
+    // ⇒ THIS EDIT'S ENTIRE EFFECT: cell A moved OUT of C's behaviour. Nothing else moved. That is the
+    //   whole change, stated without enumerating a single example.
+    // ⚠ CELL C IS EVERY MALFORMED EMISSION — UNCHANGED by this edit and NOT this line's to fix, but do
+    //   not let the shape of it surprise you: 'Fresh' — a WRONG-CASE ENUM, the likeliest real model
+    //   failure — lands in C, reads as "the model asserted not-a-protein", and buys TOTAL silence on a
+    //   freezer-routed raw protein. A model that TRIED to comply and got the case wrong ends up WORSE
+    //   OFF than one that said nothing at all. An earlier draft of THIS comment claimed "the model can
+    //   obtain silence ONLY by emitting an explicit null" — inherited from the S38 record, and FALSE.
+    //   The allow-list's exactness is a FILED question; it is not this line's and it is not closed here.
+    // Real v11 data emits the key 303/303 — a MEASURED CORPUS FACT, not a guarantee — so this costs
+    // current data NOTHING (byte-identical render AND stored bytes on 5/5 real runs).
+    // 🔴 What absence does and does NOT buy is stated in full at `isRawProtein`. It is NARROWER than it
+    // looks from here, and the difference is load-bearing. Read it there before you touch this line.
+    ...(Object.prototype.hasOwnProperty.call(ing,'protein_state')?{protein_state:(ing.protein_state==='fresh'||ing.protein_state==='purchased_frozen')?ing.protein_state:null}:{}),
     cook_by: (typeof ing.cook_by==='string'&&ing.cook_by.trim())?ing.cook_by:null,
     freeze_by: (typeof ing.freeze_by==='string'&&ing.freeze_by.trim())?ing.freeze_by:null
   };
@@ -1355,10 +1412,14 @@ const S={
   // 🔴🔴 S37 LANDMINE — THE MISSING `normalizePlan(...)` HERE IS LOAD-BEARING. DO NOT "FIX" IT.
   // `pantry` and `wasteLog` above/below are normalized on load; `currentPlan`/`planHistory` are loaded
   // RAW. That asymmetry LOOKS like an oversight and is the only thing that preserves the LEGACY TELL.
-  // `normalizeIngredient` builds a fixed key set, so the stored bytes carry the stamp of whichever app
-  // version imported them — and a pre-v11 build wrote NO `protein_state` key at all. `isRawProtein`
-  // (:2786) reads that key's ABSENCE as "this plan predates the field ⇒ protein status UNKNOWN ⇒ chip
-  // it", which is what keeps a real v10 saved plan's freeze/thaw/do-not-cook doctrine alive (11 chips
+  // `normalizeIngredient` writes `protein_state` IFF THE MODEL EMITTED IT, so the stored bytes
+  // record THE MODEL'S EMISSION. 🔴 S39 — this comment used to say they "carry the stamp of whichever app
+  // version imported them"; that is FALSE, and so was the equality that followed it. `isRawProtein`
+  // reads that key's ABSENCE as UNKNOWN ⇒ chip it — and ABSENCE IS A DISJUNCTION, NOT AN
+  // EQUALITY: "this plan predates the field" OR "a current model failed to emit it". This comment
+  // asserted the first alone. Both read UNKNOWN, both chip, and the app CANNOT distinguish them.
+  // 🔴 NOTHING THIS LANDMINE PROTECTS DEPENDS ON WHICH ONE IT IS: absence must SURVIVE THIS LOAD either
+  // way. That is what keeps a real v10 saved plan's freeze/thaw/do-not-cook doctrine alive (11 chips
   // across 3 real plans; the T-F7 sole-channel freeze hazard). Wrapping this in `normalizePlan(...)`
   // would stamp `protein_state:null` onto every legacy item on the next page open, DESTROY the only
   // signal that distinguishes UNKNOWN from known-not-a-protein, and make the silence PERMANENT and
@@ -2642,8 +2703,8 @@ function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.
 // A frozen VEGETABLE (freeze_by set, protein_state null) is a quality/waste choice, NOT a pathogen
 // control — firing a come-out / freeze-today / plate-day 🧊 chip on it is a false-authority safety
 // directive on a non-hazard (food-safety ruling §5.1 + NR1 addendum; copy review Defect-2 + NR1: "a banner that lies once
-// is a banner nobody reads twice"). Guards THREE chips — come-out (:2979), freeze-today (:2991),
-// plate-day (:3101) — and is ALSO the orphan-hold scope (S37 gate §4): one predicate, four uses.
+// is a banner nobody reads twice"). Guards THREE chips — come-out, freeze-today, plate-day (each named
+// by its 🧊 literal) — and is ALSO the orphan-hold scope (S37 gate §4): one predicate, four uses.
 //
 // 🔴🔴 DO NOT "SIMPLIFY" THIS BACK TO `x.protein_state != null`. THAT IS A FALSE-CLEAR, AND IT SHIPPED
 // FOR EXACTLY ONE UNCOMMITTED AFTERNOON. The predicate has TWO branches; the SCHEMA HAS THREE STATES:
@@ -2653,20 +2714,70 @@ function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.
 //   THE KEY IS ABSENT                 ⇒ UNKNOWN — nobody ever asked  ⇒ CHIP    (this branch)
 //
 // ABSENT IS NOT NULL. `undefined != null` is FALSE in JS, so a `!= null` test collapses UNKNOWN into
-// KNOWN-NOT-A-PROTEIN and silently answers a question that was never asked. null is the MODEL's
-// assertion "this is not a raw protein". Absent means the field did not exist when this object was
-// written, because `normalizeIngredient` builds a FIXED KEY SET and had no `protein_state` key before
-// v11 (commit c695d1b). So KEY PRESENCE RECORDS WHICH NORMALIZER WROTE THE OBJECT — it is stamped by
-// THIS APP'S OWN IMPORTER, not by the model. It is not a belief, not a judgment, and not a prediction
-// about model behaviour: it has no critical limit to validate. Driven across git: v10 (`8fdfe04`) and
-// every earlier build emit the key 0 times; v11+ emits it always. Driven across the corpora: absent on
-// 0/66·0/56·0/57 v10-normalized ingredients, present on 53/53·68/68·69/69·55/55·58/58 v11 ones —
-// 482 ingredients, perfect separation, STRUCTURAL rather than statistical.
+// KNOWN-NOT-A-PROTEIN and silently answers a question that was never asked. null is an EMITTED value the
+// allow-list did not recognize as a protein state. ABSENT means nobody ever put a protein_state on this
+// item at all.
+//
+// 🔴🔴 S39 — WHAT KEY-PRESENCE RECORDS. THIS PARAGRAPH REPLACES A FALSE ONE. READ THE CORRECTION.
+// Until S39 this comment read: "KEY PRESENCE RECORDS WHICH NORMALIZER WROTE THE OBJECT — it is stamped
+// by THIS APP'S OWN IMPORTER, not by the model … not a prediction about model behaviour: it has no
+// critical limit to validate", and called the split "482 ingredients, perfect separation, STRUCTURAL
+// rather than statistical". EVERY LOAD-BEARING SENTENCE OF THAT IS NOW FALSE. `normalizeIngredient` no
+// longer stamps unconditionally — it stamps IFF THE MODEL EMITTED THE FIELD. The three properties that
+// replace it, each driven, each to be RE-DRIVEN rather than trusted if you touch this line:
+//   · KEY PRESENCE RECORDS THE MODEL'S EMISSION — not which app version wrote the object. Driven: ONE
+//     normalizer yields BOTH presence and absence, and THE MODEL PICKS WHICH.
+//   · THE v10/v11 SEPARATION IS CONTINGENT ON MODEL COMPLIANCE — a MEASURED CORPUS FACT (303/303 emitted
+//     on live-run-v11), NOT a structural guarantee. Driven: a v11-normalized object whose model omitted
+//     the field is KEY-SET-INDISTINGUISHABLE from a v10 object. STATISTICAL, NOT STRUCTURAL. If a future
+//     model stops emitting the field that number moves, and NOTHING IN THE APP PREVENTS IT — by design:
+//     the whole point is that non-emission chips instead of going quiet.
+//   · ABSENCE IS A DISJUNCTION, NOT AN EQUALITY: "this plan predates the field" OR "a current model
+//     failed to emit it". THE APP CANNOT TELL THEM APART AND MUST NOT CLAIM TO. Both are UNKNOWN, both
+//     chip. Correct for SAFETY, blind for DIAGNOSIS — and the blindness is deliberate, not an oversight.
+//     Attribution is the v12 template's job (an explicit token on every ingredient + a version marker),
+//     NOT this predicate's. Do not add a tell here: you would be guessing, and a guess written into a
+//     safety predicate is the thing this branch exists to refuse.
+//
+// 🔴 SO WHY IS IT SAFE TO KEY A SAFETY CHIP ON A FIELD THE MODEL CONTROLS? — THE ABOUTNESS RULE, CORRECTLY.
+// The old answer was "the model cannot touch it". That answer is gone, and it was always STRONGER THAN
+// THE RULE NEEDS. THE RULE IS: THE FIELD MUST BE ABOUT THE PREDICATE. Two properties satisfy it here:
+//   (1) ABOUTNESS. Presence answers "did anyone ever assert a protein_state for this item?" That is the
+//       EPISTEMIC question, and UNKNOWN is exactly the epistemic state. The key is ABOUT the predicate —
+//       which is why this survives the model gaining influence over it.
+//   (2) DIRECTION. The model's reachable effect on this field is a CLOSED 3-CELL PARTITION — closed BY
+//       CONSTRUCTION (the allow-list is a total function with two outcomes; `hasOwnProperty` a total
+//       predicate with two states), NOT by enumerating examples. See `normalizeIngredient`'s object path
+//       for the cells. Of the three, the S39 importer fix moved EXACTLY ONE — cell A, "the model did not
+//       emit the field" — out of cell C's behaviour. Nothing else moved. The one capability it hands the
+//       model points AWAY from suppression.
+//
+// 🔴🔴 THE PROPERTY — AND IT IS NARROWER THAN ITS FIRST DRAFT CLAIMED. READ THE WHOLE OF IT.
+//   ⇒ AN UN-EMITTED `protein_state` CAN NEVER SUPPRESS A CHIP THE REST OF THE PAYLOAD ALREADY LICENSES.
+//     THAT IS ALL THIS BRANCH DOES. ABSENCE DOES NOT CAUSE A CHIP — IT STOPS BLOCKING ONE.
+//   `isRawProtein` is a NECESSARY CONJUNCT, NEVER A SUFFICIENT ONE. Every channel ANDs it with a SECOND
+//   field the model ALSO had to emit — `freeze_by` SET, or `pfCoherent` (`purchased_frozen` AND tier 3).
+//   Driven: `{item}` alone, a bare-string ingredient, and a tier-3 both-dates-null item ALL return TRUE
+//   here and render ZERO channels. TRUE here buys nothing on its own.
+//
+// 🔴 WHAT THIS BRANCH DOES **NOT** DO — do not read a floor here that is not here. Of the model's ways
+// to fail, this branch catches EXACTLY ONE, and both of the others are SILENT:
+//   · CAUGHT — the model omits `protein_state` but still emits the dates. That is ROUTE D, 3 chips, and
+//     it is the whole reason this branch exists.
+//   · NOT CAUGHT, and STRUCTURALLY so — TRUNCATION IS SILENT. The template's own ingredient field order
+//     ends `… freezable → protein_state → cook_by → freeze_by`, so ANY truncation deep enough to drop
+//     `protein_state` HAS ALREADY DROPPED BOTH DATES. Nothing licenses a chip; this branch cannot help.
+//     ★ THE RED ⚠'s TIER ARM (`shelf_life_tier===0||===1`) IS THE ONLY THING THAT SEES THAT CASE. It is a
+//     BACKSTOP, NOT REDUNDANCY. DO NOT DELETE IT because this branch "already covers" absence — it does
+//     not. An earlier draft of this comment said "FAILURE IS NEVER SILENT", which would have licensed
+//     exactly that deletion. It was FALSE and it is driven false.
+//   · NOT CAUGHT — A MALFORMED EMISSION IS SILENT (cell C). See `normalizeIngredient`'s object path.
+//   ⇒ SO: this branch is not a floor against model failure. It is one veto, removed. State it that way.
 //
 // WHY THIS BRANCH EXISTS AT ALL — legacy plans are REACHABLE, and there is no migration that can reach
 // them back. `KEYS.currentPlan` is 'mp:current-plan-v1' and has NEVER been versioned across v3→v11;
 // all nine migrations are `migrateTemplateV3…V11` and touch the TEMPLATE, never a saved plan (schema
-// note S30 hazard H3: "the migration fixes the TEMPLATE, not the PLAN already on the dashboard"). `:1372`
+// note S30 hazard H3: "the migration fixes the TEMPLATE, not the PLAN already on the dashboard"). The `currentPlan:load(...)` landmine
 // loads it RAW, and `importAllData` (:3660) restores a backup RAW — a backup file has no expiry.
 // Without this branch, a real v10 plan sitting in localStorage — opened with NO import and NO paste —
 // loses 11 amber chips across 3 real saved plans, EVERY ONE on a real raw protein (shrimp, chicken
@@ -2678,8 +2789,13 @@ function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.
 // WHY UNKNOWN FAILS TOWARD THE CHIP: over-warning caps at signal dilution and is recomputed on every
 // render (reversible for every household by editing this line); under-warning bottoms out at "the
 // household is never told" and has no floor — you cannot un-poison someone with a later fix. You do
-// not clear a lot because nobody tested it (DOMAIN-GATE §1.3). It CANNOT fire on v11 data at all,
-// because the key is always present. Naming: the predicate now answers "must this item be handled under
+// not clear a lot because nobody tested it (DOMAIN-GATE §1.3).
+// 🔴 S39 — IT CAN FIRE ON v11 DATA, AND THAT IS THE POINT. This sentence used to read "It CANNOT fire on
+// v11 data at all, because the key is always present" — FALSE since `normalizeIngredient` stopped
+// stamping silence. A CURRENT plan, from a CURRENT model, whose protein_state was never emitted, reaches
+// THIS branch and chips. That is ROUTE D; it is INTENDED; it is the live defect this branch was
+// extended to catch — 3 chips per item, driven. Do not read a v11 firing as a bug and engineer it away:
+// the firing IS the fix. Naming: the predicate now answers "must this item be handled under
 // raw-protein doctrine?", so a legacy onion returns true — semantically correct (conservative hazard
 // classification).
 //
