@@ -1352,6 +1352,23 @@ const S={
   pantry:normalizePantry(load(KEYS.pantry,DEFAULT_PANTRY)),
   prefs:load(KEYS.preferences,DEFAULT_PREFERENCES),
   household:{...DEFAULT_HOUSEHOLD,...load(KEYS.household,{})}, // merge defaults under stored (S6 P1-6): injects `stores` for pre-existing households, future-proofs later scalar fields
+  // 🔴🔴 S37 LANDMINE — THE MISSING `normalizePlan(...)` HERE IS LOAD-BEARING. DO NOT "FIX" IT.
+  // `pantry` and `wasteLog` above/below are normalized on load; `currentPlan`/`planHistory` are loaded
+  // RAW. That asymmetry LOOKS like an oversight and is the only thing that preserves the LEGACY TELL.
+  // `normalizeIngredient` builds a fixed key set, so the stored bytes carry the stamp of whichever app
+  // version imported them — and a pre-v11 build wrote NO `protein_state` key at all. `isRawProtein`
+  // (:2786) reads that key's ABSENCE as "this plan predates the field ⇒ protein status UNKNOWN ⇒ chip
+  // it", which is what keeps a real v10 saved plan's freeze/thaw/do-not-cook doctrine alive (11 chips
+  // across 3 real plans; the T-F7 sole-channel freeze hazard). Wrapping this in `normalizePlan(...)`
+  // would stamp `protein_state:null` onto every legacy item on the next page open, DESTROY the only
+  // signal that distinguishes UNKNOWN from known-not-a-protein, and make the silence PERMANENT and
+  // UNDETECTABLE — while looking exactly like a tidy-up. There is also no plan migration to hang a
+  // backfill on, and a backfill would have to GUESS protein-ness and write the guess into the user's
+  // stored data, which is irreversible and violates the hard rule that no code path rewrites a saved
+  // plan (schema note S30 H3 / S33 §6.1). The render layer already knows the answer. Do not persist a guess.
+  // 🔴 THE PROPERTY THAT MUST HOLD: `protein_state` KEY-ABSENCE SURVIVES THIS LOAD. G-LEGACY-6 + T-LEG1 in
+  // the legacy suite pin it — but that suite is NOT IN THIS REPO (see the ⏱ floor predicate at :3017), so
+  // in a fresh clone this line has NO mechanical guard at all and this comment is the whole of it.
   currentPlan:load(KEYS.currentPlan,null),
   planHistory:load(KEYS.planHistory,[]),
   promptTemplate:load(KEYS.promptTemplate,DEFAULT_PROMPT_TEMPLATE),
@@ -2620,6 +2637,157 @@ function noCookPill(name){
 // household gets the warning — exactly as it did in v10. Monotonicity is now a property of the
 // CODE, not a property of the corpus.
 function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.shelf_life_tier===3; }
+// 🔴 S37 (AMB-1 / NR1). RAW-PROTEIN PREDICATE — one field-keyed source of truth for every chip that
+// speaks raw-protein pathogen doctrine (thaw / do-not-cook / cold-water rescue / freeze-to-stay-safe).
+// A frozen VEGETABLE (freeze_by set, protein_state null) is a quality/waste choice, NOT a pathogen
+// control — firing a come-out / freeze-today / plate-day 🧊 chip on it is a false-authority safety
+// directive on a non-hazard (food-safety ruling §5.1 + NR1 addendum; copy review Defect-2 + NR1: "a banner that lies once
+// is a banner nobody reads twice"). Guards THREE chips — come-out (:2979), freeze-today (:2991),
+// plate-day (:3101) — and is ALSO the orphan-hold scope (S37 gate §4): one predicate, four uses.
+//
+// 🔴🔴 DO NOT "SIMPLIFY" THIS BACK TO `x.protein_state != null`. THAT IS A FALSE-CLEAR, AND IT SHIPPED
+// FOR EXACTLY ONE UNCOMMITTED AFTERNOON. The predicate has TWO branches; the SCHEMA HAS THREE STATES:
+//
+//   'fresh' | 'purchased_frozen'      ⇒ KNOWN raw protein            ⇒ chip
+//   null / '' AND THE KEY IS PRESENT  ⇒ KNOWN not-a-protein          ⇒ silent  (this is the NR1 fix)
+//   THE KEY IS ABSENT                 ⇒ UNKNOWN — nobody ever asked  ⇒ CHIP    (this branch)
+//
+// ABSENT IS NOT NULL. `undefined != null` is FALSE in JS, so a `!= null` test collapses UNKNOWN into
+// KNOWN-NOT-A-PROTEIN and silently answers a question that was never asked. null is the MODEL's
+// assertion "this is not a raw protein". Absent means the field did not exist when this object was
+// written, because `normalizeIngredient` builds a FIXED KEY SET and had no `protein_state` key before
+// v11 (commit c695d1b). So KEY PRESENCE RECORDS WHICH NORMALIZER WROTE THE OBJECT — it is stamped by
+// THIS APP'S OWN IMPORTER, not by the model. It is not a belief, not a judgment, and not a prediction
+// about model behaviour: it has no critical limit to validate. Driven across git: v10 (`8fdfe04`) and
+// every earlier build emit the key 0 times; v11+ emits it always. Driven across the corpora: absent on
+// 0/66·0/56·0/57 v10-normalized ingredients, present on 53/53·68/68·69/69·55/55·58/58 v11 ones —
+// 482 ingredients, perfect separation, STRUCTURAL rather than statistical.
+//
+// WHY THIS BRANCH EXISTS AT ALL — legacy plans are REACHABLE, and there is no migration that can reach
+// them back. `KEYS.currentPlan` is 'mp:current-plan-v1' and has NEVER been versioned across v3→v11;
+// all nine migrations are `migrateTemplateV3…V11` and touch the TEMPLATE, never a saved plan (schema
+// note S30 hazard H3: "the migration fixes the TEMPLATE, not the PLAN already on the dashboard"). `:1372`
+// loads it RAW, and `importAllData` (:3660) restores a backup RAW — a backup file has no expiry.
+// Without this branch, a real v10 plan sitting in localStorage — opened with NO import and NO paste —
+// loses 11 amber chips across 3 real saved plans, EVERY ONE on a real raw protein (shrimp, chicken
+// drumsticks ×2, salmon), and on 4 real cards the protein is then named by ZERO channels. The red ⚠
+// (:3103) cannot catch them: it requires BOTH dates null, and a freezer-routed protein HAS a
+// `freeze_by` — the item goes silent precisely BECAUSE the plan handled it correctly. That is the
+// Class-1 sole-channel freeze hazard T-F7, which S36 shipped to close.
+//
+// WHY UNKNOWN FAILS TOWARD THE CHIP: over-warning caps at signal dilution and is recomputed on every
+// render (reversible for every household by editing this line); under-warning bottoms out at "the
+// household is never told" and has no floor — you cannot un-poison someone with a later fix. You do
+// not clear a lot because nobody tested it (DOMAIN-GATE §1.3). It CANNOT fire on v11 data at all,
+// because the key is always present. Naming: the predicate now answers "must this item be handled under
+// raw-protein doctrine?", so a legacy onion returns true — semantically correct (conservative hazard
+// classification).
+//
+// 🔴 THE COST ON LEGACY DATA, STATED AS THE PROPERTY RATHER THAN AS A FLATTERING INSTANCE. This comment
+// used to reassure you with an onion: "harmless, since every chip carries its own freeze_by/pfCoherent
+// guard and an onion has neither." The onion is true and it is the WRONG EXAMPLE — it is picked from
+// exactly the class that lacks the trigger. THE PROPERTY, driven (legacy red bell pepper, key ABSENT,
+// freeze_by SET — i.e. the NR1 item itself):
+//     A LEGACY NON-PROTEIN CARRYING `freeze_by` RECEIVES THE FULL RAW-PROTEIN CHIP SET — including the
+//     affirmatively FALSE sentence "a fresh raw protein won't keep in the fridge past a day or two",
+//     said about produce. The food-safety gate ranked that HIGH and it is not softened here.
+//     ⇒ **NR1 IS ENTIRELY INERT ON LEGACY DATA.** Driven: legacy pepper renders the chips; the identical
+//     v11 pepper (key present, value null) renders ZERO. The pepper NR1 exists to silence is silenced
+//     only on current data. On a legacy plan the pepper still gets the liturgy.
+// This is ACCEPTED, not overlooked (domain gate §2.4): it is HEAD's behaviour, not a regression this commit
+// introduces; N=0 in the real v10 corpus (all 4 freezer-routed items are real proteins); it
+// self-extinguishes ~3 days after a regenerate (route A); and it is UNBOUNDED on backup restore (route
+// B) — named, not softened. The trade is the food-safety authority's and it is RULED: over-warning a pepper caps at a false
+// sentence and a wasted pepper; suppressing a chicken's chips removes the first-48 pathogen control.
+//
+// 🔴 ONE THING THIS COMMIT *DOES* CHANGE ON LEGACY DATA, and do NOT reach for the count argument that
+// says otherwise. Domain gate §2.4(1) reads "the fix adds no false chip that is not already rendering" — TRUE
+// about chip COUNTS and FALSIFIED about chip CONTENT (second-key review C2, which I re-drove myself). Driven, legacy
+// pepper: HEAD 2 chips / **0** refreeze permissions → under this commit 2 chips / **1** refreeze
+// permission, on an item the app cannot classify. THE COUNT IS UNCHANGED; THE SENTENCES ARE NOT. The
+// permission is warranted anyway — but it is warranted BECAUSE the act it licenses is arresting
+// (freezing never accelerates a pathogen) and BECAUSE both FSIS conditions are inside the granting
+// clause — NOT because it is unchanged behaviour, WHICH IT IS NOT. If you are about to justify an edit
+// here with "this changes nothing that isn't already rendering", that sentence is how this one got in.
+//
+// 🔴 AND DO NOT REPLACE IT WITH A TIER FALLBACK. Both were driven and both are BLOCKED: `tier<=1 &&
+// freezable` re-chips the exact bell pepper + peaches NR1 exists to silence, on CURRENT data, forever;
+// `tier===0 && freezable` drops every tier-1 raw cut (:521 files pork/beef/lamb roasts at tier 1, and
+// :270 explicitly extends the interlock to them) and loses response-C's tier-3 salmon — 8 of 11 real
+// chips, not 11 — while false-chipping tier-0 freezable fruit on current data. Keying on a field the
+// model SETS is NECESSARY BUT NOT SUFFICIENT: THE FIELD MUST BE ABOUT THE PREDICATE. `shelf_life_tier`
+// answers "how long does this keep?", not "is this a raw protein?" — tier 0 holds chicken AND berries,
+// tier 1 holds pork roasts AND bell peppers (:521/:270, which are categorical that the two run
+// DIFFERENT clocks: pathogen vs quality). Reading a shelf-life bucket as a species label is a category
+// error that fails in the forbidden direction. `hasOwnProperty` (not `in`) is deliberate: own-key only,
+// so a polluted prototype cannot forge the v11 stamp.
+//
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// 🔴🔴 INV-1 — CONSERVATIVE-DIRECTIVES-ONLY (BINDING) — THE LOAD-BEARING PREMISE OF THIS GUARD'S
+//   DEFAULT DIRECTION. Ruled BINDING by the food-safety gate, which made stating it IN THE CODE a
+//   condition of this guard's clearance. It is an INVARIANT, not a preference: it is not yours to trade.
+//   READ THIS BEFORE EDITING ANY CHIP THIS GUARD CONTROLS. It is the reason the UNKNOWN branch above is
+//   allowed to fail TOWARD the chip, and it is the one thing here that can be VOIDED by editing copy in
+//   a completely different part of this file.
+//
+//   THE INVARIANT: fail-toward-chip on UNKNOWN is sound **ONLY WHILE EVERY CHIP THIS GUARD CONTROLS IS A
+//   CONSERVATIVE DIRECTIVE.** Because the guard fails toward the chip, THE CHIP'S CONTENT IS WHAT GETS
+//   FIRED AT AN ITEM WE CANNOT CLASSIFY. Today every one of them resolves to: freeze it, chill it, don't
+//   leave it out, use it sooner, or throw it away. Firing those at a pepper costs a false sentence and a
+//   wasted pepper. It cannot create a hazard.
+//
+//   🔴 THE TRIGGER: THE MOMENT ANY CHIP CONTROLLED BY `isRawProtein` CARRIES A **PERMISSIVE OR
+//   REASSURING** DIRECTIVE — "this is fine to leave out", "this keeps a week", "no need to freeze it" —
+//   FAIL-TOWARD-CHIP BECOMES FAIL-TOWARD-**HAZARD** AND THE FOOD-SAFETY RULING AUTHORIZING THIS GUARD IS VOID.
+//   ⇒ ANY edit to the freeze-today / come-out / plate chips MUST RE-RUN THE §2.1 CONSERVATIVE-ACT AUDIT:
+//   render all three at an UNKNOWN item and classify what each one DIRECTS. Not what it says — what it
+//   tells a household to DO. If any directs a non-conservative act, STOP: the default direction above is
+//   no longer justified and this is not a copy question, it is a safety-architecture question.
+//   A conservative-only chip set is NOT a happy accident of the current copy. It is a PRECONDITION.
+//   (Food-safety ruling §2.3, verbatim: "it must be stated in the code rather than left to be rediscovered…
+//   the conservative-only property is mine and it is not negotiable." A COPY REVIEW OWNS WORDING — but this
+//   is NOT a wording question. It is not a copy review's to trade away, and it is not yours.)
+//
+//   ★ WHY THE TWO PERMISSIONS THIS COMMIT ADDS DO NOT TRIP IT — the axis distinction, and you need it or
+//   INV-1 reads as tripped by the very commit that ships it (second-key review C1). THERE ARE TWO AXES:
+//     · **INV-1 = the ITEM axis** — "is the licensed ACT safe on an item we CANNOT classify?" The act
+//       both new permissions license is *put it back in the freezer*. Freezing ARRESTS; it never
+//       accelerates. On a pepper: a quality loss. On a chicken: FSIS-correct. On a legacy cooked
+//       leftover: "uncooked" is a category slip and "1–2 days" UNDERSTATES FSIS's 3–4. Safe on every
+//       branch ⇒ **INV-1 HOLDS.**
+//     · **REQ-2HR = the HISTORY axis** — "is the act safe on an item we CAN classify, whose
+//       HISTORY we never observe?" NOT safe unless the granting clause states BOTH FSIS conditions
+//       (fridge-thawed AND nothing above 40°F for >2h). This commit puts both IN the granting clause.
+//       The app does not ASSERT the history; it states a CONDITIONAL and hands the test to the only
+//       party who can run it — the household. That is the correct architecture for an unobservable
+//       condition, and it is what FSIS's own consumer guidance does.
+//   INV-1 NEVER REACHED THE HISTORY AXIS. Two different questions; both must be answered YES; today both
+//   are. Do not collapse them — the collapse is what makes a permission look automatically disqualifying
+//   (it is not) or automatically fine (it is not).
+//
+//   ⚠ INV-1'S FIRST LIVE TEST WAS THE COMMIT THAT SHIPPED IT, AND IT WAS A NEAR-MISS. RECORD, DO NOT
+//   REPEAT: the food-safety authority's own §2.1 as-built audit ran against the PRE-copy-fix tree
+//   (78870b7e, +118/−5), where the refreeze permission was **UNQUALIFIED** — at that sha INV-1 was
+//   GENUINELY VOID. That authority caught it itself, ruled its OWN copy BLOCKING, and the 2-hour clause
+//   landed. So INV-1's own re-run trigger fired and nobody re-ran it; TWO FURTHER REVIEWS then each
+//   re-ran it INDEPENDENTLY on the shipped tree
+//   (f3f46488) and it SURVIVES — 11 distinct directives at an UNKNOWN item, 4 prohibitions, 5
+//   imperatives, 2 permissive, both permissives conditional, both licensing only "put it in the freezer."
+//   🔴 IT SURVIVES **ONLY BECAUSE THE 2-HOUR CLAUSE LANDED.** That is how close this is. It is not
+//   decorative, and a render check CANNOT see a missing comment — which is exactly why the audit's
+//   trigger has to live HERE, next to the guard, and not in a ruling file nobody opens.
+//   ⇒ ITS TOOTH IS `G-REQ-2HR` in the copy suite (t-copy-s37.js), which asks the WHOLE rendered chip set
+//   one question at once — including chips it was never told about. It does not know about INV-1's item
+//   axis; it only pins the history axis. AND THAT SUITE IS NOT IN THIS REPO (see :3017) — so in a fresh
+//   clone even the history axis is uninstrumented. THE ITEM AXIS HAS NO TOOTH AND CANNOT HAVE ONE
+//   ANYWHERE — it needs a human to read a directive and say what act it licenses. That is why this is a
+//   comment and why it is BINDING: the comment is not a pointer to the guard, it IS the guard.
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+function isRawProtein(x){
+  if(!x) return false;
+  if(!Object.prototype.hasOwnProperty.call(x,'protein_state')) return true;   // UNKNOWN ⇒ fail toward the chip
+  return x.protein_state!=null && x.protein_state!=='';
+}
 
 // 🔴 RE-GATE / REVIEW-#4 — THE THAW LADDER, AT THE RENDER LAYER.
 // My first thaw chip used a FLAT `day+1` lead. No weight. No ladder. Below 4 lb that is correct,
@@ -2746,7 +2914,7 @@ function renderMealCards(mp){
               (no new model field): if TOMORROW's dinner carries a coherent purchased-frozen protein,
               tonight is the come-out night. It leads the card and it is weight-600, because it is
               the only thing on this card that is an ACTION and not a NARRATION. */''}
-        ${(()=>{const due=[],hf=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;const isPF=pfCoherent(x);const isHF=!isPF&&!!x.freeze_by;if(!isPF&&!isHF)continue;if(comeOutDay(x,z.day)!==day.day)continue;if(isHF&&!inFreezerOn(x,day.date))continue;(isPF?due:hf).push(x.item);}}if(!due.length&&!hf.length)return'';
+        ${(()=>{const due=[],hf=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* S37 NR1 — raw-protein only: no thaw imperative for frozen produce (:270) */const isPF=pfCoherent(x);const isHF=!isPF&&!!x.freeze_by;if(!isPF&&!isHF)continue;if(comeOutDay(x,z.day)!==day.day)continue;if(isHF&&!inFreezerOn(x,day.date))continue;(isPF?due:hf).push(x.item);}}if(!due.length&&!hf.length)return'';
           /* A PURCHASED-frozen pack's freezer state is a property of the PRODUCT — the app may assert it.
              A HOME-frozen one is a HOUSEHOLD ACT the app only ever INSTRUCTED, and THE APP CANNOT SEE THE
              FREEZER (IQ-0256). So the home-frozen items — and ONLY those — carry a conditional qualifier.
@@ -2760,16 +2928,64 @@ function renderMealCards(mp){
           const obj = (due.length&&hf.length) ? `the ${esc(andList(due))}, and the ${esc(andList(hf))} if frozen as planned,`
                     : due.length              ? `the ${esc(andList(due))}`
                     :                           `the ${esc(andList(hf))}, if frozen as planned,`;
-          return `<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 TAKE IT OUT TONIGHT — move ${obj} to the REFRIGERATOR to thaw. Never on the counter, never in hot water.</div>`;})()}
+          /* 🔴 S37 R1/R2 (schema note §6) — the come-out chip now CARRIES the post-thaw keep-window (R1) and the
+             method-scoped refreeze allowance (R2), the A4/A5 second-order content no chip carried before.
+             ⚠ COPY OWNERSHIP IS SPLIT, AND THE SPLIT IS THE POINT: the FSIS CONTENT is the food-safety
+             authority's, the WORDING is the copy review's. This string is the copy review's PRIMARY candidate
+             (copy ratification §6), landed VERBATIM; the food-safety authority ratified its content (addendum
+             RL3 §6). DO NOT REWORD IT WITHOUT A COPY REVIEW. DO NOT DROP A CONDITION WITHOUT A FOOD-SAFETY
+             RULING — a reword is a wording question, a dropped condition is a safety question, and the person
+             who can answer one cannot answer the other.
+             · NUMBER-INVARIANT BY CONSTRUCTION (copy review R-L1 — BLOCKING, and the earlier draft FAILED it).
+               The first draft said "the ${'${names}'} keep only 1–2 days": `keep` is the PLURAL finite verb,
+               HARDCODED, so it rendered "the ground beef KEEP only 1–2 days" — wrong at N=1 on every mass and
+               singular noun, live on response-A, driven. That is DEFECT 3's OWN ERROR CLASS, re-committed by
+               the edit sent to fix Defect 3, eight lines under the :2876 comment that forbids it: Defect 3
+               inferred number from ARRAY LENGTH, this hardcoded the plural — the same coin-flip, mirrored.
+               🔴 THE FIX IS THE GRAMMAR, NOT A SWITCH. NO finite number-sensitive verb may take the item as
+               its subject: `keep` is an IMPERATIVE, `may go back` is a MODAL, `a fridge thaw` is a NOMINAL,
+               `nothing sat out` is SUBJECT-FREE. All four are number-invariant for any noun.
+               ⛔ DO NOT "FIX" THIS WITH `${'${x.length>1?"keep":"keeps"}'}`. An array length does not know a
+                  NOUN's number (:2876: "chicken thighs" is plural, "ground beef" is a mass noun) — that switch
+                  is Defect 3's exact mechanism and it is wrong at N=1 for every plural noun. R-L1 bars it by
+                  name. `G-NUM-INVARIANT` in the copy suite drives all four noun classes and will go RED.
+             · METHOD-scoped IN ITS OWN CLAUSE (copy review R-L2 — BLOCKING). The permission states its own method
+               scope behind a HARD binder ("but only after a fridge thaw"). It MUST NOT inherit that scope from
+               sentence 1's "move … to the REFRIGERATOR to thaw": the earlier draft did, across two sentence
+               boundaries, and its only STATED condition was "if your plans change" — a PLANS condition, in the
+               terminal clause. A household with wet hands reads the last line, not the paragraph. The scope IS
+               the safety content; it does not get to be an inference.
+             · TEMPERATURE-TIME scoped IN THE SAME CLAUSE (REQ-2HR — BINDING, BOTH CHIPS).
+               The FSIS refreeze allowance is a TWO-condition rule and the app's own DEFAULT_PROMPT_TEMPLATE
+               states both in one FSIS-attributed sentence: "food thawed in the refrigerator can be refrozen
+               without cooking … PROVIDED IT WAS NEVER LEFT OUT OF THE REFRIGERATOR FOR MORE THAN 2 HOURS."
+               ⛔ "thawed in the refrigerator" DOES NOT ENTAIL IT — the food-safety authority REFUSED that entailment explicitly.
+                  The method answers HOW IT THAWED; the qualifier answers WHAT HAPPENED SINCE. Fridge-thaw over
+                  24h, then 3h on the counter, satisfies the method and violates the rule. "Never on the
+                  counter" above prohibits counter THAWING — a different act at a different time.
+               Freezing is a PAUSE, not a kill step: it arrests the count and never reduces it, heat-stable
+               toxins survive both the freezer and the later cook, and the food comes back out looking fine —
+               so the permission destroys the last moment the household could have discarded it. Ten words.
+             · ITEM-scoped: the keep-window + refreeze clause names the items (`names`) inside the clause, so it
+               survives adjacency with the plate chip on the same card (not a trailing unbound sentence).
+               ⛔ DO NOT swap `names` for "this food" to save the third print — that is the PLATE chip's
+                  number-invariant device, and on a co-occurrence card it would print two "this food"s, adjacent,
+                  with DIFFERENT REFERENTS (copy review §2). The third print is a register cost the copy review
+                  accepted KNOWINGLY — it is a considered trade, not an oversight to tidy up.
+             · This is why the commit order is binding: the gate's class map credits `comeout` as a KEEPWIN/
+               REFREEZE carrier ONLY because this clause is present — reverting it (harness denominator freeze)
+               drops the credit and the gate stops demoting those notes (15/19 vs 12/19). */
+          const names = esc(andList([...due,...hf]));
+          return `<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 TAKE IT OUT TONIGHT — move ${obj} to the REFRIGERATOR to thaw. Never on the counter, never in hot water. Once thawed, keep the ${names} no more than 1–2 days in the fridge. If plans change, the ${names} may go back in the freezer uncooked — but only after a fridge thaw, and only if nothing sat out more than 2 hours.</div>`;})()}
         ${/* 🔴 S36 DAY-1 FREEZE CHIP (DURABLE half of AMB-1). Class-1 sole-channel closure: a
               home-frozen fresh raw protein's day-0/day-1 FREEZE imperative had NO structured chip — it
               survived only as buried ⏱ prose (hazard-map B3, OBSERVED N=5 on DEFAULT_PANTRY). This gives
               it its own amber home so it stops being the one freeze warning a household never reads.
               Fires on the FREEZE-DAY card by EXACT freeze_by↦day.date match (forward-scan mirror of the
-              come-out chip); collision-free with come-out (:2763 strict >), plate-day (:2801), purchased
-              (:2802). Same 11px/w600/--amber action register as the come-out chip. Copy = FSIS first-48,
+              come-out chip); collision-free with come-out (:2979 strict >), plate-day (:3101), purchased
+              (:3102). Same 11px/w600/--amber action register as the come-out chip. Copy = FSIS first-48,
               plan-not-observation, every-item-named (guards the [0]-drop). No schema field. */''}
-        ${(()=>{const fz=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(pfCoherent(x)||!x.freeze_by)continue;if(!ISO_DATE.test(String(x.freeze_by))||!ISO_DATE.test(String(day.date)))continue;if(String(day.date)!==String(x.freeze_by))continue;fz.push(x.item);}}
+        ${(()=>{const fz=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* S37 NR1 — raw-protein only: a frozen vegetable is a quality choice, not a pathogen control (:270) */if(pfCoherent(x)||!x.freeze_by)continue;if(!ISO_DATE.test(String(x.freeze_by))||!ISO_DATE.test(String(day.date)))continue;if(String(day.date)!==String(x.freeze_by))continue;fz.push(x.item);}}
           const items=[...new Set(fz)]; if(!items.length) return '';
           const pl=items.length>1, subj=pl?"They're":"It's", obj=pl?'them':'it', prot=pl?'fresh raw proteins':'a fresh raw protein', din=pl?'dinners':'a dinner';
           return `<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 PUT IT IN THE FREEZER TODAY — portion and freeze the ${esc(andList(items))} now. ${subj} for ${din} later this week, and ${prot} won't keep in the fridge past a day or two — freezing ${obj} today is what keeps ${obj} safe to cook then.</div>`;})()}
@@ -2781,7 +2997,33 @@ function renderMealCards(mp){
               prose the guard must not declassify). Fail-toward-amber content guard: any freeze/thaw/
               refrigerate/do-not-cook/never-counter/hot-water match KEEPS it amber (current tier); only
               pure narration demotes. Uncertain ⇒ amber. This is a LOGIC change reading note content. */''}
-        ${(()=>{if(!d.perishability_note)return'';const perishIsSafety=/\b(freez\w*|thaw\w*|refrigerat\w*|do ?n['o]?t cook|never (on the )?counter|hot water)\b/i.test(d.perishability_note||'');return `<div style="${perishIsSafety?'font-size:10px;color:var(--amber)':'font-size:11px;color:var(--fg2)'};margin-top:3px">⏱ ${esc(d.perishability_note)}</div>`;})()}
+        ${(()=>{if(!d.perishability_note)return'';/* S37 COMMIT-1: HARDENED FLOOR predicate (drain-spec §1.1). Adds froz\w* (bare "frozen"),
+             defrost\w*, curly-apostrophe don't, room temperature, and warm water — the act+prohibited-condition
+             tokens; bare LOCATION/QUALITY nouns (fridge, counter) stay rejected (the act-vs-location ruling). These
+             five tokens are what closes the second-key review's five S36 sole-channel evasions: each one is a real safety
+             directive that the HEAD predicate DEMOTED TO NARRATION. COMMIT-2 REPLACES this boolean with the
+             class-wise gate whose FREEZE/THAW/DNC/PROHIB regexes ARE this predicate's tokens partitioned (plus
+             CFF/KEEPWIN/REFREEZE) — density never un-hardens a floor (food-safety ruling §4, BINDING).
+
+             🔴 DO NOT SOFTEN THIS PREDICATE. Its harness twin is `SAFETY_RE` in t-s36-amberwall.js (search that
+             file for "FLAG 6" — its comment points back here, and this one points there). THE TWIN IS HARDENED
+             TO THIS EXACT LITERAL — verified by grep, not by assertion.
+
+             🔴 AND READ THIS BEFORE YOU TRUST THAT COUPLING, because the sentence that used to sit here was
+             FALSE and shipped anyway. It claimed the twin "is hardened in the SAME commit (FLAG 6)". It was not
+             hardened at all — S37 commit-1 hardened this predicate and left the twin carrying HEAD's literal —
+             and the gate drove the cost: the suite read **30/0 FULLY GREEN on the UN-HARDENED app** and 28/2 on
+             this one. The harness REWARDED reverting this hardening. Nobody ran `grep`.
+             ★ "SAME COMMIT" IS ALSO NOT ACHIEVABLE, AND THAT IS THE PART TO CARRY: the harness is NOT IN THIS
+             REPO — this repo is 3 files (LICENSE, README.md, this file) and the harness lives in an
+             UNVERSIONED directory outside it. NO COMMIT CAN EVER CONTAIN BOTH. A fresh clone has no harness at
+             all, so in a clone this predicate has NO mechanical protection whatsoever — only this comment.
+             ⇒ The thing that actually couples them is `T-FLOOR` in t-s36-amberwall.js, which asserts the five
+             tokens hold five REAL directives AMBER, anchored on the RENDER rather than on any regex — so
+             softening this literal turns it RED even if someone "helpfully" softens SAFETY_RE to match. If you
+             change this literal, change the twin, and re-run t-s36-amberwall.js expecting T-FLOOR to have an
+             opinion. If it does not, the tooth has been defeated and that is the emergency, not the red row. */
+          const perishIsSafety=/\b(?:(?:freez|froz)\w*|thaw\w*|defrost\w*|refrigerat\w*|do ?n['’o]?t cook|never (?:on the )?counter|room temperature|(?:hot|warm) water)\b/i.test(d.perishability_note||'');return `<div style="${perishIsSafety?'font-size:10px;color:var(--amber)':'font-size:11px;color:var(--fg2)'};margin-top:3px">⏱ ${esc(d.perishability_note)}</div>`;})()}
         ${/* 🔴 P1. WAS 10px `--fg3` = 3.71:1 (I recomputed it: #64748b on #161822), BELOW the
               4.5:1 WCAG 2.1 AA 1.4.3 floor. This chip carries the FRESH-protein pathogen deadline — 11 raw
               rows across the five real runs, against the frozen fish's 5 — and it was rendered MORE FAINTLY
@@ -2818,7 +3060,45 @@ function renderMealCards(mp){
               authority, not mine — and I will not invent a kill step on a surface the operator's household
               eats from. Flagged for food-safety + review. Removing a false instruction is strictly safer than
               keeping it; filling the hole it leaves requires an authority I do not have. */''}
-        ${(()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);if(!fbs.length)return'';const pl=fbs.length>1,subj=pl?'they':'it',obj=pl?'them':'it',is=pl?'are':'is';return `<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 ${esc(freezeText(fbs))}. If ${subj} never went in the freezer and sat out, do not cook ${obj}. If ${subj} did and ${is} still frozen at dinner, thaw ${obj} fast in COLD water — sealed in a leak-proof bag, fully submerged, with fresh cold water every 30 minutes (about 30 minutes per pound) — then cook ${obj} right away, and don't refreeze ${obj} uncooked. Never thaw on the counter or in warm or hot water.</div>`;})()}
+        ${/* 🔴 S37 PLATE CHIP — Defect-1c (produce filter) + Defect-2 (two-branch method-scoped refreeze,
+              food-safety ruling §5.3, FSIS-authorized) + Defect-3 (number-neutral, no array-length pronouns).
+              ⚠ COPY OWNERSHIP IS SPLIT: the FSIS content is the food-safety authority's, the wording is the
+              copy review's. The copy review RATIFIED this chip's shape
+              UNCHANGED (copy ratification §8.1) and calls it THE BENCHMARK — its method scope is in-clause
+              and LEADING, which is exactly what the come-out chip had to be rewritten to match.
+              🔴 DO NOT DISTURB THE METHOD SCOPE OR THE BRANCH SHAPE. Only the 2-hour clause was added (below).
+              · produce filter: `isRawProtein(x)` — no do-not-cook / cold-water doctrine on a frozen vegetable
+                (food-safety ruling §5.1 + NR1). Preserves the chip for any REAL protein sharing the same plate day.
+              · two branches, each scoped to its thaw METHOD so the two halves cannot be read apart (this is
+                the live-at-HEAD refreeze contradiction fix — E5 drumsticks): fridge-thawed-as-planned ⇒ may
+                refreeze uncooked (FSIS :272); still-frozen cold-water rescue ⇒ cook now, do NOT refreeze
+                uncooked (FSIS :274).
+              · 🔴 REQ-2HR (BINDING — the clause "but only if nothing sat out more than 2 hours").
+                THIS PERMISSION IS NEW IN S37 — at HEAD f27fa23 this chip granted NO refreeze allowance at all,
+                only the cold-water prohibition — AND IT SHIPPED WITHOUT THE QUALIFIER, 0/5 on the live corpus.
+                The food-safety authority authored the FSIS two-condition rule into DEFAULT_PROMPT_TEMPLATE in S33 ("…can be
+                refrozen without cooking … PROVIDED IT WAS NEVER LEFT OUT OF THE REFRIGERATOR FOR MORE THAN
+                2 HOURS") and then certified a ONE-condition version of it into this chip as "FSIS-complete."
+                It was not. The copy review ratified the chip and was right ON ITS OWN AXIS — the omission was a CONTENT
+                question, invisible to a wording review, because the content had been signed off.
+                ⛔ THE METHOD CONDITION DOES NOT ENTAIL THE TEMPERATURE-TIME ONE (the food-safety authority refused it explicitly):
+                   "thawed in the refrigerator as planned" answers HOW IT THAWED; the qualifier answers WHAT
+                   HAPPENED SINCE. A fridge thaw followed by 3h on the counter satisfies the first and violates
+                   the second. "Never thaw on the counter" below prohibits counter THAWING — another act, another
+                   time. Without the qualifier this chip permits refreezing food FSIS says to DISCARD, in FSIS's
+                   name, in amber, weight-600 — and by DOMAIN-GATE §6.3 the household takes the PERMISSIVE
+                   reading, which would be this one. The clause is the copy review's, from its PRIMARY (§6), reused verbatim
+                   so both chips state the identical condition when they land adjacent on one card.
+                ⛔ The chip must match the template's 2-HOUR figure and NOT outrun it. FSIS's rule is "2 hours,
+                   or 1 hour above 90°F"; the template omits the 90°F variant. That gap is THE FOOD-SAFETY AUTHORITY'S, logged as a
+                   template-pass obligation — do NOT unilaterally add the variant to this chip.
+              · number-neutral: freezeText names the item(s); every back-reference is the collective singular
+                "this food" / "it" (invariant across singular, plural-noun "chicken drumsticks", and mass
+                "ground beef") — grammatical number CANNOT be inferred from a food name (the come-out chip's
+                own rule), so array-length pronouns (pl?'they':'it') are GONE.
+                ⛔ "this food" is THIS chip's device and must stay here: the come-out chip may NOT adopt it, or a
+                   co-occurrence card prints two "this food"s with different referents (copy review §2). */''}
+        ${(()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by&&isRawProtein(x)).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);if(!fbs.length)return'';return `<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 ${esc(freezeText(fbs))}. If this food never went in the freezer and sat out, do not cook it. If it thawed in the refrigerator as planned and your plans changed, it may go back in the freezer uncooked — but only if nothing sat out more than 2 hours. If it did go in the freezer and is still frozen at dinner, thaw it fast in COLD water — sealed in a leak-proof bag, fully submerged, with fresh cold water every 30 minutes (about 30 minutes per pound) — then cook it right away, and don't refreeze it uncooked. Never thaw on the counter or in warm or hot water.</div>`;})()}
         ${(()=>{const pf=(d.ingredients||[]).filter(pfCoherent).map(x=>x.item);const pl=pf.length>1;return pf.length?`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 bought frozen (${esc(pf.join(', '))}) — keep ${pl?'them':'it'} frozen until ${pl?'their':'its'} thaw day, then thaw in the refrigerator, never on the counter. Once thawed ${pl?'they keep':'it keeps'} 1–2 days.</div>`:'';})()}
         ${(()=>{const un=(d.ingredients||[]).filter(x=>x&&!x.cook_by&&!x.freeze_by&&!pfCoherent(x)&&(x.protein_state==='fresh'||x.shelf_life_tier===0||x.shelf_life_tier===1)).map(x=>x.item);const pl=un.length>1;return un.length?`<div style="font-size:10px;color:var(--red);margin-top:3px">⚠ no cook-by or freeze-by date on ${pl?'highly perishable items':'a highly perishable item'} (${esc(un.join(', '))}) — cook ${pl?'them':'it'} within 2 days of shopping, or freeze ${pl?'them':'it'} the day you buy ${pl?'them':'it'}</div>`:'';})()}
         ${d.quality_note?`<div style="font-size:10px;color:#a78bfa;margin-top:3px">★ ${esc(d.quality_note)}</div>`:''}
