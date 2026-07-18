@@ -3151,8 +3151,16 @@ function renderMealCards(mp){
         ${(plateChip=norm((()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by&&isRawProtein(x)).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);if(!fbs.length)return'';return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 ${esc(freezeText(fbs))}. If this food never went in the freezer and sat out, do not cook it. If it thawed in the refrigerator as planned and your plans changed, it may go back in the freezer uncooked — but only if nothing sat out more than 2 hours. If it did go in the freezer and is still frozen at dinner, thaw it fast in COLD water — sealed in a leak-proof bag, fully submerged, with fresh cold water every 30 minutes (about 30 minutes per pound) — then cook it right away, and don't refreeze it uncooked. Never thaw on the counter or in warm or hot water.</div>`, classes:new Set(['FREEZE','DNC','PROHIB','REFREEZE'])};})()),'')/* plate: NEVER THAW/KEEPWIN */}
         ${(pfChip=norm((()=>{const pf=(d.ingredients||[]).filter(pfCoherent).map(x=>x.item);const pl=pf.length>1;return pf.length?{html:`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 bought frozen (${esc(pf.join(', '))}) — keep ${pl?'them':'it'} frozen until ${pl?'their':'its'} thaw day, then thaw in the refrigerator, never on the counter. Once thawed ${pl?'they keep':'it keeps'} 1–2 days.</div>`, classes:new Set(['FREEZE','PROHIB','KEEPWIN'])}:'';})()),'')/* pf: NEVER THAW */}
         ${/* ══ THE ⏱-NOTE GATE — CLASS-WISE COVERAGE (commit 2). THIS COMMENT IS THE SAFETY CONTROL. ══
-              This repo ships as 3 files with NO in-repo harness; a fresh clone's ONLY guard at this gate is
-              THIS comment (S38 fresh-clone ruling), and a FALSE comment blocks the commit. It states a
+              This repo ships as 3 files with NO in-repo harness. A fresh clone's guard at this gate is the
+              P-FLOOR assertion at the foot of this script plus THIS comment — and a FALSE comment blocks the
+              commit. The assertion drives this gate over seven fixture directives, one per class below, and
+              console.errors if any stops rendering AMBER. It holds NO copy of these regexes: it supplies a
+              plan and reads the rendered colour, so DELETING a class here makes the assertion FAIL without
+              the assertion being touched — though a class merely NARROWED slips past it, and the
+              assertion's own comment states that bound. What it does NOT do: it never blocks or alters what
+              the household sees, nothing forces it to run, and it can be deleted in the same edit that
+              softens this gate. It catches the OMISSION — a class DELETED by someone who then opens the app
+              — and it stops nobody who means it (S38 fresh-clone ruling §6). This comment states a
               PROPERTY of the mechanism — the class-regexes below ARE the token enumeration, single-sourced,
               and are not restated here.
 
@@ -3885,6 +3893,122 @@ function importAllData(event){
 
 render();
 if(_pendingUpgradeToast){showToast(_pendingUpgradeToast);_pendingUpgradeToast=null;}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════
+   P-FLOOR ASSERTION — the fresh clone's one MECHANICAL check at the ⏱-note gate (S38 fresh-clone
+   ruling §7, designed S41). Runs ONCE, here, after the household's first paint has already been
+   produced by render() above.
+
+   WHAT IT DOES. Seven synthetic plans — one carrying a real food-safety directive of each class the
+   gate can recognize — are driven through the app's OWN renderMealCards. It reads the colour back off
+   the rendered string and console.errors any directive that has stopped rendering amber.
+
+   WHY IT CANNOT DESYNC FROM THE GATE. It holds NO copy of the gate. It supplies a plan and a colour
+   expectation; which classes a note matches, which chips fired, whether each matched class is covered,
+   and therefore whether the note demotes are ALL computed by the gate itself at the moment
+   renderMealCards is called. THE FALSIFIABLE FORM, and it is the one to hold this block to: DELETE any
+   class — remove it, or break its regex so it matches nothing at all — and this block's source stays
+   byte-identical while the check goes RED. Its LOGIC holds none of those tokens; the directives below
+   are MADE of them, deliberately — they are specimens this check runs ON, never a copy it tests WITH.
+   What changes is the render, and the render is what is read. If you ever find yourself editing THIS
+   block because you edited a class regex, it has grown a copy — that is the defect signal, not the
+   fix. (Same discipline as the ORPHAN HOLD, one level out: that one is built on the app's own firing
+   predicates, this one on the app's own render.)
+
+   WHERE THAT GUARANTEE STOPS — AND IT IS NOT OBVIOUS, SO IT IS WRITTEN DOWN. DELETIONS, always.
+   PARTIAL NARROWINGS AND REPARTITIONS, no.
+
+   NARROWINGS. This check tests ONE specimen per class. A class regex is the set of phrasings it
+   matches; this check verifies only that its OWN specimen is still in that set. Shrink the set any way
+   that spares the specimen and this check stays SILENT while the class goes blind to every other
+   phrasing a real plan uses. Driven S41: narrowing each of the seven classes until it matches only its
+   own directive below leaves all seven SILENT — 0 of 7 caught, against 7 of 7 for outright deletion.
+   A class can also be too narrow from the START — never edited, and still blind to phrasings a real
+   plan uses. This check cannot see that either: its specimen is one of the phrasings that works.
+
+   REPARTITIONS. Widen one class so it ALSO matches a directive below that belongs to another, and that
+   directive stops discriminating: deleting its own class no longer demotes it, because the other class
+   still matches. This check then stays SILENT while the pole behind it is dead. Nothing in this block
+   changes, and nothing in this block can detect it. Driven S41: widening the counter/hot-water class to
+   also cover "sat out" kills the discard directive's pole outright, with no console output at any
+   point. Six of the seven directives below are isolated by matching exactly ONE class; the seventh
+   cannot be, because every phrasing of it also matches a neighbour, so it is isolated by COVERAGE
+   instead.
+
+   SO: after ANY edit to a class regex, re-check BY HAND — this block will not do it for you — that the
+   class still matches the real phrasings a plan uses for it, and not merely the one directive below.
+   That re-check does not live in this repo.
+
+   IT HAS NO TEETH, AND THAT IS THE DESIGN — SAID OUT LOUD SO NO CLONE READS MORE INTO IT. It never
+   blocks, delays, withholds or alters one pixel of what the household sees: it runs after render(),
+   writes no DOM and no storage, reads no household data, and a throw is swallowed into console.error
+   so a broken check degrades to the app, already rendered, unchanged. Nothing forces it to run, and
+   whoever softens the gate can delete this block in the same edit. It buys exactly one thing, at
+   exactly this size: THE FLOOR GOES FROM SILENTLY-DELETABLE TO VISIBLY-DELETABLE — not from possible
+   to impossible, and a narrowed class stays silent either way. It catches the OMISSION (a class
+   DELETED by someone who then opens the app to look at their own change, without knowing to look) and
+   it stops nobody who means it.
+
+   FIXTURE HAZARD — READ BEFORE ADDING OR EDITING A FIXTURE (S41). Six ride a BARE card: no ingredient
+   carries freeze_by, cook_by or a bought-frozen mark, so NO chip fires at all and the ⏱ note is the
+   card's only safety surface — sole-channel by construction, not by argument. The seventh cannot be,
+   because every English phrasing of that directive also matches a neighbouring class; it is isolated
+   by COVERAGE instead — a chip fires and covers the neighbours, leaving its own class the only
+   uncovered one. ANY fixture added or changed here MUST be re-driven for DISCRIMINATION: DELETE that
+   one class and confirm THIS fixture flips — narrowing it will not flip anything, and that is the bound
+   stated above, not a bad fixture. Checking that it is amber is NOT evidence — a plan that
+   routes a protein with no resolvable come-out day trips the ORPHAN HOLD above, which holds every note
+   in the plan unconditionally and yields a permanently-green check wired to nothing.
+   ══════════════════════════════════════════════════════════════════════════════════════════════════ */
+try{
+  // FIXTURE DATA. `note` is a real directive; `carries` names, in food-safety terms, what a household
+  // loses if it goes grey. Nothing below is matched, tested or branched on — it is printed, and that
+  // is all. That is why real food words appear here and in none of the logic that follows it.
+  const _pfDay=(n,ings)=>({day:1,date:'2026-01-05',breakfast:'oats',lunch:'soup',
+    dinner:{name:'Dinner',ingredients:ings,cost_per_serving:3,servings:4,
+            source_site:'x',source_url:null,perishability_note:n}});
+  const _pfItem={item:'salmon fillets',quantity:'1 lb',protein_state:'purchased_frozen',shelf_life_tier:3};
+  const _pfBare=(n)=>[_pfDay(n,[])];
+  const _pfCovered=(n)=>[{..._pfDay(null,[]),day:2,date:'2026-01-06'},
+                         {..._pfDay(n,[_pfItem]),day:3,date:'2026-01-07'}];
+  const _pfCases=[
+    {plan:_pfBare,    note:'The chicken sat out overnight. Do not cook it.',
+     carries:'the discard imperative — the one directive with no safe alternative'},
+    {plan:_pfBare,    note:'Never on the counter, never in hot water.',
+     carries:'the two bans a household improvises past — the counter and the hot tap'},
+    {plan:_pfBare,    note:'Portion and freeze the pork today.',
+     carries:'the day-0 freezer interlock — the move that keeps a day-3 protein safe to cook'},
+    {plan:_pfBare,    note:'Move the turkey to the refrigerator today so it thaws for Sunday.',
+     carries:'the come-out imperative — a household that misses it finds a solid bird at 5pm'},
+    {plan:_pfBare,    note:'If plans changed you may refreeze it uncooked — but only if it came out on its planned day and nothing sat out more than two hours.',
+     carries:'the refreeze permission WITH the scope that makes it safe — stated bare it authorizes what FSIS forbids'},
+    {plan:_pfBare,    note:'The cod keeps 1 to 2 days.',
+     carries:'the post-thaw clock restart — a thawed fillet is a fresh fillet'},
+    {plan:_pfCovered, note:'If the salmon is still solid at dinner, cook it from frozen.',
+     carries:'the recovery move that prevents the reach for the hot tap'},
+  ];
+  // ── LOGIC. Everything from here down is free of food words, class names and safety tokens by
+  //    construction: it supplies a plan, then tests the RENDERED style for one colour. Nothing else.
+  const _pfSlot=/<div style="([^"]*)">⏱ /g;      // the render's shape — not a safety predicate
+  const _pfExpect=/color:var\(--amber\)/;         // the colour expectation — the ONLY test in this block
+  const _pfBad=[];
+  for(const c of _pfCases){
+    const m=[...renderMealCards(c.plan(c.note)).matchAll(_pfSlot)];
+    const style=m.length?m[m.length-1][1]:null;   // absent ≠ amber: a deleted note must FAIL, not pass
+    if(style===null||!_pfExpect.test(style))_pfBad.push({c:c,style:style});
+  }
+  if(_pfBad.length){
+    console.error(`[weekly-feast] P-FLOOR CHECK FAILED — ${_pfBad.length} of ${_pfCases.length} safety classes no longer holds its directive amber.`);
+    for(const b of _pfBad)console.error(
+      `[weekly-feast]   "${b.c.note}"\n`+
+      `                 ${b.style===null?'renders NO ⏱ note at all.':'is DEMOTED to grey narration.'} No chip on that card carries it. It is ${b.c.carries}.\n`+
+      `                 If you just edited the ⏱-note gate, this is your edit. See the S38 fresh-clone ruling (P-FLOOR).`);
+  }
+}catch(_pfErr){
+  // A check that fails to RUN is a check whose silence is indistinguishable from a pass. Say so, then
+  // swallow: the household is not the audience and must not lose a pixel to a maintainer's defect.
+  console.error('[weekly-feast] P-FLOOR CHECK DID NOT RUN — the ⏱-note floor is UNCHECKED in this build, not verified.',_pfErr);
+}
 </script>
 </body>
 </html>
