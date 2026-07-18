@@ -2999,6 +2999,31 @@ function freezeText(p){
   return p.map((x,i)=>`the ${x.i}${i===0?' — meant to go in the freezer on ':' on '}${x.d}`).join(', ');
 }
 function renderMealCards(mp){
+  // 🔴 COMMIT-2. Carrier chips return {html, classes:Set<string>}. `norm` tolerates a bare-string
+  // return so the goldCHIP freeze (which reverts chip COPY to a pre-class base commit) still renders:
+  // a string ⇒ empty class set ⇒ no coverage credit ⇒ fail-toward-hold. At HEAD every carrier returns
+  // the object form; the string path executes ONLY under a copy-reverted source, never in production.
+  const norm=(r)=> (typeof r==='string' ? {html:r, classes:new Set()} : r);
+  // 🔴 ORPHAN HOLD (§5, protein_state-scoped). If a freezer-routed RAW protein (the app's own
+  // isRawProtein) never gets a come-out chip on ANY card, the ⏱ note may be its sole surface — so HOLD
+  // every ⏱ note in the plan rather than risk demoting the one place a routed protein is named. Built on
+  // the app's OWN firing predicates (comeOutDay/inFreezerOn/pfCoherent) so it cannot desync from the
+  // chip it mirrors. VERIFIED INERT (0/5) on live-run-v11 — a load-bearing backstop that fires only on a
+  // corpus where a routed protein's thaw reminder went missing; it ships even though it moves no v11 card.
+  const planHasOrphan=(()=>{
+    for(const z of mp){
+      if(!z||!z.dinner||!Array.isArray(z.dinner.ingredients))continue;
+      for(const x of z.dinner.ingredients){
+        if(!x||!isRawProtein(x))continue;
+        const isPF=pfCoherent(x), isHF=!isPF&&!!x.freeze_by;
+        if(!isPF&&!isHF)continue;                                    // not freezer-routed ⇒ no come-out expected
+        const cod=comeOutDay(x,z.day);
+        const fires=mp.some(w=>w&&w.day===cod&&(isPF||inFreezerOn(x,w.date)));
+        if(!fires)return true;                                       // routed raw protein, no come-out anywhere
+      }
+    }
+    return false;
+  })();
   return `<div class="grid grid-3" style="margin-bottom:24px">${mp.map(day=>{
     const d=day.dinner||{};
     // Non-cook night = placeholder dinner shape: no ingredients, no cost, no source.
@@ -3016,6 +3041,13 @@ function renderMealCards(mp){
       dinnerBlock=`<div style="font-weight:600;color:var(--blue);font-size:12px">${link}</div>
         <div style="font-size:10px;color:var(--fg3);margin-top:2px">${esc(d.source_site)} · $${n2(d.cost_per_serving)}/serving · ${d.servings} servings</div>`;
     }
+    // 🔴 COMMIT-2 CARRIER HOIST. The ⏱-note gate (below) demotes only when every safety class the note
+    // matches is covered by a chip that FIRED on this card, so it must know which chips fired BEFORE it
+    // runs. come-out/freeze1 render before the gate and are captured inline at their slots; plate/pf
+    // render AFTER the gate, so their computation is hoisted here and only their .html is placed downstream.
+    // Each chip DECLARES its own class set beside the copy it emits — coverage is a property of the chip
+    // that fired, never a regex run over the chip's rendered text (which rots on long item names).
+    let comeoutChip={html:'',classes:new Set()}, freeze1Chip={html:'',classes:new Set()}, plateChip={html:'',classes:new Set()}, pfChip={html:'',classes:new Set()};
     return `<div class="card" style="padding:14px">
       <div class="flex justify-between" style="margin-bottom:8px"><span style="font-weight:700;color:#f1f5f9">Day ${day.day}</span><span style="font-size:11px;color:var(--fg3)">${esc(day.date)}</span></div>
       <div style="font-size:11px;color:var(--fg2);margin-bottom:3px"><span style="color:var(--fg3)">B:</span> ${esc(day.breakfast)}</div>
@@ -3030,7 +3062,7 @@ function renderMealCards(mp){
               (no new model field): if TOMORROW's dinner carries a coherent purchased-frozen protein,
               tonight is the come-out night. It leads the card and it is weight-600, because it is
               the only thing on this card that is an ACTION and not a NARRATION. */''}
-        ${(()=>{const due=[],hf=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* S37 NR1 — raw-protein only: no thaw imperative for frozen produce (:270) */const isPF=pfCoherent(x);const isHF=!isPF&&!!x.freeze_by;if(!isPF&&!isHF)continue;if(comeOutDay(x,z.day)!==day.day)continue;if(isHF&&!inFreezerOn(x,day.date))continue;(isPF?due:hf).push(x.item);}}if(!due.length&&!hf.length)return'';
+        ${(comeoutChip=norm((()=>{const due=[],hf=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* S37 NR1 — raw-protein only: no thaw imperative for frozen produce (:270) */const isPF=pfCoherent(x);const isHF=!isPF&&!!x.freeze_by;if(!isPF&&!isHF)continue;if(comeOutDay(x,z.day)!==day.day)continue;if(isHF&&!inFreezerOn(x,day.date))continue;(isPF?due:hf).push(x.item);}}if(!due.length&&!hf.length)return'';
           /* A PURCHASED-frozen pack's freezer state is a property of the PRODUCT — the app may assert it.
              A HOME-frozen one is a HOUSEHOLD ACT the app only ever INSTRUCTED, and THE APP CANNOT SEE THE
              FREEZER (IQ-0256). So the home-frozen items — and ONLY those — carry a conditional qualifier.
@@ -3092,7 +3124,13 @@ function renderMealCards(mp){
                REFREEZE carrier ONLY because this clause is present — reverting it (harness denominator freeze)
                drops the credit and the gate stops demoting those notes (15/19 vs 12/19). */
           const names = esc(andList([...due,...hf]));
-          return `<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 TAKE IT OUT TONIGHT — move ${obj} to the REFRIGERATOR to thaw. Never on the counter, never in hot water. Once thawed, keep the ${names} no more than 1–2 days in the fridge. If plans change, the ${names} may go back in the freezer uncooked — but only after a fridge thaw, and only if nothing sat out more than 2 hours.</div>`;})()}
+          /* R1/R2 clause + its class credit are emitted TOGETHER so a revert of the clause structurally
+             drops the KEEPWIN/REFREEZE credit (gate comment; the 16/19 gate-alone pole vs 13/19 HEAD).
+             come-out is a KEEPWIN+REFREEZE carrier ONLY while this clause is present — and NEVER FREEZE:
+             "out of the freezer" is a LOCATION word, and crediting it would demote a Class-1 sole-channel
+             freeze imperative (the T-F7 regression). */
+          const r1r2=` Once thawed, keep the ${names} no more than 1–2 days in the fridge. If plans change, the ${names} may go back in the freezer uncooked — but only after a fridge thaw, and only if nothing sat out more than 2 hours.`, r1r2Classes=['KEEPWIN','REFREEZE'];
+          return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 TAKE IT OUT TONIGHT — move ${obj} to the REFRIGERATOR to thaw. Never on the counter, never in hot water.${r1r2}</div>`, classes:new Set(['THAW','PROHIB',...r1r2Classes])};})())).html}
         ${/* 🔴 S36 DAY-1 FREEZE CHIP (DURABLE half of AMB-1). Class-1 sole-channel closure: a
               home-frozen fresh raw protein's day-0/day-1 FREEZE imperative had NO structured chip — it
               survived only as buried ⏱ prose (hazard-map B3, OBSERVED N=5 on DEFAULT_PANTRY). This gives
@@ -3101,45 +3139,77 @@ function renderMealCards(mp){
               come-out chip); collision-free with come-out (:2979 strict >), plate-day (:3101), purchased
               (:3102). Same 11px/w600/--amber action register as the come-out chip. Copy = FSIS first-48,
               plan-not-observation, every-item-named (guards the [0]-drop). No schema field. */''}
-        ${(()=>{const fz=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* S37 NR1 — raw-protein only: a frozen vegetable is a quality choice, not a pathogen control (:270) */if(pfCoherent(x)||!x.freeze_by)continue;if(!ISO_DATE.test(String(x.freeze_by))||!ISO_DATE.test(String(day.date)))continue;if(String(day.date)!==String(x.freeze_by))continue;fz.push(x.item);}}
+        ${(freeze1Chip=norm((()=>{const fz=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* S37 NR1 — raw-protein only: a frozen vegetable is a quality choice, not a pathogen control (:270) */if(pfCoherent(x)||!x.freeze_by)continue;if(!ISO_DATE.test(String(x.freeze_by))||!ISO_DATE.test(String(day.date)))continue;if(String(day.date)!==String(x.freeze_by))continue;fz.push(x.item);}}
           const items=[...new Set(fz)]; if(!items.length) return '';
           const pl=items.length>1, subj=pl?"They're":"It's", obj=pl?'them':'it', prot=pl?'fresh raw proteins':'a fresh raw protein', din=pl?'dinners':'a dinner';
-          return `<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 PUT IT IN THE FREEZER TODAY — portion and freeze the ${esc(andList(items))} now. ${subj} for ${din} later this week, and ${prot} won't keep in the fridge past a day or two — freezing ${obj} today is what keeps ${obj} safe to cook then.</div>`;})()}
-        ${/* 🔴 S36 AMBER-WALL DEMOTE + FLOOR GUARD (taxonomy demote + AMB-1 (ii) FLOOR). The ⏱ note is
-              the model's free-text quality/timing/waste NARRATION — 34/35 cards, ~90% of day-card amber,
-              the wall that drowns the genuine imperatives. DEMOTE it 10px/--amber → 11px/--fg2 (6.89:1,
-              AA+AAA) so amber means "act on this". But the demote is CONDITIONAL: AMB-1 was ruled (ii)
-              — the ⏱ note CAN be a sole safety carrier (Class-2 unparseable-weight thaw; and any freeze
-              prose the guard must not declassify). Fail-toward-amber content guard: any freeze/thaw/
-              refrigerate/do-not-cook/never-counter/hot-water match KEEPS it amber (current tier); only
-              pure narration demotes. Uncertain ⇒ amber. This is a LOGIC change reading note content. */''}
-        ${(()=>{if(!d.perishability_note)return'';/* S37 COMMIT-1: HARDENED FLOOR predicate (drain-spec §1.1). Adds froz\w* (bare "frozen"),
-             defrost\w*, curly-apostrophe don't, room temperature, and warm water — the act+prohibited-condition
-             tokens; bare LOCATION/QUALITY nouns (fridge, counter) stay rejected (the act-vs-location ruling). These
-             five tokens are what closes the second-key review's five S36 sole-channel evasions: each one is a real safety
-             directive that the HEAD predicate DEMOTED TO NARRATION. COMMIT-2 REPLACES this boolean with the
-             class-wise gate whose FREEZE/THAW/DNC/PROHIB regexes ARE this predicate's tokens partitioned (plus
-             CFF/KEEPWIN/REFREEZE) — density never un-hardens a floor (food-safety ruling §4, BINDING).
+          return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 PUT IT IN THE FREEZER TODAY — portion and freeze the ${esc(andList(items))} now. ${subj} for ${din} later this week, and ${prot} won't keep in the fridge past a day or two — freezing ${obj} today is what keeps ${obj} safe to cook then.</div>`, classes:new Set(['FREEZE'])};})())).html}
+        ${/* CARRIER CAPTURE (plate/pf). They RENDER after the gate but the gate needs their classes, so
+              they are COMPUTED here and emit nothing (comma operator ⇒ ''); their .html is placed at the
+              render slots below. Kept as inline ${…} expressions — NOT hoisted const statements — so
+              goldCHIP's structural chip-parser reads them the same way it reads the inline come-out/freeze1
+              chips (a hoisted const desyncs that parser; the render output is identical either way). */''}
+        ${(plateChip=norm((()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by&&isRawProtein(x)).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);if(!fbs.length)return'';return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 ${esc(freezeText(fbs))}. If this food never went in the freezer and sat out, do not cook it. If it thawed in the refrigerator as planned and your plans changed, it may go back in the freezer uncooked — but only if nothing sat out more than 2 hours. If it did go in the freezer and is still frozen at dinner, thaw it fast in COLD water — sealed in a leak-proof bag, fully submerged, with fresh cold water every 30 minutes (about 30 minutes per pound) — then cook it right away, and don't refreeze it uncooked. Never thaw on the counter or in warm or hot water.</div>`, classes:new Set(['FREEZE','DNC','PROHIB','REFREEZE'])};})()),'')/* plate: NEVER THAW/KEEPWIN */}
+        ${(pfChip=norm((()=>{const pf=(d.ingredients||[]).filter(pfCoherent).map(x=>x.item);const pl=pf.length>1;return pf.length?{html:`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 bought frozen (${esc(pf.join(', '))}) — keep ${pl?'them':'it'} frozen until ${pl?'their':'its'} thaw day, then thaw in the refrigerator, never on the counter. Once thawed ${pl?'they keep':'it keeps'} 1–2 days.</div>`, classes:new Set(['FREEZE','PROHIB','KEEPWIN'])}:'';})()),'')/* pf: NEVER THAW */}
+        ${/* ══ THE ⏱-NOTE GATE — CLASS-WISE COVERAGE (commit 2). THIS COMMENT IS THE SAFETY CONTROL. ══
+              This repo ships as 3 files with NO in-repo harness; a fresh clone's ONLY guard at this gate is
+              THIS comment (S38 fresh-clone ruling), and a FALSE comment blocks the commit. It states a
+              PROPERTY of the mechanism — the class-regexes below ARE the token enumeration, single-sourced,
+              and are not restated here.
 
-             🔴 DO NOT SOFTEN THIS PREDICATE. Its harness twin is `SAFETY_RE` in t-s36-amberwall.js (search that
-             file for "FLAG 6" — its comment points back here, and this one points there). THE TWIN IS HARDENED
-             TO THIS EXACT LITERAL — verified by grep, not by assertion.
+              THE PROPERTY. The ⏱ note DEMOTES to narration (--fg2) only when EVERY safety class it matches is
+              carried by a chip that FIRED on this same card; if any matched class has no fired carrier, the
+              note HOLDS amber. Equivalently: it holds amber iff it carries at least one safety class that no
+              fired chip on this card carries.
 
-             🔴 AND READ THIS BEFORE YOU TRUST THAT COUPLING, because the sentence that used to sit here was
-             FALSE and shipped anyway. It claimed the twin "is hardened in the SAME commit (FLAG 6)". It was not
-             hardened at all — S37 commit-1 hardened this predicate and left the twin carrying HEAD's literal —
-             and the gate drove the cost: the suite read **30/0 FULLY GREEN on the UN-HARDENED app** and 28/2 on
-             this one. The harness REWARDED reverting this hardening. Nobody ran `grep`.
-             ★ "SAME COMMIT" IS ALSO NOT ACHIEVABLE, AND THAT IS THE PART TO CARRY: the harness is NOT IN THIS
-             REPO — this repo is 3 files (LICENSE, README.md, this file) and the harness lives in an
-             UNVERSIONED directory outside it. NO COMMIT CAN EVER CONTAIN BOTH. A fresh clone has no harness at
-             all, so in a clone this predicate has NO mechanical protection whatsoever — only this comment.
-             ⇒ The thing that actually couples them is `T-FLOOR` in t-s36-amberwall.js, which asserts the five
-             tokens hold five REAL directives AMBER, anchored on the RENDER rather than on any regex — so
-             softening this literal turns it RED even if someone "helpfully" softens SAFETY_RE to match. If you
-             change this literal, change the twin, and re-run t-s36-amberwall.js expecting T-FLOOR to have an
-             opinion. If it does not, the tooth has been defeated and that is the emergency, not the red row. */
-          const perishIsSafety=/\b(?:(?:freez|froz)\w*|thaw\w*|defrost\w*|refrigerat\w*|do ?n['’o]?t cook|never (?:on the )?counter|room temperature|(?:hot|warm) water)\b/i.test(d.perishability_note||'');return `<div style="${perishIsSafety?'font-size:10px;color:var(--amber)':'font-size:11px;color:var(--fg2)'};margin-top:3px">⏱ ${esc(d.perishability_note)}</div>`;})()}
+              WHAT PROTECTS THE MUST-HOLD SET — AND WHAT DOES NOT. It is NOT any come-out/plate disjointness:
+              that claim is FALSE — come-out and plate/pf CO-FIRE on 5 of 35 cards on live-run-v11. The floor
+              is three structurally UNCARRIED classes: CFF (no chip carries cook-from-frozen, by construction —
+              it is a sole-channel recovery directive), and REFREEZE / KEEPWIN before their clause exists in a
+              firing chip. A class with no carrier can never be covered, so a note carrying it can never be
+              demoted — that IS the whole floor.
+
+              TWO WAYS TO VOID IT, BOTH FORBIDDEN: (1) add a carrier for CFF; (2) credit a class to a chip whose
+              rendered copy does not carry it. Class membership is DECLARED by each chip beside the copy it
+              emits (the {html,classes} return), NEVER by a hardcoded list here — so if you revert a chip's
+              clause, its class credit must vanish with it. If it does not, the gate is crediting content that
+              is not on the card, which is the sole-channel loss this gate exists to prevent.
+
+              ITEM-LEAK BOUND (Condition 2). This gate edits ONLY the ⏱ note's style; it never touches a chip's
+              first-order amber directive (do-not-cook / keep-frozen). So a card that credits item Y's chip for
+              item X's restated second-order content (post-thaw keep-window, refreeze permission) at worst
+              demotes a legible slate — it can NEVER strand X's first-order safety, which X's own plate/pf chip
+              carries in amber regardless.
+
+              FLOOR EQUIVALENCE (why replacing the boolean cannot surface LESS safety). The class-regexes on the
+              floor classes (FREEZE/THAW/DNC/PROHIB) reproduce the retired boolean's token partition EXACTLY;
+              CFF/KEEPWIN/REFREEZE add strictly MORE holds. This gate is NOT a superset of the boolean's amber
+              set — it deliberately demotes some floor-token notes the boolean HELD (that is the drain). What it
+              guarantees is the SAFETY direction, not the amber-count direction: it never surfaces LESS safety
+              than the boolean. Every class the boolean would have held is, on every card, either HELD here or
+              carried by a fired amber chip naming that food on the SAME card — a demote happens only when the
+              note is a redundant second-order restatement of a directive already amber on the card, and there
+              is ZERO sole-channel strand across the corpus (food-safety ruling §4, BINDING). */''}
+        ${(()=>{if(!d.perishability_note)return'';
+          const note=d.perishability_note;
+          // 7-CLASS SAFETY MAP (regexes = the FLOOR tokens partitioned by act + CFF/KEEPWIN/REFREEZE; single-sourced).
+          const CLASS_RE={
+            CFF:/\b(?:from frozen|straight from frozen|cook it from frozen|without thawing)\b/i,
+            KEEPWIN:/\bkeeps?\b[^.]{0,40}\b\d+\s*(?:to|[–-])\s*\d+\s*(?:more\s+)?days?\b/i,
+            REFREEZE:/\b(?:refreez\w*|refroz\w*|back in the freezer|return (?:it|them) to the freezer)\b/i,
+            THAW:/\b(?:thaw\w*|defrost\w*|refrigerat\w*)\b/i,
+            FREEZE:/\b(?:freez|froz)\w*\b/i,
+            DNC:/\bdo ?n['’o]?t cook\b/i,
+            PROHIB:/\b(?:never (?:on the )?counter|room temperature|(?:hot|warm) water)\b/i,
+          };
+          const matched=[];for(const c in CLASS_RE)if(CLASS_RE[c].test(note))matched.push(c);
+          const keepAll12=(()=>{const a=[...note.matchAll(/\b(\d+)\s*(?:to|[–-])\s*(\d+)\s*(?:more\s+)?days?\b/gi)];return a.length?a.every(m=>m[1]==='1'&&m[2]==='2'):false;})();
+          const fired=new Set([...comeoutChip.classes,...freeze1Chip.classes,...plateChip.classes,...pfChip.classes]);
+          const covered=(c)=> c==='CFF'?false : c==='KEEPWIN'?(fired.has('KEEPWIN')&&keepAll12) : fired.has(c);
+          // DEMOTE iff no orphan hold AND every matched class is covered. matched=∅ (pure narration) ⇒
+          // every() is vacuously true ⇒ DEMOTE — that is the amber-wall drain; do NOT guard on matched.length>0
+          // (that would HOLD pure narration amber, re-erecting the wall). HOLD iff some matched class uncovered.
+          const demote = !planHasOrphan && matched.every(covered);
+          return `<div style="${demote?'font-size:11px;color:var(--fg2)':'font-size:10px;color:var(--amber)'};margin-top:3px">⏱ ${esc(note)}</div>`;})()}
         ${/* 🔴 P1. WAS 10px `--fg3` = 3.71:1 (I recomputed it: #64748b on #161822), BELOW the
               4.5:1 WCAG 2.1 AA 1.4.3 floor. This chip carries the FRESH-protein pathogen deadline — 11 raw
               rows across the five real runs, against the frozen fish's 5 — and it was rendered MORE FAINTLY
@@ -3214,8 +3284,8 @@ function renderMealCards(mp){
                 own rule), so array-length pronouns (pl?'they':'it') are GONE.
                 ⛔ "this food" is THIS chip's device and must stay here: the come-out chip may NOT adopt it, or a
                    co-occurrence card prints two "this food"s with different referents (copy review §2). */''}
-        ${(()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by&&isRawProtein(x)).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);if(!fbs.length)return'';return `<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 ${esc(freezeText(fbs))}. If this food never went in the freezer and sat out, do not cook it. If it thawed in the refrigerator as planned and your plans changed, it may go back in the freezer uncooked — but only if nothing sat out more than 2 hours. If it did go in the freezer and is still frozen at dinner, thaw it fast in COLD water — sealed in a leak-proof bag, fully submerged, with fresh cold water every 30 minutes (about 30 minutes per pound) — then cook it right away, and don't refreeze it uncooked. Never thaw on the counter or in warm or hot water.</div>`;})()}
-        ${(()=>{const pf=(d.ingredients||[]).filter(pfCoherent).map(x=>x.item);const pl=pf.length>1;return pf.length?`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 bought frozen (${esc(pf.join(', '))}) — keep ${pl?'them':'it'} frozen until ${pl?'their':'its'} thaw day, then thaw in the refrigerator, never on the counter. Once thawed ${pl?'they keep':'it keeps'} 1–2 days.</div>`:'';})()}
+        ${plateChip.html}
+        ${pfChip.html}
         ${(()=>{const un=(d.ingredients||[]).filter(x=>x&&!x.cook_by&&!x.freeze_by&&!pfCoherent(x)&&(x.protein_state==='fresh'||x.shelf_life_tier===0||x.shelf_life_tier===1)).map(x=>x.item);const pl=un.length>1;return un.length?`<div style="font-size:10px;color:var(--red);margin-top:3px">⚠ no cook-by or freeze-by date on ${pl?'highly perishable items':'a highly perishable item'} (${esc(un.join(', '))}) — cook ${pl?'them':'it'} within 2 days of shopping, or freeze ${pl?'them':'it'} the day you buy ${pl?'them':'it'}</div>`:'';})()}
         ${d.quality_note?`<div style="font-size:10px;color:#a78bfa;margin-top:3px">★ ${esc(d.quality_note)}</div>`:''}
       </div></div>`}).join('')}</div>`;
