@@ -3191,18 +3191,30 @@ function renderMealCards(mp){
               FLOOR EQUIVALENCE (why replacing the boolean cannot surface LESS safety). The class-regexes on the
               floor classes (FREEZE/THAW/DNC/PROHIB) reproduce the retired boolean's token partition EXACTLY;
               CFF/KEEPWIN/REFREEZE add strictly MORE holds. This gate is NOT a superset of the boolean's amber
-              set — it deliberately demotes some floor-token notes the boolean HELD (that is the drain). What it
-              guarantees is the SAFETY direction, not the amber-count direction: it never surfaces LESS safety
-              than the boolean. Every class the boolean would have held is, on every card, either HELD here or
-              carried by a fired amber chip naming that food on the SAME card — a demote happens only when the
-              note is a redundant second-order restatement of a directive already amber on the card, and there
-              is ZERO sole-channel strand across the corpus (food-safety ruling §4, BINDING). */''}
+              set — it deliberately demotes some floor-token notes the boolean HELD (that is the drain).
+              What it guarantees is the SAFETY direction, not the amber-count direction: every class the gate
+              RECOGNISES that the boolean would have held is, on every card, either HELD here or carried by a
+              fired amber chip naming that food on the SAME card. RECOGNISES is load-bearing, and two bounds are
+              named here, not buried. FIRST: before the KEEPWIN broadening (CF1), a keep-window deadline stated
+              WITHOUT the literal keep(s)-token — a food called a 1-2 day item, the last day of a 1-2 day window,
+              a food good through a date — matched NO class, so on a card where no chip fired it went SOLE-CHANNEL
+              and was silently demoted to narration; that was a real loss, not a redundant restatement, and the
+              earlier ZERO-sole-channel claim was false for exactly this subset. CF1 broadens KEEPWIN to recognise
+              that untokened SUBSET (an enumeration, not the polarity: a deadline phrased in no enumerated form
+              still narrates, and closing THAT is not CF1's job), and the P-FLOOR KEEPWIN pole is re-calibrated to
+              an untokened specimen so it actually guards the broadening. SECOND: a keep-window deadline about a
+              HOME-frozen protein on its plate day still has no same-food carrier — the plate chip declares
+              FREEZE/DNC/PROHIB/REFREEZE and never KEEPWIN — so it is discharged CROSS-FOOD by another food's chip
+              and demoted; that cross-food loss remains OPEN until referent-aware coverage (CF2) ships, which this
+              commit does not touch. A demote is correct ONLY where a same-food amber chip already carries the
+              matched class on this card — the intended redundant-restatement drain; the two losses named above
+              are not that, and only the first is closed here. */''}
         ${(()=>{if(!d.perishability_note)return'';
           const note=d.perishability_note;
           // 7-CLASS SAFETY MAP (regexes = the FLOOR tokens partitioned by act + CFF/KEEPWIN/REFREEZE; single-sourced).
           const CLASS_RE={
             CFF:/\b(?:from frozen|straight from frozen|cook it from frozen|without thawing)\b/i,
-            KEEPWIN:/\bkeeps?\b[^.]{0,40}\b\d+\s*(?:to|[–-])\s*\d+\s*(?:more\s+)?days?\b/i,
+            KEEPWIN:/(?:\bkeeps?\b[^.]{0,40}\b\d+\s*(?:to|[–-])\s*\d+\s*(?:more\s+)?days?\b|\b\d+\s*(?:to|[–-])\s*\d+\s*days?\s*(?:item|window|limit)\b|\b(?:last|final)\s+safe\s+day\b|\bgood\s+(?:through|until)\s+(?:\d{4}-\d\d-\d\d|\d+\s*days?\b|(?:mon|tues|wednes|thurs|fri|satur|sun)day\b))/i,
             REFREEZE:/\b(?:refreez\w*|refroz\w*|back in the freezer|return (?:it|them) to the freezer)\b/i,
             THAW:/\b(?:thaw\w*|defrost\w*|refrigerat\w*)\b/i,
             FREEZE:/\b(?:freez|froz)\w*\b/i,
@@ -3982,8 +3994,8 @@ try{
      carries:'the come-out imperative — a household that misses it finds a solid bird at 5pm'},
     {plan:_pfBare,    note:'If plans changed you may refreeze it uncooked — but only if it came out on its planned day and nothing sat out more than two hours.',
      carries:'the refreeze permission WITH the scope that makes it safe — stated bare it authorizes what FSIS forbids'},
-    {plan:_pfBare,    note:'The cod keeps 1 to 2 days.',
-     carries:'the post-thaw clock restart — a thawed fillet is a fresh fillet'},
+    {plan:_pfBare,    note:'This is its last safe day.',
+     carries:'the untokened keep-window deadline (CF1) — a use-by stated with no keep(s)-token, which before CF1 went sole-channel on a bare card'},
     {plan:_pfCovered, note:'If the salmon is still solid at dinner, cook it from frozen.',
      carries:'the recovery move that prevents the reach for the hot tap'},
   ];
