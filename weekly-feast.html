@@ -3276,7 +3276,7 @@ function renderMealCards(mp){
           // 7-CLASS SAFETY MAP (regexes = the FLOOR tokens partitioned by act + CFF/KEEPWIN/REFREEZE; single-sourced).
           const CLASS_RE={
             CFF:/\b(?:from frozen|straight from frozen|cook it from frozen|without thawing)\b/i,
-            KEEPWIN:/(?:\bkeeps?\b[^.]{0,40}\b\d+\s*(?:to|[–-])\s*\d+\s*(?:more\s+)?days?\b|\b\d+\s*(?:to|[–-])\s*\d+\s*days?\s*(?:item|window|limit)\b|\b(?:last|final)\s+safe\s+day\b|\bgood\s+(?:through|until)\s+(?:\d{4}-\d\d-\d\d|\d+\s*days?\b|(?:mon|tues|wednes|thurs|fri|satur|sun)day\b))/i,
+            KEEPWIN:/(?:\bkeeps?\b[^.]*?\b\d+\s*(?:to|[–-])\s*\d+\s*(?:more\s+)?days?\b|\b\d+\s*(?:to|[–-])\s*\d+\s*days?\s*(?:item|window|limit)\b|\b(?:last|final)\s+safe\s+day\b|\bgood\s+(?:through|until)\s+(?:\d{4}-\d\d-\d\d|\d+\s*days?\b|(?:mon|tues|wednes|thurs|fri|satur|sun)day\b))/i,
             REFREEZE:/\b(?:refreez\w*|refroz\w*|back in the freezer|return (?:it|them) to the freezer)\b/i,
             THAW:/\b(?:thaw\w*|defrost\w*|refrigerat\w*)\b/i,
             FREEZE:/\b(?:freez|froz)\w*\b/i,
