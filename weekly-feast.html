@@ -3131,7 +3131,7 @@ function renderMealCards(mp){
              "out of the freezer" is a LOCATION word, and crediting it would demote a Class-1 sole-channel
              freeze imperative (the T-F7 regression). */
           const r1r2=` Once thawed, keep the ${names} no more than 1–2 days in the fridge. If plans change, the ${names} may go back in the freezer uncooked — but only after a fridge thaw, and only if nothing sat out more than 2 hours.`, r1r2Classes=['KEEPWIN','REFREEZE'];
-          return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 TAKE IT OUT TONIGHT — move ${obj} to the REFRIGERATOR to thaw. Never on the counter, never in hot water.${r1r2}</div>`, classes:new Set(['THAW','PROHIB',...r1r2Classes]), foods:new Set([...due,...hf].map(foodKey))};})())).html}
+          return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 TAKE IT OUT TONIGHT — move ${obj} to the REFRIGERATOR to thaw. Never on the counter, never in hot water.${r1r2}</div>`, classes:new Set(['THAW','PROHIB',...r1r2Classes]), foods:new Set([...due,...hf])};})())).html}
         ${/* 🔴 S36 DAY-1 FREEZE CHIP (DURABLE half of AMB-1). Class-1 sole-channel closure: a
               home-frozen fresh raw protein's day-0/day-1 FREEZE imperative had NO structured chip — it
               survived only as buried ⏱ prose (hazard-map B3, OBSERVED N=5 on DEFAULT_PANTRY). This gives
@@ -3143,14 +3143,14 @@ function renderMealCards(mp){
         ${(freeze1Chip=norm((()=>{const fz=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* S37 NR1 — raw-protein only: a frozen vegetable is a quality choice, not a pathogen control (:270) */if(pfCoherent(x)||!x.freeze_by)continue;if(!ISO_DATE.test(String(x.freeze_by))||!ISO_DATE.test(String(day.date)))continue;if(String(day.date)!==String(x.freeze_by))continue;fz.push(x.item);}}
           const items=[...new Set(fz)]; if(!items.length) return '';
           const pl=items.length>1, subj=pl?"They're":"It's", obj=pl?'them':'it', prot=pl?'fresh raw proteins':'a fresh raw protein', din=pl?'dinners':'a dinner';
-          return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 PUT IT IN THE FREEZER TODAY — portion and freeze the ${esc(andList(items))} now. ${subj} for ${din} later this week, and ${prot} won't keep in the fridge past a day or two — freezing ${obj} today is what keeps ${obj} safe to cook then.</div>`, classes:new Set(['FREEZE']), foods:new Set(items.map(foodKey))};})())).html}
+          return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 PUT IT IN THE FREEZER TODAY — portion and freeze the ${esc(andList(items))} now. ${subj} for ${din} later this week, and ${prot} won't keep in the fridge past a day or two — freezing ${obj} today is what keeps ${obj} safe to cook then.</div>`, classes:new Set(['FREEZE']), foods:new Set(items)};})())).html}
         ${/* CARRIER CAPTURE (plate/pf). They RENDER after the gate but the gate needs their classes, so
               they are COMPUTED here and emit nothing (comma operator ⇒ ''); their .html is placed at the
               render slots below. Kept as inline ${…} expressions — NOT hoisted const statements — so
               goldCHIP's structural chip-parser reads them the same way it reads the inline come-out/freeze1
               chips (a hoisted const desyncs that parser; the render output is identical either way). */''}
-        ${(plateChip=norm((()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by&&isRawProtein(x)).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);if(!fbs.length)return'';return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 ${esc(freezeText(fbs))}. If this food never went in the freezer and sat out, do not cook it. If it thawed in the refrigerator as planned and your plans changed, it may go back in the freezer uncooked — but only if nothing sat out more than 2 hours. If it did go in the freezer and is still frozen at dinner, thaw it fast in COLD water — sealed in a leak-proof bag, fully submerged, with fresh cold water every 30 minutes (about 30 minutes per pound) — then cook it right away, and don't refreeze it uncooked. Never thaw on the counter or in warm or hot water.</div>`, classes:new Set(['FREEZE','DNC','PROHIB','REFREEZE']), foods:new Set(fbs.map(x=>foodKey(x.i)))};})()),'')/* plate: NEVER THAW/KEEPWIN */}
-        ${(pfChip=norm((()=>{const pf=(d.ingredients||[]).filter(pfCoherent).map(x=>x.item);const pl=pf.length>1;return pf.length?{html:`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 bought frozen (${esc(pf.join(', '))}) — keep ${pl?'them':'it'} frozen until ${pl?'their':'its'} thaw day, then thaw in the refrigerator, never on the counter. Once thawed ${pl?'they keep':'it keeps'} 1–2 days.</div>`, classes:new Set(['FREEZE','PROHIB','KEEPWIN']), foods:new Set(pf.map(foodKey))}:'';})()),'')/* pf: NEVER THAW */}
+        ${(plateChip=norm((()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by&&isRawProtein(x)).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);if(!fbs.length)return'';return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 ${esc(freezeText(fbs))}. If this food never went in the freezer and sat out, do not cook it. If it thawed in the refrigerator as planned and your plans changed, it may go back in the freezer uncooked — but only if nothing sat out more than 2 hours. If it did go in the freezer and is still frozen at dinner, thaw it fast in COLD water — sealed in a leak-proof bag, fully submerged, with fresh cold water every 30 minutes (about 30 minutes per pound) — then cook it right away, and don't refreeze it uncooked. Never thaw on the counter or in warm or hot water.</div>`, classes:new Set(['FREEZE','DNC','PROHIB','REFREEZE']), foods:new Set(fbs.map(x=>x.i))};})()),'')/* plate: NEVER THAW/KEEPWIN */}
+        ${(pfChip=norm((()=>{const pf=(d.ingredients||[]).filter(pfCoherent).map(x=>x.item);const pl=pf.length>1;return pf.length?{html:`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 bought frozen (${esc(pf.join(', '))}) — keep ${pl?'them':'it'} frozen until ${pl?'their':'its'} thaw day, then thaw in the refrigerator, never on the counter. Once thawed ${pl?'they keep':'it keeps'} 1–2 days.</div>`, classes:new Set(['FREEZE','PROHIB','KEEPWIN']), foods:new Set(pf)}:'';})()),'')/* pf: NEVER THAW */}
         ${/* ══ THE ⏱-NOTE GATE — CLASS-WISE COVERAGE (commit 2). THIS COMMENT IS THE SAFETY CONTROL. ══
               This repo ships as 3 files with NO in-repo harness. A fresh clone's guard at this gate is the
               P-FLOOR assertion at the foot of this script plus THIS comment — and a FALSE comment blocks the
@@ -3202,6 +3202,22 @@ function renderMealCards(mp){
               sole-channel shape measured above. Closing that is not CF2's job, and it is named here rather
               than buried.
 
+              IDENTITY (S45) MOVES THIS PREMISE IN BOTH DIRECTIONS, AND IT IS STILL NOT UNCONDITIONAL.
+              Coverage now compares RAW ITEM STRINGS, not folded match keys: `foodKey` still performs the
+              MATCH and is no longer what is COUNTED. ALIAS DIRECTION — CLOSED. Under the fold, "X FIRES A
+              CHIP" was satisfiable by X's TWIN: a row the producer deliberately distinguished (`chicken
+              thighs` beside `chicken thighs (purchased frozen)`) folded to X's key and lent X its chip.
+              That credit is now refused, so where the premise holds it means what it says. STATE-TRANSITION
+              DIRECTION — A NEW GAP OPENS. Raw-string identity also splits ONE food across ITS OWN state
+              change: X's chip may fire under X's POST-freeze name while the note speaks of X's PRE-freeze
+              name, so the premise can now FAIL for a food that genuinely did fire a chip. That is not
+              hypothetical — it is the measured cause of the one card whose ⏱ note stops demoting under this
+              change (run A day 1; the census is NAMING-DEPENDENT and run-specific, N=5 live-run-v11, an
+              UNDISCHARGED representativeness premise). Both mis-identifications fail toward HOLD, so the
+              direction is safe — but THE BOUND IS NOT UNCONDITIONAL and must not be read as if identity
+              made it so. This change swapped one way of mis-identifying a food for another and bought the
+              safe one; it did not remove the premise.
+
               FLOOR EQUIVALENCE (why replacing the boolean cannot surface LESS safety). The class-regexes on the
               floor classes (FREEZE/THAW/DNC/PROHIB) reproduce the retired boolean's token partition EXACTLY;
               CFF/KEEPWIN/REFREEZE add strictly MORE holds. This gate is NOT a superset of the boolean's amber
@@ -3231,7 +3247,30 @@ function renderMealCards(mp){
               universal test, which can still credit across foods; recognising such a name is open-ended
               referent recognition, the same open problem as open-ended deadline recognition, and closing THAT
               is not CF2's job. A demote is correct ONLY where a same-food amber chip already carries the
-              matched class on this card — the intended redundant-restatement drain. */''}
+              matched class on this card — the intended redundant-restatement drain.
+
+              SAME-FOOD IS NOW THE PRODUCER'S OWN DISTINCTION (S45, read-path only, no contract bump).
+              "The foods it speaks for", "the food it names" and "same-food" above are the RAW ITEM STRING
+              as the plan wrote it, NOT the folded match key. `foodKey` is a deliberately LOSSY matching
+              normalizer — being lossy is how it makes note text match an ingredient — and it had been
+              pressed into service as a primary KEY, where the requirement is the opposite one, injectivity.
+              That is the same category error one level down as the one CF2 itself fixed. `foodKey` still
+              performs the MATCH; it is no longer what is COUNTED. Coverage is strictly FINER than before,
+              so it can only ADD amber, never remove it — that follows from the fold being a function, not
+              from any corpus. ACCEPTED COST, stated here so it is not rediscovered as a defect: two rows the
+              producer wrote differently are two foods, INCLUDING one food written under its own PRE- and
+              POST-freeze names, so the amber rate is model-phrasing-dependent in a new place. This closes
+              the alias half of the referent premise and NEITHER note-side conjunct: a note naming its food
+              by an alternate or partial name still resolves to nothing, and `noteRefOf`'s substring
+              containment still over-resolves. Over-resolution points toward HOLD: it adds referents and
+              `every()` gets harder. Non-resolution does NOT. When a note fails to resolve, the gate quantifies
+              over `cardFoods` — the foods that DID fire a chip — so if the note's real subject fired no chip it
+              is not in the set being checked, and the class can be credited ACROSS FOODS, greying a directive.
+              That is the unsafe direction, it is the same one named eleven lines above ("the universal test,
+              which can still credit across foods"), and it is measured: a cooked-leftover
+              refrigeration-and-room-temperature directive greys on the strength of a come-out chip about
+              frozen raw chicken thighs — a different food on a different hazard clock. Unchanged by this
+              commit: neither created nor closed here. */''}
         ${(()=>{if(!d.perishability_note)return'';
           const note=d.perishability_note;
           // 7-CLASS SAFETY MAP (regexes = the FLOOR tokens partitioned by act + CFF/KEEPWIN/REFREEZE; single-sourced).
@@ -3258,7 +3297,7 @@ function renderMealCards(mp){
             for(let i=0;i<NOTE_SENT.length;i++){ if(!CLASS_RE[c].test(NOTE_SENT[i]))continue;
               const win=' '+foodKey(NOTE_SENT.slice(Math.max(0,i-1),i+1).join(' '))+' ';
               for(const x of (d.ingredients||[])){ if(!x||!x.item)continue;
-                const n=foodKey(x.item); if(n&&win.includes(' '+n+' ')) out.add(n); } }
+                const n=foodKey(x.item); if(n&&win.includes(' '+n+' ')) out.add(x.item); } }
             return out;};
           // Resolve if we can; otherwise quantify over EVERY candidate referent. An empty referent set is
           // an UNPROVEN coverage claim, and `for (f of ∅)` is vacuously true — the same every()-on-empty
