@@ -3179,9 +3179,11 @@ function renderMealCards(mp){
 
               TWO WAYS TO VOID IT, BOTH FORBIDDEN: (1) add a carrier for CFF; (2) credit a class to a chip whose
               rendered copy does not carry it. Class membership is DECLARED by each chip beside the copy it
-              emits (the {html,classes} return), NEVER by a hardcoded list here — so if you revert a chip's
-              clause, its class credit must vanish with it. If it does not, the gate is crediting content that
-              is not on the card, which is the sole-channel loss this gate exists to prevent.
+              emits (the {html, classes, foods} return), NEVER by a hardcoded list here — so if you revert a
+              chip's clause, its class credit must vanish with it. If it does not, the gate is crediting content
+              that is not on the card, which is the sole-channel loss this gate exists to prevent. As of the
+              carrier assertion sited beside chipsFired below, that is no longer only a rule a reader must keep:
+              a fired chip whose copy stops carrying a class it still declares now says so on the console.
 
               ITEM-LEAK BOUND (Condition 2) — AND THE CASE WHERE IT STOPS HOLDING. This gate edits ONLY the
               ⏱ note's style; it never touches a chip's first-order amber directive (do-not-cook /
@@ -3288,6 +3290,40 @@ function renderMealCards(mp){
           // COVERAGE IS Class × Referent. A chip covers a class ONLY for the food that chip names.
           // Each chip DECLARES its foods beside its classes — never regexed off its rendered copy.
           const chipsFired=[comeoutChip,freeze1Chip,plateChip,pfChip].filter(k=>k&&k.html&&k.html.length);
+          /* 🔴 F-K2B — CARRIER CREDIT MUST BE CARRIED BY CARRIER COPY. This is the MECHANISM half of
+             the prohibition stated in prose above: "credit a class to a chip whose rendered copy does not
+             carry it" is one of the TWO WAYS TO VOID IT, BOTH FORBIDDEN. Until this statement existed that
+             prohibition was DISCIPLINE — an adjacent literal and a comment — and nothing executed. For four
+             sessions nothing did.
+             WHAT IT DOES. For every chip that FIRED, every class it DECLARES must be matched by this gate's
+             OWN class-regex map against that chip's OWN rendered copy. It is GENERIC over
+             chipsFired × k.classes and names no chip and no class, so a ninth carrier added later is covered
+             by construction rather than forgotten. That generality is not tidiness: of the declared credits
+             this corpus produces, most rest on a SINGLE SENTENCE of chip copy, and eight distinct
+             (chip, class) sites across three chips are one trimmed sentence from a stranded deadline.
+             SUBSET, NOT EQUALITY. It walks the chip's DECLARED classes and looks each one up. The reverse
+             would flag deliberate UNDER-declaration, which is safety-POSITIVE here: the come-out copy says
+             "freezer" and the chip declares no freeze-class credit on purpose, because crediting a location
+             word would demote a sole-channel freeze imperative (the T-F7 regression).
+             IT CONSUMES THE MAP ABOVE AND COPIES NO REGEX. A second textual class-regex site in this file
+             disarms the first-match softener the pole suite depends on (14/14 → 11/14) — and it would do so
+             while looking like a pure addition. Do not hoist the map either; the comment above says the
+             class-regexes are BELOW, and a hoist falsifies a shipped safety-control comment.
+             WHAT IT DOES NOT DO. It does not close the hazard. It changes no credit, no coverage, no verdict
+             and no rendered byte, and it cannot throw. It tells a maintainer they broke it. It does not stop
+             them.
+             THE CATCH IS DELIBERATELY NOT SILENT, AND THAT IS THE ONE PLACE THIS BLOCK DEPARTS FROM THE
+             SURROUNDING FILE'S HABIT. Fail-open is a constraint on BEHAVIOUR — do not throw, do not change a
+             verdict, do not change a rendered byte — and an audible handler satisfies every one of those
+             exactly as a silent one does. What a silent handler would add is this: if the copy or the map
+             ever throws, the assertion goes PERMANENTLY QUIET and its quiet is indistinguishable from "no
+             violations found". That is a dead sink and a fabricated zero at once, installed inside the
+             remedy for a sole-channel loss — the precise failure this whole line exists to make visible.
+             The INNER catch is bare on purpose and is the only place a bare catch belongs here: it
+             guarantees the handler itself cannot throw. */
+          try{for(const k of chipsFired){const t=String(k.html).replace(/<[^>]*>/g,' ');
+            for(const c of k.classes){const re=CLASS_RE[c];if(re&&!re.test(t))
+              console.error('[weekly-feast] CARRIER CREDIT UNCARRIED: a fired chip declares safety class '+c+' but its own copy no longer says it — '+t.slice(0,120));}}}catch(e){try{console.error('[weekly-feast] CARRIER ASSERTION ITSELF FAILED — this channel is now SILENT and its silence is NOT a pass: '+(e&&e.message||e));}catch(_){}}
           const cardFoods=new Set(); for(const k of chipsFired) for(const f of k.foods) cardFoods.add(f);
           const carriersOf=(c)=>{const s=new Set();for(const k of chipsFired){if(k.classes.has(c))for(const f of k.foods)s.add(f);}return s;};
           const NOTE_SENT=String(note).split(/(?<=[.!?])\s+/);
