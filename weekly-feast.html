@@ -8,18 +8,29 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
 --bg:#0f1117;--bg2:#161822;--border:#1e2130;--fg:#e2e8f0;--fg2:#94a3b8;
-/* --fg3 IS RETIRED AS A TEXT RANK AND RESOLVES TO --fg2. It was #64748b, which is 3.71:1 on
-   --bg2 — below the 4.5:1 WCAG 2.1 AA 1.4.3 floor — and a driven render at 360px measured
-   478 painted text runs sitting in it, out of 622 that failed the floor. Every failing run on
-   this surface was one of exactly TWO colour tokens and no third; this alias closes the larger
-   of the two at all 69 of its call sites at once, which 69 hand edits could not promise.
-   The call sites are deliberately NOT rewritten: the token name still reads "third rank" and
-   several probes match the literal var(--fg3), so aliasing keeps both honest. A future author
-   reaching for a dimmer grey must define a new token and prove its contrast, not reuse this. */
---fg3:var(--fg2);
-/* --fg4 (#475569) SURVIVES FOR NON-TEXT USE ONLY — disabled-button chrome and the like. It is
-   below the text floor and must never carry prose again. */
---fg4:#475569;
+/* ⛔ --fg3 AND --fg4 ARE BOTH BELOW THE TEXT FLOOR AND NEITHER MAY CARRY PROSE.
+   #64748b is 3.71:1 on --bg2 and #475569 is worse; a driven render at 360px measured 622
+   painted text runs failing the 4.5:1 WCAG 2.1 AA 1.4.3 floor and EVERY ONE of them was one of
+   these two tokens and no third. The cure is at the CALL SITES: every use of either as the
+   colour of text now names --fg2 instead.
+   ⛔ AND THAT IS DELIBERATELY *NOT* DONE BY ALIASING --fg3 TO --fg2, WHICH IS WHAT THIS FILE
+   BRIEFLY DID. An alias keeps the NAME alive while abolishing the register behind it, so a
+   future author writes color:var(--fg2) believing they have chosen a dimmer rank and is
+   silently overruled — a name that makes a false claim at every use, which is worse than a
+   false comment because it is executed rather than read. It also leaves 478 painted text runs
+   held above the floor by ONE line here that reads like a refactor: un-alias it for any
+   reason, including a legitimate wish for a dimmer grey on a NON-text affordance, and all 478
+   regress at once, invisibly, from a site nowhere near the text it governs. Rewritten call
+   sites make each site's compliance LOCAL and un-revertible by accident.
+   (It also broke a safety suite that resolves these tokens by matching a #rrggbb literal and
+   does not walk the cascade. That was the symptom that surfaced this, not the reason for it:
+   the fast remedy was to teach the suite one level of indirection, and the correct one was to
+   stop asking for a register that has been abolished.)
+   WHAT EACH IS STILL FOR: non-text affordances — a border, a rule — and, for --fg4, the text
+   of an INACTIVE control, which WCAG 1.4.3 exempts by name ("part of an inactive user
+   interface component ... no contrast requirement"). Two sites rely on that exemption and say
+   so: .btn:disabled and the sidebar's "soon" label. Everything else was moved. */
+--fg3:#64748b;--fg4:#475569;
 --blue:#38bdf8;--green:#34d399;--amber:#fbbf24;--red:#ef4444;
 --font:'JetBrains Mono','Fira Code','Source Code Pro','Cascadia Code','Consolas',monospace;
 }
@@ -32,7 +43,7 @@ a{color:var(--blue);text-decoration:none}
 #sidebar{width:210px;min-width:210px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 0;overflow-y:auto}
 #sidebar .logo{padding:0 16px 20px;border-bottom:1px solid var(--border);margin-bottom:8px}
 #sidebar .logo h1{font-size:15px;font-weight:700;color:#f1f5f9;letter-spacing:.5px;margin:0}
-#sidebar .logo .sub{font-size:10px;color:var(--fg3);margin-top:2px}
+#sidebar .logo .sub{font-size:10px;color:var(--fg2);margin-top:2px}
 .nav-btn{display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--fg2);cursor:pointer;font-size:12px;text-align:left;border-left:2px solid transparent;width:100%;font-family:var(--font);min-height:44px}
 .nav-btn:hover{background:#1e293b22}
 .nav-btn.active{background:#1e293b;color:var(--blue);border-left-color:var(--blue)}
@@ -45,7 +56,7 @@ a{color:var(--blue);text-decoration:none}
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px}
 .section-title{margin-bottom:20px}
 .section-title h2{font-size:18px;font-weight:700;color:#f1f5f9;margin:0}
-.section-title .sub{font-size:11px;color:var(--fg3);margin-top:4px}
+.section-title .sub{font-size:11px;color:var(--fg2);margin-top:4px}
 .btn{padding:7px 14px;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-family:var(--font);color:var(--fg);transition:background .15s;min-height:44px}
 .btn:disabled{background:#1e293b!important;color:var(--fg4)!important;cursor:not-allowed}
 .btn-default{background:#1e293b}.btn-default:hover:not(:disabled){background:#334155}
@@ -107,7 +118,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 /* The disclosure teaser's own rule lives HERE, not in a style attribute, because an inline
    declaration outranks an id selector and the phone-only unclip below could not reach it. Same
    values it always had; only the carrier moved. */
-#whyplan-teaser{color:var(--fg3);font-size:11px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#whyplan-teaser{color:var(--fg2);font-size:11px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #toast{position:fixed;top:16px;right:16px;background:#166534;color:#bbf7d0;padding:10px 20px;border-radius:6px;font-size:12px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.4);display:none;max-width:300px}
 #toast.show{display:block;animation:fadeInOut 2.5s ease}
 @keyframes fadeInOut{0%{opacity:0;transform:translateY(-8px)}10%{opacity:1;transform:translateY(0)}80%{opacity:1}100%{opacity:0}}
@@ -623,7 +634,7 @@ function surfaceSaveFailure(){
   b.id='save-warning';
   b.setAttribute('role','alert');
   b.style.cssText='position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:10000;max-width:520px;width:calc(100% - 32px);display:flex;align-items:flex-start;gap:10px;background:#1c1206;border:1px solid #92400e;border-radius:6px;padding:12px 14px;font-size:12px;color:#fde68a;box-shadow:0 4px 12px rgba(0,0,0,.4)';
-  b.innerHTML='<span style="font-size:16px;flex-shrink:0">⚠</span><div style="flex:1;line-height:1.5"><strong style="color:var(--amber)">Data may not be saved.</strong> Your browser blocked local storage (it may be full, or private-browsing mode is on). Recent changes could be lost when you close this tab — export a backup from Preferences → Export All Data.</div><button aria-label="Dismiss warning" onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--fg3);cursor:pointer;font-size:18px;line-height:1;padding:2px 4px;flex-shrink:0">×</button>';
+  b.innerHTML='<span style="font-size:16px;flex-shrink:0">⚠</span><div style="flex:1;line-height:1.5"><strong style="color:var(--amber)">Data may not be saved.</strong> Your browser blocked local storage (it may be full, or private-browsing mode is on). Recent changes could be lost when you close this tab — export a backup from Preferences → Export All Data.</div><button aria-label="Dismiss warning" onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--fg2);cursor:pointer;font-size:18px;line-height:1;padding:2px 4px;flex-shrink:0">×</button>';
   document.body.appendChild(b);
 }
 const genId=()=>Math.random().toString(36).slice(2,10);
@@ -1995,8 +2006,8 @@ function pwBuildModel(){
 
 // One muted building-history row (1-2 weeks; never a band, colour, or stock-up note).
 function pwBuildingRow(b){
-  if(b.weeks===1) return `<div style="font-size:12px;color:var(--fg3);padding:4px 0"><span style="color:var(--fg2)">${esc(b.display)}</span> · first recorded price $${n2(b.min)}</div>`;
-  return `<div style="font-size:12px;color:var(--fg3);padding:4px 0"><span style="color:var(--fg2)">${esc(b.display)}</span> · $${n2(b.min)}–$${n2(b.max)} over 2 weeks · not enough for a trend yet</div>`;
+  if(b.weeks===1) return `<div style="font-size:12px;color:var(--fg2);padding:4px 0"><span style="color:var(--fg2)">${esc(b.display)}</span> · first recorded price $${n2(b.min)}</div>`;
+  return `<div style="font-size:12px;color:var(--fg2);padding:4px 0"><span style="color:var(--fg2)">${esc(b.display)}</span> · $${n2(b.min)}–$${n2(b.max)} over 2 weeks · not enough for a trend yet</div>`;
 }
 
 // One ranked watch card (§4b-4e). No coloured border, ever; colour appears only on the
@@ -2012,21 +2023,21 @@ function pwCard(m){
   }else if(m.fireFreeze){
     note=`<div style="font-size:11px;line-height:1.5;color:var(--fg2);margin-top:8px"><span style="color:var(--green)">❄</span> Rare low on a freezable cut — buy extra and freeze the surplus.</div>`;
   }else if(m.trendHold){
-    note=`<div style="font-size:11px;line-height:1.5;color:var(--fg3);margin-top:8px"><span style="color:var(--fg3)">●</span> At your low, but still falling — no rush.</div>`;
+    note=`<div style="font-size:11px;line-height:1.5;color:var(--fg2);margin-top:8px"><span style="color:var(--fg2)">●</span> At your low, but still falling — no rush.</div>`;
   }else if(m.freshNote){
-    note=`<div style="font-size:11px;color:var(--fg3);margin-top:8px">Good week to buy it fresh.</div>`;
+    note=`<div style="font-size:11px;color:var(--fg2);margin-top:8px">Good week to buy it fresh.</div>`;
   }
   return `<div class="card" style="padding:14px;max-width:640px">
     <div class="flex justify-between items-center">
       <span style="font-weight:600;color:var(--fg);font-size:13px">${esc(m.display)}</span>
-      <span style="font-size:11px;color:var(--fg3);white-space:nowrap">${m.weeks} weeks</span>
+      <span style="font-size:11px;color:var(--fg2);white-space:nowrap">${m.weeks} weeks</span>
     </div>
     <div style="margin-top:6px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
       <span style="font-size:16px;font-weight:700;color:${d.color}">${d.caret} $${n2(m.latest)}</span>
       <span style="font-size:12px;color:${d.color}">${d.phrase}</span>
-      ${d.mag&&(m.storeMode==='perstore'?m.storeWeeks>=5:m.weeks>=5)?`<span style="font-size:11px;color:var(--fg3)">${d.mag}</span>`:''}
+      ${d.mag&&(m.storeMode==='perstore'?m.storeWeeks>=5:m.weeks>=5)?`<span style="font-size:11px;color:var(--fg2)">${d.mag}</span>`:''}
     </div>
-    <div style="font-size:11px;color:var(--fg3);margin-top:8px">low $${n2(m.min)}${m.lowStore?` <span style="color:var(--fg4)">(${esc(m.lowStore)})</span>`:''} · typ $${n2(m.storeMode==='perstore'?m.storeTypical:m.median)} · high $${n2(m.max)}</div>
+    <div style="font-size:11px;color:var(--fg2);margin-top:8px">low $${n2(m.min)}${m.lowStore?` <span style="color:var(--fg2)">(${esc(m.lowStore)})</span>`:''} · typ $${n2(m.storeMode==='perstore'?m.storeTypical:m.median)} · high $${n2(m.max)}</div>
     ${bandBar}
     ${note}
   </div>`;
@@ -2068,7 +2079,7 @@ function renderPriceWatch(){
     return header+exp+panel+rows;
   }
   // State D — populated: quiet legend, ranked cards, then any building-history tail.
-  const legend=`<div style="font-size:10px;color:var(--fg3);margin:-8px 0 16px;display:flex;gap:14px;flex-wrap:wrap"><span style="color:var(--green)">▾ at/below your low</span><span>▾ below typical</span><span style="color:var(--amber)">▴ above typical</span></div>`;
+  const legend=`<div style="font-size:10px;color:var(--fg2);margin:-8px 0 16px;display:flex;gap:14px;flex-wrap:wrap"><span style="color:var(--green)">▾ at/below your low</span><span>▾ below typical</span><span style="color:var(--amber)">▴ above typical</span></div>`;
   const cards=model.ranked.map(pwCard).join('');
   const buildingBlock=model.building.length
     ? `<div class="section-title" style="margin-top:20px"><h2 style="font-size:14px">Building your record</h2><div class="sub">Items with fewer than 3 confirmed weeks — no trend yet.</div></div><div class="card">${model.building.map(pwBuildingRow).join('')}</div>`
@@ -2149,7 +2160,7 @@ function renderRecoveryPanel(err){
       <div style="flex:1">
         <div style="font-size:14px;font-weight:700;color:var(--amber);margin-bottom:6px">This screen couldn't be displayed</div>
         <div style="font-size:12px;color:#fde68a;line-height:1.6;margin-bottom:10px">Some of your saved data looks malformed, so this view failed to render. Your other data is untouched. Try switching to another screen, or reset this app's data to clear the bad state (this only clears weekly-feast's own storage).</div>
-        <div style="font-size:10px;color:var(--fg3);margin-bottom:14px;word-break:break-word">Details: ${esc(msg)}</div>
+        <div style="font-size:10px;color:var(--fg2);margin-bottom:14px;word-break:break-word">Details: ${esc(msg)}</div>
         <div class="flex gap-8 flex-wrap">
           <button class="btn btn-default" onclick="S.screen='dashboard';render()" style="width:auto">Go to Dashboard</button>
           <button class="btn btn-danger" onclick="resetAppData()" style="width:auto">Reset app data</button>
@@ -2202,7 +2213,7 @@ function renderNextStepPanel(){
   const step1sub=copied?"Copied ✓ — it's on your clipboard.":"The full prompt is ready — hit Copy to Clipboard.";
   return `<div class="card" style="border-color:#0369a133">
     <div style="font-size:14px;font-weight:700;color:#f1f5f9">Next: hand this to Claude</div>
-    <div style="font-size:11px;color:var(--fg3);margin-top:2px;margin-bottom:14px">Three steps to bring your plan back.</div>
+    <div style="font-size:11px;color:var(--fg2);margin-top:2px;margin-bottom:14px">Three steps to bring your plan back.</div>
     <div class="flex gap-10" style="align-items:flex-start;margin-bottom:14px">${stepBadge('1',copied)}<div style="flex:1">
       <div style="font-size:12px;color:var(--fg);font-weight:600">Copy the prompt above.</div>
       <div style="font-size:11px;color:var(--fg2);margin-top:2px;line-height:1.5">${step1sub}</div>
@@ -2232,7 +2243,7 @@ function renderOnboardingExplainer(){
     ${step('1','Prep &amp; generate',"Update your pantry, then generate a prompt tuned to what you have and what's on sale.")}
     ${step('2','Run it in Claude',"Paste the prompt into Claude with web search on. It researches this week's deals and builds your plan. Takes a few minutes.")}
     ${step('3','Import your plan',"Copy Claude's reply back here. You get a store-by-store shopping list and a week of meals.")}
-    <div style="color:var(--fg3);font-size:11px;line-height:1.6;margin-top:6px;margin-bottom:14px">That's the whole loop — about two minutes of your attention on each end, and Claude does the slow part.</div>
+    <div style="color:var(--fg2);font-size:11px;line-height:1.6;margin-top:6px;margin-bottom:14px">That's the whole loop — about two minutes of your attention on each end, and Claude does the slow part.</div>
     <button class="btn btn-default" onclick="dismissOnboarding()" style="width:auto">Got it</button>
   </div>`;
 }
@@ -2249,7 +2260,7 @@ function renderDashboard(){
   if(!plan){
     // Explainer auto-shows on first run (mp:onboarded-v1 unset); "How this works" forces it via S.showOnboarding.
     const showExp=S.showOnboarding||!load(KEYS.onboarded,false);
-    let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8" style="margin-bottom:12px"><div style="font-size:11px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px">Dashboard</div>${reentryBtn()}</div>`;
+    let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8" style="margin-bottom:12px"><div style="font-size:11px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px">Dashboard</div>${reentryBtn()}</div>`;
     if(showExp)h+=renderOnboardingExplainer();
     h+=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:46vh;text-align:center">
       <div style="font-size:48px;margin-bottom:16px;opacity:.3">◉</div>
@@ -2274,10 +2285,10 @@ function renderDashboard(){
 
   // Cost summary
   h+=`<div class="card flex gap-24 items-center flex-wrap">
-    <div><div style="font-size:11px;color:var(--fg3);text-transform:uppercase">Total Estimated</div><div style="font-size:22px;font-weight:700;color:var(--blue)">$${n2(cs.total_estimated)}</div></div>
-    <div><div style="font-size:11px;color:var(--fg3);text-transform:uppercase">Per Person / Day</div><div style="font-size:22px;font-weight:700;color:var(--green)">$${n2(cs.per_person_per_day)}</div></div>
-    ${cs.by_store?Object.entries(cs.by_store).map(([s,a])=>`<div><div style="font-size:11px;color:var(--fg3)">${esc(s)}</div><div style="font-size:14px;font-weight:600;color:var(--fg2)">$${n2(a)}</div></div>`).join(''):''}
-    ${(conf.length||est.length)?`<div style="width:100%;padding-top:6px;border-top:1px solid var(--border);font-size:11px;color:var(--fg3)">${conf.length?'Confirmed: '+esc(conf.join(', ')):''}${conf.length&&est.length?' · ':''}${est.length?'<span style="color:var(--amber)">Estimated: '+esc(est.join(', '))+'</span>':''}</div>`:''}
+    <div><div style="font-size:11px;color:var(--fg2);text-transform:uppercase">Total Estimated</div><div style="font-size:22px;font-weight:700;color:var(--blue)">$${n2(cs.total_estimated)}</div></div>
+    <div><div style="font-size:11px;color:var(--fg2);text-transform:uppercase">Per Person / Day</div><div style="font-size:22px;font-weight:700;color:var(--green)">$${n2(cs.per_person_per_day)}</div></div>
+    ${cs.by_store?Object.entries(cs.by_store).map(([s,a])=>`<div><div style="font-size:11px;color:var(--fg2)">${esc(s)}</div><div style="font-size:14px;font-weight:600;color:var(--fg2)">$${n2(a)}</div></div>`).join(''):''}
+    ${(conf.length||est.length)?`<div style="width:100%;padding-top:6px;border-top:1px solid var(--border);font-size:11px;color:var(--fg2)">${conf.length?'Confirmed: '+esc(conf.join(', ')):''}${conf.length&&est.length?' · ':''}${est.length?'<span style="color:var(--amber)">Estimated: '+esc(est.join(', '))+'</span>':''}</div>`:''}
   </div>`;
 
   // Weekly nutrition — plain informational line (MyPlate weekly frame). Minimal by
@@ -2290,7 +2301,7 @@ function renderDashboard(){
     bits.push('Produce ~half the plate: '+(ns.produce_half_plate?'yes':'no'));
     const sf=Array.isArray(ns.shortfalls)?ns.shortfalls.filter(x=>x!=null&&String(x).trim()):[];
     const sfHtml=sf.length?`<div style="color:var(--amber);font-weight:600;margin-top:6px">⚠ Nutrition shortfalls this week:</div>${sf.map(x=>`<div style="color:#fde68a;margin-top:2px">• ${esc(String(x))}</div>`).join('')}`:'';
-    h+=`<div class="card" style="padding:12px 16px"><div style="font-size:11px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Weekly nutrition (MyPlate frame — general guidance)</div><div style="font-size:11px;color:var(--fg2);line-height:1.6">${bits.join(' · ')}${sfHtml}${ns.notes?`<div style="color:var(--fg3);margin-top:3px">${esc(ns.notes)}</div>`:''}</div></div>`;
+    h+=`<div class="card" style="padding:12px 16px"><div style="font-size:11px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Weekly nutrition (MyPlate frame — general guidance)</div><div style="font-size:11px;color:var(--fg2);line-height:1.6">${bits.join(' · ')}${sfHtml}${ns.notes?`<div style="color:var(--fg2);margin-top:3px">${esc(ns.notes)}</div>`:''}</div></div>`;
   }
 
   // Shopping list first on both mobile and desktop — it's the active working area
@@ -2325,7 +2336,7 @@ function renderWhyPlanCard(plan){
   }
   return `<div class="card" style="border-color:var(--border)">
     <div id="whyplan-header" role="button" tabindex="0" aria-expanded="${open?'true':'false'}" onclick="S.whyPlanOpen=!S.whyPlanOpen;render()" style="display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer">
-      <span style="color:var(--fg3);font-size:12px;flex-shrink:0">${chev}</span>
+      <span style="color:var(--fg2);font-size:12px;flex-shrink:0">${chev}</span>
       <span style="color:var(--fg2);font-size:12px;font-weight:600;flex-shrink:0">Why this plan</span>
       ${teaserHtml}
     </div>
@@ -2446,9 +2457,9 @@ function renderWasteRecorded(d,state){
   // OFFER on a line that already renders, not a content-push (does not collide with
   // Constraint #12). Never labeled "Log" (points to History, via the data-nav router idiom).
   const onramp=wasteLoggedCount()>=2
-    ?`<button data-nav="consumption" style="background:none;border:none;color:var(--fg3);cursor:pointer;font-size:11px;font-family:var(--font);padding:2px 4px;min-height:32px">· see your waste history →</button>`
+    ?`<button data-nav="consumption" style="background:none;border:none;color:var(--fg2);cursor:pointer;font-size:11px;font-family:var(--font);padding:2px 4px;min-height:32px">· see your waste history →</button>`
     :'';
-  return `<div class="card" style="border-color:var(--border)"><div style="display:flex;align-items:center;gap:6px;min-height:36px;font-size:11px;color:var(--fg3);flex-wrap:wrap"><span>Last week · ${inner} · </span><button onclick="editWaste('${d}')" style="background:none;border:none;color:var(--fg3);text-decoration:underline;cursor:pointer;font-size:11px;font-family:var(--font);padding:2px 4px;min-height:32px">edit</button>${onramp}</div></div>`;
+  return `<div class="card" style="border-color:var(--border)"><div style="display:flex;align-items:center;gap:6px;min-height:36px;font-size:11px;color:var(--fg2);flex-wrap:wrap"><span>Last week · ${inner} · </span><button onclick="editWaste('${d}')" style="background:none;border:none;color:var(--fg2);text-decoration:underline;cursor:pointer;font-size:11px;font-family:var(--font);padding:2px 4px;min-height:32px">edit</button>${onramp}</div></div>`;
 }
 function renderWasteAsk(d,entry){
   const open=S.wasteAddOpen||S.wasteEditing===d;
@@ -2459,22 +2470,22 @@ function renderWasteAsk(d,entry){
     // routes to safe ABSENT, never a fabricated affirmative-zero. Reward = the toast, not fill.
     return `<div class="card" style="border-color:var(--border)">
       <div style="font-size:12px;color:var(--fg2);font-weight:600">Last week</div>
-      <div style="font-size:11px;color:var(--fg3);margin-top:2px">Toss anything you meant to eat?</div>
+      <div style="font-size:11px;color:var(--fg2);margin-top:2px">Toss anything you meant to eat?</div>
       <div class="flex gap-10 items-center flex-wrap" style="margin-top:12px">
         <button onclick="wasteMarkZero('${d}')" style="background:transparent;border:1px solid var(--fg3);border-radius:5px;color:var(--fg2);cursor:pointer;font-size:11px;font-family:var(--font);padding:7px 14px;min-height:40px">Nothing wasted</button>
         <button onclick="wasteOpenAdd('${d}')" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:11px;font-family:var(--font);padding:4px;min-height:40px">Log what we tossed →</button>
-        <button onclick="wasteDismiss('${d}')" style="background:none;border:none;color:var(--fg3);cursor:pointer;font-size:11px;font-family:var(--font);padding:4px;min-height:40px">not now</button>
+        <button onclick="wasteDismiss('${d}')" style="background:none;border:none;color:var(--fg2);cursor:pointer;font-size:11px;font-family:var(--font);padding:4px;min-height:40px">not now</button>
       </div></div>`;
   }
   // Add-mode (expanded) — type-ahead + perishability-ordered tap-chips; NO full-list checklist.
   const plan=entry.plan||{};
   const chips=wasteChips(plan).filter(c=>!S.wasteDraft.some(x=>x._gi===c.gi));  // hide already-added on-list items
   const chipHtml=chips.slice(0,8).map(c=>`<button onclick="wasteAddChip('${d}',${c.gi})" style="background:#1e293b;border:1px solid var(--border);border-radius:14px;color:var(--fg2);cursor:pointer;font-size:11px;font-family:var(--font);padding:5px 12px;min-height:32px;margin:0 6px 6px 0">${esc(c.it.item)}</button>`).join('');
-  const chipBlock=chips.length?`<div style="font-size:9px;color:var(--fg4);margin:8px 0 4px">from last week:</div><div style="display:flex;flex-wrap:wrap">${chipHtml}</div>`:'';
+  const chipBlock=chips.length?`<div style="font-size:9px;color:var(--fg2);margin:8px 0 4px">from last week:</div><div style="display:flex;flex-wrap:wrap">${chipHtml}</div>`:'';
   const draftHtml=S.wasteDraft.map((ln,idx)=>renderWasteDraftLine(ln,idx)).join('');
   return `<div class="card" style="border-color:var(--border)">
     <div style="font-size:12px;color:var(--fg2);font-weight:600">What did you throw out?</div>
-    <div style="font-size:11px;color:var(--fg3);margin-top:2px;margin-bottom:10px">Just the things you meant to eat but tossed.</div>
+    <div style="font-size:11px;color:var(--fg2);margin-top:2px;margin-bottom:10px">Just the things you meant to eat but tossed.</div>
     <input class="inp" id="waste-add-input" placeholder="type an item…" onkeydown="if(event.key==='Enter'){event.preventDefault();wasteAddTyped('${d}')}">
     ${chipBlock}
     ${draftHtml?`<div style="margin-top:10px">${draftHtml}</div>`:''}
@@ -2492,8 +2503,8 @@ function renderWasteDraftLine(ln,idx){
   const priced=(typeof ln.price==='number');
   const dollar=priced?('$'+(ln.price*f).toFixed(2)):'$—';                       // null price → $— (never $0.00)
   const estTag=(priced&&ln.price_type==='estimated')?'<span style="font-size:11px"> (est.)</span>':'';
-  const col=priced?(ln.price_type==='confirmed'?'var(--green)':'var(--amber)'):'var(--fg4)';
-  const offNote=ln._offList?` <span style="font-size:9px;color:var(--fg4)">(not on last week's list)</span>`:'';
+  const col=priced?(ln.price_type==='confirmed'?'var(--green)':'var(--amber)'):'var(--fg2)';
+  const offNote=ln._offList?` <span style="font-size:9px;color:var(--fg2)">(not on last week's list)</span>`:'';
   return `<div class="flex items-center gap-8" style="padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;min-height:40px">
     <span style="flex:1;min-width:110px;font-size:12px;color:var(--fg)">${esc(ln.name)}${offNote}</span>
     ${seg}
@@ -2634,7 +2645,7 @@ function renderWasteEmpty(){
     <div style="font-size:40px;margin-bottom:16px;opacity:.3">📊</div>
     <div class="section-title"><h2>Your waste history will appear here</h2>
       <div class="sub">As you close out each week and log what you tossed, this page shows the money you could keep, and the items worth buying less of.</div></div>
-    <div style="margin-top:8px"><button data-nav="dashboard" style="background:none;border:none;color:var(--fg3);text-decoration:underline;cursor:pointer;font-size:12px;font-family:var(--font);min-height:44px;padding:4px">Back to this week's plan</button></div>
+    <div style="margin-top:8px"><button data-nav="dashboard" style="background:none;border:none;color:var(--fg2);text-decoration:underline;cursor:pointer;font-size:12px;font-family:var(--font);min-height:44px;padding:4px">Back to this week's plan</button></div>
   </div>`;
 }
 // N=1 single-week state (D1-floor-3 / C4): show the one week honestly,
@@ -2656,7 +2667,7 @@ function renderWasteOneWeek(agg){
   }
   return `<div class="card">
     <div style="font-size:13px;color:var(--fg2);line-height:1.6">${body}</div>
-    <div style="font-size:11px;color:var(--fg3);margin-top:8px">Once you've logged another week, this page shows your weekly amount and the items worth buying less of.</div>
+    <div style="font-size:11px;color:var(--fg2);margin-top:8px">Once you've logged another week, this page shows your weekly amount and the items worth buying less of.</div>
   </div>`;
 }
 // N≥2, every logged week an affirmative-zero (D2-ii / D7 / WATCH-BQ4): acknowledge
@@ -2665,7 +2676,7 @@ function renderWasteOneWeek(agg){
 function renderWasteAllClean(agg){
   return `<div class="card">
     <div style="font-size:13px;color:var(--fg2);line-height:1.6">You marked nothing wasted across the ${agg.n} weeks you logged.</div>
-    <div style="font-size:11px;color:var(--fg3);margin-top:8px">When a week does have something you tossed, your weekly amount and the items worth buying less of show up here.</div>
+    <div style="font-size:11px;color:var(--fg2);margin-top:8px">When a week does have something you tossed, your weekly amount and the items worth buying less of show up here.</div>
   </div>`;
 }
 // The money HOOK (A2 / U1/U2): the per-logged-week absolute-$ RATE as a
@@ -2692,7 +2703,7 @@ function renderWasteRate(agg){
   const unp=(agg.unpricedCount>0)?` · + ${agg.unpricedCount} we couldn't price`:'';   // unpriced = events, never dollars (D4)
   const estWord=(agg.estimated&&agg.pricedCount>0)?', partly estimated':'';
   return `<div class="card">
-    <div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Money you could keep</div>
+    <div style="font-size:10px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Money you could keep</div>
     <div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap">${figure}</div>
     <div style="font-size:13px;font-weight:400;color:var(--fg2);margin-top:4px;line-height:1.5">${prov}${recency}${unp}${estWord}</div>
   </div>`;
@@ -2709,7 +2720,7 @@ function renderWasteOffenders(agg){
     const clause=o.weeks>=3?'in several of your logged weeks':'in more than one of your logged weeks';   // coarse band, never a verified exact count (D3/C5)
     return `<div style="display:flex;align-items:baseline;gap:8px;padding:5px 0;flex-wrap:wrap">
       <span style="font-size:13px;color:var(--fg)">${esc(o.display)}</span>
-      <span style="font-size:11px;color:var(--fg3)">· ${clause}</span>
+      <span style="font-size:11px;color:var(--fg2)">· ${clause}</span>
     </div>`;
   }).join('');
   return `<div class="card">
@@ -3130,7 +3141,7 @@ function renderMealCards(mp){
     // that fired, never a regex run over the chip's rendered text (which rots on long item names).
     let comeoutChip={html:'',classes:new Set()}, freeze1Chip={html:'',classes:new Set()}, plateChip={html:'',classes:new Set()}, pfChip={html:'',classes:new Set()};
     return `<div class="card" style="padding:14px">
-      <div class="flex justify-between" style="margin-bottom:8px"><span style="font-weight:700;color:#f1f5f9">Day ${day.day}</span><span style="font-size:11px;color:var(--fg3)">${esc(day.date)}</span></div>
+      <div class="flex justify-between" style="margin-bottom:8px"><span style="font-weight:700;color:#f1f5f9">Day ${day.day}</span><span style="font-size:11px;color:var(--fg2)">${esc(day.date)}</span></div>
       <div style="font-size:12px;color:var(--fg);margin-bottom:3px"><span style="font-size:11px;color:var(--fg2)">B:</span> ${esc(day.breakfast)}</div>
       <div style="font-size:12px;color:var(--fg);margin-bottom:6px"><span style="font-size:11px;color:var(--fg2)">L:</span> ${esc(day.lunch)}</div>
       <div style="border-top:1px solid var(--border);padding-top:6px">
@@ -3533,7 +3544,7 @@ function renderShoppingSection(sl,byStore,cc){
           ${item.notes?`<div class="shop-note">${esc(item.notes)}</div>`:''}
         </div>
         <span class="cat-badge" style="background:${ci.color}18;color:${ci.color}">${ci.label}</span>
-        <span class="shop-qty" style="font-size:11px;color:var(--fg3);min-width:50px;text-align:right">${esc(item.quantity)}</span>
+        <span class="shop-qty" style="font-size:11px;color:var(--fg2);min-width:50px;text-align:right">${esc(item.quantity)}</span>
         <span class="shop-price" style="font-size:11px;color:${item.price_type==='confirmed'?'var(--green)':'var(--amber)'};min-width:60px;text-align:right">$${n2(item.price)}${item.price_type==='estimated'?'<span style="font-size:11px"> (est.)</span>':''}</span>
         <button class="rm-btn" onclick="event.stopPropagation();removeShoppingItem(${item._gi})" title="Remove item">×</button>
       </div>`}).join('')}</div>`).join('')}</div>`;
@@ -3541,7 +3552,7 @@ function renderShoppingSection(sl,byStore,cc){
   if(S.removedShoppingItems.length){
     h+=`<div style="margin-top:12px"><button class="btn btn-default" onclick="S.showRemovedItems=!S.showRemovedItems;render()" style="width:auto;font-size:10px;min-height:32px">${S.showRemovedItems?'Hide':'Show'} removed items (${S.removedShoppingItems.length})</button>`;
     if(S.showRemovedItems){
-      h+=`<div class="card" style="margin-top:8px;opacity:.7">${S.removedShoppingItems.map((item,i)=>`<div class="flex items-center gap-8" style="padding:5px 0;border-bottom:1px solid var(--border);min-height:40px;font-size:12px"><span style="flex:1;text-decoration:line-through;color:var(--fg3)">${esc(item.item)} — ${esc(item.quantity)} — $${n2(item.price)}</span><button class="btn btn-default" onclick="restoreShoppingItem(${i})" style="width:auto;font-size:10px;padding:4px 10px;min-height:28px">Add back</button></div>`).join('')}</div>`;
+      h+=`<div class="card" style="margin-top:8px;opacity:.7">${S.removedShoppingItems.map((item,i)=>`<div class="flex items-center gap-8" style="padding:5px 0;border-bottom:1px solid var(--border);min-height:40px;font-size:12px"><span style="flex:1;text-decoration:line-through;color:var(--fg2)">${esc(item.item)} — ${esc(item.quantity)} — $${n2(item.price)}</span><button class="btn btn-default" onclick="restoreShoppingItem(${i})" style="width:auto;font-size:10px;padding:4px 10px;min-height:28px">Add back</button></div>`).join('')}</div>`;
     }
     h+=`</div>`;
   }
@@ -3560,21 +3571,21 @@ function pantryNumRow(tier,i){
     const label=tier==='tier3'?'+ exact amount':'+ amount';
     return `<div style="margin-top:6px" ${tier==='tier2'?'onclick="event.stopPropagation()"':''}>`
       +`<button onclick="${stop}togglePantryNum('${i.id}')" style="background:transparent;border:none;`
-      +`color:var(--fg4);font-size:10px;cursor:pointer;padding:2px 0;min-height:28px;font-family:var(--font)">${label}</button></div>`;
+      +`color:var(--fg2);font-size:10px;cursor:pointer;padding:2px 0;min-height:28px;font-family:var(--font)">${label}</button></div>`;
   }
   const numField=(field,val,lab,tip)=>`<div style="display:flex;flex-direction:column;gap:2px">`
-    +`<label title="${tip||''}" style="font-size:9px;color:var(--fg3);text-transform:uppercase;letter-spacing:.4px">${lab}</label>`
+    +`<label title="${tip||''}" style="font-size:9px;color:var(--fg2);text-transform:uppercase;letter-spacing:.4px">${lab}</label>`
     +`<input class="inp" inputmode="decimal" aria-label="${lab}" value="${typeof val==='number'?val:''}" placeholder="—" `
     +`style="width:72px" oninput="updatePantryNum('${tier}','${i.id}','${field}',this.value)"></div>`;
   let fields=numField('onHand',i.onHand,'on hand','');
   if(tier==='tier1') fields+=numField('par',i.par,'par','minimum to keep stocked');
   fields+=`<div style="display:flex;flex-direction:column;gap:2px">`
-    +`<label style="font-size:9px;color:var(--fg3);text-transform:uppercase;letter-spacing:.4px">unit</label>`
+    +`<label style="font-size:9px;color:var(--fg2);text-transform:uppercase;letter-spacing:.4px">unit</label>`
     +`<input class="inp" list="wf-units" aria-label="unit" value="${esc(i.unit||'')}" placeholder="unit" `
     +`style="width:92px" oninput="updatePantryUnit('${tier}','${i.id}',this.value)"></div>`;
   // collapse control only while open-but-empty; once data exists the row stays put (never hide live data)
   const collapse=!hasNum?`<button onclick="${stop}togglePantryNum('${i.id}')" style="background:transparent;`
-    +`border:none;color:var(--fg4);font-size:10px;cursor:pointer;align-self:flex-end;min-height:28px;`
+    +`border:none;color:var(--fg2);font-size:10px;cursor:pointer;align-self:flex-end;min-height:28px;`
     +`padding:2px 4px;font-family:var(--font)">hide</button>`:'';
   return `<div class="flex flex-wrap gap-8" ${tier==='tier2'?'onclick="event.stopPropagation()"':''} `
     +`style="margin-top:6px;align-items:flex-end">${fields}${collapse}</div>`;
@@ -3589,11 +3600,11 @@ function renderPantry(){
   h+=`<div class="card flex gap-8 items-center flex-wrap"><input class="inp" id="pantry-name" placeholder="Item name" style="flex:2;min-width:140px"><input class="inp" id="pantry-cat" placeholder="Category (optional)" style="flex:1;min-width:100px"><button class="btn btn-primary" onclick="addPantryItem()" style="width:auto">Add</button></div>`;
   // Per-tier "amounts are optional" helper line — once, under the add-item card, reinforces blank-is-absent.
   const helper={tier1:'Amounts are optional — leave a field blank to plan by status alone.',tier2:'Amounts are optional — leave a field blank to plan by have / need alone.',tier3:'Amounts are optional — leave a field blank to plan by the rough note alone.'};
-  h+=`<div style="font-size:10px;color:var(--fg3);margin:2px 0 12px">${helper[tab]}</div>`;
+  h+=`<div style="font-size:10px;color:var(--fg2);margin:2px 0 12px">${helper[tab]}</div>`;
   if(tab==='tier1'){
-    h+=`<div class="grid grid-2">${p.tier1.map(i=>`<div class="card" style="padding:10px 14px"><div class="flex items-center gap-10"><div style="flex:1"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div></div><button class="status-badge" style="background:${STATUS_COLORS[i.status]}22;color:${STATUS_COLORS[i.status]}" onclick="cycleStatus('${i.id}')">${i.status}</button><button class="rm-btn" onclick="removePantryItem('tier1','${i.id}')">×</button></div>${pantryNumRow('tier1',i)}</div>`).join('')}</div>`;
+    h+=`<div class="grid grid-2">${p.tier1.map(i=>`<div class="card" style="padding:10px 14px"><div class="flex items-center gap-10"><div style="flex:1"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg2)">${esc(i.category)}</div></div><button class="status-badge" style="background:${STATUS_COLORS[i.status]}22;color:${STATUS_COLORS[i.status]}" onclick="cycleStatus('${i.id}')">${i.status}</button><button class="rm-btn" onclick="removePantryItem('tier1','${i.id}')">×</button></div>${pantryNumRow('tier1',i)}</div>`).join('')}</div>`;
   }else if(tab==='tier2'){
-    h+=`<div class="grid grid-2">${p.tier2.map(i=>`<div class="card" style="padding:10px 14px;cursor:pointer" onclick="toggleTier2('${i.id}')"><div class="flex items-center gap-10"><input type="checkbox" ${i.have?'checked':''} style="accent-color:var(--blue);width:18px;height:18px;pointer-events:none"><div style="flex:1"><div style="font-weight:600;font-size:12px;opacity:${i.have?1:.6}">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div></div><span style="font-size:10px;color:${i.have?'var(--green)':'var(--fg3)'}">${i.have?'have':'need'}</span><button class="rm-btn" onclick="event.stopPropagation();removePantryItem('tier2','${i.id}')">×</button></div>${pantryNumRow('tier2',i)}</div>`).join('')}</div>`;
+    h+=`<div class="grid grid-2">${p.tier2.map(i=>`<div class="card" style="padding:10px 14px;cursor:pointer" onclick="toggleTier2('${i.id}')"><div class="flex items-center gap-10"><input type="checkbox" ${i.have?'checked':''} style="accent-color:var(--blue);width:18px;height:18px;pointer-events:none"><div style="flex:1"><div style="font-weight:600;font-size:12px;opacity:${i.have?1:.6}">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg2)">${esc(i.category)}</div></div><span style="font-size:10px;color:${i.have?'var(--green)':'var(--fg2)'}">${i.have?'have':'need'}</span><button class="rm-btn" onclick="event.stopPropagation();removePantryItem('tier2','${i.id}')">×</button></div>${pantryNumRow('tier2',i)}</div>`).join('')}</div>`;
   }else{
     h+=p.tier3.map(i=>{
       const authoritative=typeof i.onHand==='number';
@@ -3601,16 +3612,16 @@ function renderPantry(){
     <div class="flex items-center gap-12 flex-wrap">
       <div style="flex:1;min-width:120px">
         <div style="font-weight:600;font-size:12px">${esc(i.name)}${authoritative?' <span style="font-size:9px;color:var(--green);border:1px solid var(--green);border-radius:8px;padding:1px 6px;vertical-align:middle;text-transform:uppercase;letter-spacing:.4px">exact</span>':''}</div>
-        <div style="font-size:10px;color:var(--fg3)">${esc(i.category)}</div>
+        <div style="font-size:10px;color:var(--fg2)">${esc(i.category)}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:2px;${authoritative?'opacity:.6':''}">
-        ${authoritative?'<label style="font-size:9px;color:var(--fg3);text-transform:uppercase;letter-spacing:.4px">note</label>':''}
+        ${authoritative?'<label style="font-size:9px;color:var(--fg2);text-transform:uppercase;letter-spacing:.4px">note</label>':''}
         <input class="inp" value="${esc(i.quantity)}" placeholder="${authoritative?'estimate note':'e.g., about 2 lbs'}" style="width:180px;max-width:100%" oninput="updateTier3Qty('${i.id}',this.value)">
       </div>
       <button class="rm-btn" onclick="removePantryItem('tier3','${i.id}')">×</button>
     </div>
     ${pantryNumRow('tier3',i)}
-    ${authoritative?'<div style="font-size:9px;color:var(--fg3);margin-top:3px">Exact amount is used for the shopping list; the note is just a reminder.</div>':''}
+    ${authoritative?'<div style="font-size:9px;color:var(--fg2);margin-top:3px">Exact amount is used for the shopping list; the note is just a reminder.</div>':''}
   </div>`;
     }).join('');
   }
@@ -3624,18 +3635,18 @@ function renderReview(){
   h+=`<div class="progress">${[0,1,2].map(i=>`<div class="bar ${i<=step?'active':''}"></div>`).join('')}</div>`;
   h+=`<div class="card">`;
   if(step===0){
-    h+=`<div style="font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:4px">Step 1: Bulk Items (Tier 3)</div><div style="font-size:11px;color:var(--fg3);margin-bottom:14px">How much do you have left of each bulk item?</div>`;
-    if(!p.tier3.length) h+=`<div style="color:var(--fg3);padding:20px">No bulk items tracked.</div>`;
-    else h+=p.tier3.map(i=>`<div class="card flex items-center gap-12 flex-wrap"><div style="min-width:130px"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg3)">was: ${esc(i.quantity||'?')}</div></div><div class="flex gap-4 flex-wrap">${['barely-touched','used-half','used-most','gone'].map(pr=>`<button class="btn btn-default" onclick="quickAdjust('${i.id}','${pr}')" style="width:auto;font-size:10px;padding:4px 8px;min-height:32px">${pr.replace('-',' ')}</button>`).join('')}</div><input class="inp" value="${esc(i.quantity)}" placeholder="Custom" style="width:150px;max-width:100%" oninput="updateTier3Qty('${i.id}',this.value)"></div>`).join('');
+    h+=`<div style="font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:4px">Step 1: Bulk Items (Tier 3)</div><div style="font-size:11px;color:var(--fg2);margin-bottom:14px">How much do you have left of each bulk item?</div>`;
+    if(!p.tier3.length) h+=`<div style="color:var(--fg2);padding:20px">No bulk items tracked.</div>`;
+    else h+=p.tier3.map(i=>`<div class="card flex items-center gap-12 flex-wrap"><div style="min-width:130px"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:var(--fg2)">was: ${esc(i.quantity||'?')}</div></div><div class="flex gap-4 flex-wrap">${['barely-touched','used-half','used-most','gone'].map(pr=>`<button class="btn btn-default" onclick="quickAdjust('${i.id}','${pr}')" style="width:auto;font-size:10px;padding:4px 8px;min-height:32px">${pr.replace('-',' ')}</button>`).join('')}</div><input class="inp" value="${esc(i.quantity)}" placeholder="Custom" style="width:150px;max-width:100%" oninput="updateTier3Qty('${i.id}',this.value)"></div>`).join('');
   }else if(step===1){
-    h+=`<div style="font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:4px">Step 2: Staples Getting Low (Tier 1)</div><div style="font-size:11px;color:var(--fg3);margin-bottom:14px">Did you restock any of these?</div>`;
+    h+=`<div style="font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:4px">Step 2: Staples Getting Low (Tier 1)</div><div style="font-size:11px;color:var(--fg2);margin-bottom:14px">Did you restock any of these?</div>`;
     const low=p.tier1.filter(i=>i.status==='getting-low'||i.status==='out');
-    if(!low.length) h+=`<div style="color:var(--fg3)">All staples are well-stocked. Nothing to review here.</div>`;
+    if(!low.length) h+=`<div style="color:var(--fg2)">All staples are well-stocked. Nothing to review here.</div>`;
     else h+=`<div class="grid grid-2">${low.map(i=>`<div class="card flex items-center gap-10"><div style="flex:1"><div style="font-weight:600;font-size:12px">${esc(i.name)}</div><div style="font-size:10px;color:${STATUS_COLORS[i.status]}">${i.status}</div></div><button class="btn btn-success" onclick="restockItem('${i.id}')" style="width:auto;font-size:10px">Restocked</button></div>`).join('')}</div>`;
   }else{
-    h+=`<div style="font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:4px">Step 3: Weekly Items (Tier 2)</div><div style="font-size:11px;color:var(--fg3);margin-bottom:14px">Check off what you currently have.</div>`;
+    h+=`<div style="font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:4px">Step 3: Weekly Items (Tier 2)</div><div style="font-size:11px;color:var(--fg2);margin-bottom:14px">Check off what you currently have.</div>`;
     h+=`<button class="btn btn-default" onclick="resetTier2()" style="margin-bottom:12px;font-size:10px;width:auto">Reset All to "Don't Have"</button>`;
-    h+=`<div class="grid grid-2">${p.tier2.map(i=>`<div class="card flex items-center gap-10" style="padding:8px 14px;cursor:pointer" onclick="toggleTier2('${i.id}')"><input type="checkbox" ${i.have?'checked':''} style="accent-color:var(--blue);width:18px;height:18px;pointer-events:none"><span style="font-size:12px;color:${i.have?'var(--fg)':'var(--fg3)'}">${esc(i.name)}</span></div>`).join('')}</div>`;
+    h+=`<div class="grid grid-2">${p.tier2.map(i=>`<div class="card flex items-center gap-10" style="padding:8px 14px;cursor:pointer" onclick="toggleTier2('${i.id}')"><input type="checkbox" ${i.have?'checked':''} style="accent-color:var(--blue);width:18px;height:18px;pointer-events:none"><span style="font-size:12px;color:${i.have?'var(--fg)':'var(--fg2)'}">${esc(i.name)}</span></div>`).join('')}</div>`;
   }
   h+=`</div>`;
   h+=`<div class="flex justify-between" style="margin-top:16px;flex-wrap:wrap;gap:8px"><button class="btn btn-default" ${step===0?'disabled':''} onclick="S.reviewStep--;render()" style="width:auto">← Previous</button>`;
@@ -3742,14 +3753,14 @@ function renderGenerate(){
   const prompt=generatePrompt();
   const tokens=Math.round(prompt.length/4);
   let h=`<div class="section-title"><h2>Generate Prompt</h2><div class="sub">Review the generated prompt, then copy and paste into Claude</div></div>`;
-  h+=`<div class="flex gap-12 flex-wrap" style="margin-bottom:16px"><div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Start Date</label><input type="date" class="inp" value="${S.startDate}" onchange="S.startDate=this.value;debouncedSave('startDate',saveStartDate);render()" style="width:150px"></div><div style="flex:1;min-width:200px"><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Special Instructions (optional)</label><input class="inp" value="${esc(S.specialInstructions)}" placeholder="e.g., Include at least 2 vegetarian dinners" oninput="S.specialInstructions=this.value;debouncedSave('specialInstructions',saveSpecialInstructions)"></div></div>`;
+  h+=`<div class="flex gap-12 flex-wrap" style="margin-bottom:16px"><div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Start Date</label><input type="date" class="inp" value="${S.startDate}" onchange="S.startDate=this.value;debouncedSave('startDate',saveStartDate);render()" style="width:150px"></div><div style="flex:1;min-width:200px"><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Special Instructions (optional)</label><input class="inp" value="${esc(S.specialInstructions)}" placeholder="e.g., Include at least 2 vegetarian dinners" oninput="S.specialInstructions=this.value;debouncedSave('specialInstructions',saveSpecialInstructions)"></div></div>`;
   h+=`<div class="card"><div class="flex justify-between items-center flex-wrap gap-6" style="margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:var(--fg2)">${prompt.length.toLocaleString()} chars · ~${tokens.toLocaleString()} tokens</span><div class="flex gap-6 flex-wrap"><button class="btn btn-default" onclick="S.showAnchorEditor=!S.showAnchorEditor;S.showTemplateEditor=false;render()" style="width:auto;font-size:10px;min-height:36px">${S.showAnchorEditor?'Hide':'Edit'} Anchors</button><button class="btn btn-default" onclick="S.showTemplateEditor=!S.showTemplateEditor;S.showAnchorEditor=false;render()" style="width:auto;font-size:10px;min-height:36px">${S.showTemplateEditor?'Hide':'Edit'} Template</button><button class="btn btn-primary" onclick="copyPrompt()" style="width:auto;min-height:36px">Copy to Clipboard</button></div></div><textarea class="inp" readonly style="min-height:300px;font-size:11px">${esc(prompt)}</textarea></div>`;
   // SURFACE 1 — persistent next-step panel: always shown so the loop is discoverable up front.
   h+=renderNextStepPanel();
 
   if(S.showAnchorEditor){
     const cnt=S.anchorRecipes.trim()?S.anchorRecipes.trim().split('\n').filter(l=>l.trim()).length:0;
-    h+=`<div class="card" style="border-color:#0369a133"><div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:4px">Anchor Recipes (Fallback Set)</div><div style="font-size:10px;color:var(--fg3);margin-bottom:10px;line-height:1.5">Fallback recipes Claude uses when dynamic search returns thin results. One per line: Site Name: URL (description).</div><textarea class="inp" style="min-height:150px;font-size:11px" oninput="S.anchorRecipes=this.value;debouncedSave('anchors',saveAnchors)">${esc(S.anchorRecipes)}</textarea><div style="font-size:10px;color:var(--fg3);margin-top:6px">${cnt?cnt+' recipe(s) configured':'No anchor recipes set'}</div></div>`;
+    h+=`<div class="card" style="border-color:#0369a133"><div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:4px">Anchor Recipes (Fallback Set)</div><div style="font-size:10px;color:var(--fg2);margin-bottom:10px;line-height:1.5">Fallback recipes Claude uses when dynamic search returns thin results. One per line: Site Name: URL (description).</div><textarea class="inp" style="min-height:150px;font-size:11px" oninput="S.anchorRecipes=this.value;debouncedSave('anchors',saveAnchors)">${esc(S.anchorRecipes)}</textarea><div style="font-size:10px;color:var(--fg2);margin-top:6px">${cnt?cnt+' recipe(s) configured':'No anchor recipes set'}</div></div>`;
   }
   if(S.showTemplateEditor){
     h+=`<div class="card"><div style="font-size:12px;font-weight:600;color:var(--fg2);margin-bottom:8px">Prompt Template (editable)</div><textarea class="inp" style="min-height:250px;font-size:11px" oninput="S.promptTemplate=this.value;debouncedSave('template',saveTemplate)">${esc(S.promptTemplate)}</textarea><button class="btn btn-default" onclick="S.promptTemplate=DEFAULT_PROMPT_TEMPLATE;saveTemplate();showToast('Template reset');render()" style="margin-top:8px;width:auto;font-size:10px;min-height:32px">Reset to Default</button></div>`;
@@ -3773,40 +3784,40 @@ function renderImport(){
 function renderPreferences(){
   const pr=S.prefs,hh=S.household;
   function tags(items,list,color){
-    if(!items.length) return '<span style="font-size:11px;color:var(--fg4)">None set</span>';
+    if(!items.length) return '<span style="font-size:11px;color:var(--fg2)">None set</span>';
     return items.map((t,i)=>`<span class="tag" style="background:${color}18;color:${color};border:1px solid ${color}33">${esc(t)}<button style="color:${color}" onclick="removePrefsItem('${list}',${i})">×</button></span>`).join('');
   }
   let h=`<div class="section-title"><h2>Preferences & Configuration</h2><div class="sub">Manage dietary restrictions, household size, and planning preferences</div></div>`;
 
   // Allergies
-  h+=`<div class="card" style="border-color:#991b1b30"><div class="flex items-center gap-6" style="margin-bottom:8px"><span style="color:var(--red);font-size:14px">⚠</span><span style="font-weight:700;font-size:13px;color:#fca5a5">Allergies (Hard Exclusions)</span></div><div style="font-size:11px;color:var(--fg3);margin-bottom:8px">These ingredients will NEVER appear in any recipe. Adding requires confirmation.</div><div class="flex flex-wrap gap-6" style="margin-bottom:10px">${tags(pr.allergies,'allergies','#ef4444')}</div><div class="flex gap-8 flex-wrap"><input class="inp" id="new-allergy" placeholder="e.g., Peanuts" style="width:200px;max-width:100%"><button class="btn btn-danger" onclick="startAddAllergy()" style="width:auto">Add Allergy</button></div>${S.confirmAllergy?`<div style="margin-top:10px;padding:10px;background:#1a0505;border:1px solid #991b1b;border-radius:6px"><div style="font-size:12px;color:#fca5a5;margin-bottom:8px">Confirm: add "${esc(S.confirmAllergy)}" as a HARD exclusion?</div><div class="flex gap-8"><button class="btn btn-danger" onclick="confirmAllergy()" style="width:auto">Confirm</button><button class="btn btn-default" onclick="S.confirmAllergy=null;render()" style="width:auto">Cancel</button></div></div>`:''}</div>`;
+  h+=`<div class="card" style="border-color:#991b1b30"><div class="flex items-center gap-6" style="margin-bottom:8px"><span style="color:var(--red);font-size:14px">⚠</span><span style="font-weight:700;font-size:13px;color:#fca5a5">Allergies (Hard Exclusions)</span></div><div style="font-size:11px;color:var(--fg2);margin-bottom:8px">These ingredients will NEVER appear in any recipe. Adding requires confirmation.</div><div class="flex flex-wrap gap-6" style="margin-bottom:10px">${tags(pr.allergies,'allergies','#ef4444')}</div><div class="flex gap-8 flex-wrap"><input class="inp" id="new-allergy" placeholder="e.g., Peanuts" style="width:200px;max-width:100%"><button class="btn btn-danger" onclick="startAddAllergy()" style="width:auto">Add Allergy</button></div>${S.confirmAllergy?`<div style="margin-top:10px;padding:10px;background:#1a0505;border:1px solid #991b1b;border-radius:6px"><div style="font-size:12px;color:#fca5a5;margin-bottom:8px">Confirm: add "${esc(S.confirmAllergy)}" as a HARD exclusion?</div><div class="flex gap-8"><button class="btn btn-danger" onclick="confirmAllergy()" style="width:auto">Confirm</button><button class="btn btn-default" onclick="S.confirmAllergy=null;render()" style="width:auto">Cancel</button></div></div>`:''}</div>`;
 
   // Dislikes
-  h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--amber);margin-bottom:6px">Dislikes (Soft Exclusions)</div><div style="font-size:11px;color:var(--fg3);margin-bottom:8px">Avoided when possible but may appear occasionally.</div><div class="flex flex-wrap gap-6" style="margin-bottom:10px">${tags(pr.dislikes,'dislikes','#fbbf24')}</div><div class="flex gap-8 flex-wrap"><input class="inp" id="new-dislike" placeholder="e.g., Mushrooms" style="width:200px;max-width:100%"><button class="btn btn-default" onclick="addDislike()" style="width:auto">Add Dislike</button></div></div>`;
+  h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--amber);margin-bottom:6px">Dislikes (Soft Exclusions)</div><div style="font-size:11px;color:var(--fg2);margin-bottom:8px">Avoided when possible but may appear occasionally.</div><div class="flex flex-wrap gap-6" style="margin-bottom:10px">${tags(pr.dislikes,'dislikes','#fbbf24')}</div><div class="flex gap-8 flex-wrap"><input class="inp" id="new-dislike" placeholder="e.g., Mushrooms" style="width:200px;max-width:100%"><button class="btn btn-default" onclick="addDislike()" style="width:auto">Add Dislike</button></div></div>`;
 
   // Positives
-  h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--green);margin-bottom:6px">Positive Preferences</div><div style="font-size:11px;color:var(--fg3);margin-bottom:8px">Cuisines, styles, or ingredients you enjoy.</div><div class="flex flex-wrap gap-6" style="margin-bottom:10px">${tags(pr.positives,'positives','#34d399')}</div><div class="flex gap-8 flex-wrap"><input class="inp" id="new-pref" placeholder="e.g., Thai food" style="width:200px;max-width:100%"><button class="btn btn-success" onclick="addPositivePref()" style="width:auto">Add Preference</button></div></div>`;
+  h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--green);margin-bottom:6px">Positive Preferences</div><div style="font-size:11px;color:var(--fg2);margin-bottom:8px">Cuisines, styles, or ingredients you enjoy.</div><div class="flex flex-wrap gap-6" style="margin-bottom:10px">${tags(pr.positives,'positives','#34d399')}</div><div class="flex gap-8 flex-wrap"><input class="inp" id="new-pref" placeholder="e.g., Thai food" style="width:200px;max-width:100%"><button class="btn btn-success" onclick="addPositivePref()" style="width:auto">Add Preference</button></div></div>`;
 
   // Anchor recipes
   const acnt=S.anchorRecipes.trim()?S.anchorRecipes.trim().split('\n').filter(l=>l.trim()).length:0;
-  h+=`<div class="card" style="border-color:#0369a133"><div style="font-weight:700;font-size:13px;color:var(--blue);margin-bottom:6px">Anchor Recipes (Fallback Set)</div><div style="font-size:11px;color:var(--fg3);margin-bottom:10px;line-height:1.5">Fallback recipes Claude uses when dynamic search returns thin results. Format: Site Name: URL (description), one per line.</div><textarea class="inp" style="min-height:120px;font-size:11px" oninput="S.anchorRecipes=this.value;debouncedSave('anchors',saveAnchors)" placeholder="Graceful Little Honey Bee: https://example.com (description)">${esc(S.anchorRecipes)}</textarea><div style="font-size:10px;color:var(--fg3);margin-top:6px">${acnt?acnt+' recipe(s) configured':'No anchor recipes set'}</div></div>`;
+  h+=`<div class="card" style="border-color:#0369a133"><div style="font-weight:700;font-size:13px;color:var(--blue);margin-bottom:6px">Anchor Recipes (Fallback Set)</div><div style="font-size:11px;color:var(--fg2);margin-bottom:10px;line-height:1.5">Fallback recipes Claude uses when dynamic search returns thin results. Format: Site Name: URL (description), one per line.</div><textarea class="inp" style="min-height:120px;font-size:11px" oninput="S.anchorRecipes=this.value;debouncedSave('anchors',saveAnchors)" placeholder="Graceful Little Honey Bee: https://example.com (description)">${esc(S.anchorRecipes)}</textarea><div style="font-size:10px;color:var(--fg2);margin-top:6px">${acnt?acnt+' recipe(s) configured':'No anchor recipes set'}</div></div>`;
 
   // Household
   h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:12px">Household Configuration</div><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px">
-    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Household Size</label><input type="number" class="inp" value="${hh.size}" min="1" max="20" style="width:80px" onchange="S.household.size=parseInt(this.value)||1;saveHousehold();render()"></div>
-    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Region</label><input class="inp" value="${esc(hh.region)}" placeholder="e.g., Your city, ST" oninput="S.household.region=this.value;saveHousehold()"></div>
-    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Stores (priority order)</label>
+    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Household Size</label><input type="number" class="inp" value="${hh.size}" min="1" max="20" style="width:80px" onchange="S.household.size=parseInt(this.value)||1;saveHousehold();render()"></div>
+    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Region</label><input class="inp" value="${esc(hh.region)}" placeholder="e.g., Your city, ST" oninput="S.household.region=this.value;saveHousehold()"></div>
+    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Stores (priority order)</label>
       <input class="inp" value="${esc(hh.stores)}" placeholder="e.g., Store A, Store B, Store C, Walmart"
         onchange="S.household.stores=this.value;saveHousehold();render()">
-      <div style="font-size:10px;color:var(--fg3);margin-top:3px;line-height:1.4">Comma-separated, most-preferred first. Claude searches these stores' weekly ads.</div></div>
-    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Plan Days</label><input type="number" class="inp" value="${hh.planDays||7}" min="1" max="14" style="width:80px" onchange="S.household.planDays=parseInt(this.value)||7;saveHousehold();render()"></div>
-    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Meal Structure</label><input class="inp" value="${esc(hh.mealStructure)}" oninput="S.household.mealStructure=this.value;saveHousehold()"></div>
-    <div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Sourdough Starter</label><button class="btn ${hh.starterActive?'btn-success':'btn-default'}" onclick="S.household.starterActive=!S.household.starterActive;saveHousehold();render()" style="width:auto">${hh.starterActive?'Active ✓':'Inactive'}</button></div>
-    ${hasWalmartStore(hh)?`<div><label style="font-size:10px;color:var(--fg3);display:block;margin-bottom:3px">Walmart Threshold</label><select class="inp" onchange="S.household.walmartThreshold=this.value;saveHousehold()">${Object.entries(WALMART_LABELS).map(([v,l])=>`<option value="${v}" ${hh.walmartThreshold===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>`:''}
+      <div style="font-size:10px;color:var(--fg2);margin-top:3px;line-height:1.4">Comma-separated, most-preferred first. Claude searches these stores' weekly ads.</div></div>
+    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Plan Days</label><input type="number" class="inp" value="${hh.planDays||7}" min="1" max="14" style="width:80px" onchange="S.household.planDays=parseInt(this.value)||7;saveHousehold();render()"></div>
+    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Meal Structure</label><input class="inp" value="${esc(hh.mealStructure)}" oninput="S.household.mealStructure=this.value;saveHousehold()"></div>
+    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Sourdough Starter</label><button class="btn ${hh.starterActive?'btn-success':'btn-default'}" onclick="S.household.starterActive=!S.household.starterActive;saveHousehold();render()" style="width:auto">${hh.starterActive?'Active ✓':'Inactive'}</button></div>
+    ${hasWalmartStore(hh)?`<div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Walmart Threshold</label><select class="inp" onchange="S.household.walmartThreshold=this.value;saveHousehold()">${Object.entries(WALMART_LABELS).map(([v,l])=>`<option value="${v}" ${hh.walmartThreshold===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>`:''}
   </div></div>`;
 
   // Data Management
-  h+=`<div class="card" style="border-color:var(--border)"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:6px">Data Management</div><div style="font-size:11px;color:var(--fg3);margin-bottom:12px;line-height:1.5">Your data is stored in this browser's local storage. Export regularly to back up your data, or to transfer it to another device or browser.</div><div class="flex gap-8 flex-wrap"><button class="btn btn-primary" onclick="exportAllData()" style="width:auto">Export All Data</button><button class="btn btn-default" onclick="document.getElementById('import-file-input').click()" style="width:auto">Import Data</button><input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importAllData(event)"></div><div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--fg3);margin-bottom:8px;line-height:1.5">Something broken or stuck? Reset clears all of this app's data from this browser and starts fresh. Export a backup first.</div><button class="btn btn-danger" onclick="resetAppData()" style="width:auto">Reset app data</button></div></div>`;
+  h+=`<div class="card" style="border-color:var(--border)"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:6px">Data Management</div><div style="font-size:11px;color:var(--fg2);margin-bottom:12px;line-height:1.5">Your data is stored in this browser's local storage. Export regularly to back up your data, or to transfer it to another device or browser.</div><div class="flex gap-8 flex-wrap"><button class="btn btn-primary" onclick="exportAllData()" style="width:auto">Export All Data</button><button class="btn btn-default" onclick="document.getElementById('import-file-input').click()" style="width:auto">Import Data</button><input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importAllData(event)"></div><div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--fg2);margin-bottom:8px;line-height:1.5">Something broken or stuck? Reset clears all of this app's data from this browser and starts fresh. Export a backup first.</div><button class="btn btn-danger" onclick="resetAppData()" style="width:auto">Reset app data</button></div></div>`;
 
   return h;
 }
