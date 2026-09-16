@@ -7,7 +7,19 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
---bg:#0f1117;--bg2:#161822;--border:#1e2130;--fg:#e2e8f0;--fg2:#94a3b8;--fg3:#64748b;--fg4:#475569;
+--bg:#0f1117;--bg2:#161822;--border:#1e2130;--fg:#e2e8f0;--fg2:#94a3b8;
+/* --fg3 IS RETIRED AS A TEXT RANK AND RESOLVES TO --fg2. It was #64748b, which is 3.71:1 on
+   --bg2 — below the 4.5:1 WCAG 2.1 AA 1.4.3 floor — and a driven render at 360px measured
+   478 painted text runs sitting in it, out of 622 that failed the floor. Every failing run on
+   this surface was one of exactly TWO colour tokens and no third; this alias closes the larger
+   of the two at all 69 of its call sites at once, which 69 hand edits could not promise.
+   The call sites are deliberately NOT rewritten: the token name still reads "third rank" and
+   several probes match the literal var(--fg3), so aliasing keeps both honest. A future author
+   reaching for a dimmer grey must define a new token and prove its contrast, not reuse this. */
+--fg3:var(--fg2);
+/* --fg4 (#475569) SURVIVES FOR NON-TEXT USE ONLY — disabled-button chrome and the like. It is
+   below the text floor and must never carry prose again. */
+--fg4:#475569;
 --blue:#38bdf8;--green:#34d399;--amber:#fbbf24;--red:#ef4444;
 --font:'JetBrains Mono','Fira Code','Source Code Pro','Cascadia Code','Consolas',monospace;
 }
@@ -16,7 +28,7 @@ input,select,textarea,button{font-family:var(--font)}
 a{color:var(--blue);text-decoration:none}
 
 /* Layout */
-#app{display:flex;height:100vh;overflow:hidden}
+#app{display:flex;height:100vh;height:100dvh;overflow:hidden}
 #sidebar{width:210px;min-width:210px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 0;overflow-y:auto}
 #sidebar .logo{padding:0 16px 20px;border-bottom:1px solid var(--border);margin-bottom:8px}
 #sidebar .logo h1{font-size:15px;font-weight:700;color:#f1f5f9;letter-spacing:.5px;margin:0}
@@ -57,10 +69,10 @@ textarea.inp{resize:vertical;line-height:1.6}
 .tag button{background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1}
 
 /* Status badges */
-.status-badge{padding:3px 10px;border-radius:12px;border:none;cursor:pointer;font-size:10px;font-family:var(--font);font-weight:600;text-transform:uppercase;letter-spacing:.5px;min-height:28px}
+.status-badge{padding:3px 10px;border-radius:12px;border:none;cursor:pointer;font-size:11px;font-family:var(--font);font-weight:600;text-transform:uppercase;letter-spacing:.5px;min-height:28px}
 
 /* Category badges */
-.cat-badge{font-size:9px;padding:1px 6px;border-radius:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.cat-badge{font-size:11px;padding:1px 6px;border-radius:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
 
 /* Shopping item row */
 .shop-row{display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;border-bottom:1px solid var(--border);min-height:44px;transition:opacity .12s,background .12s}
@@ -115,7 +127,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 }
 
 /* Remove button */
-.rm-btn{background:none;border:none;color:var(--fg4);cursor:pointer;font-size:16px;padding:4px;min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0}
+.rm-btn{background:none;border:none;color:var(--fg2);cursor:pointer;font-size:16px;padding:4px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0}
 .rm-btn:hover{color:var(--red);background:#991b1b22}
 </style>
 </head>
@@ -2201,7 +2213,7 @@ function renderOnboardingExplainer(){
 // Quiet re-entry control — always reachable from the dashboard on desktop AND mobile
 // (rendered in both the empty and populated headers, so it survives the hidden sidebar).
 function reentryBtn(){
-  return `<button class="btn btn-default" onclick="showOnboarding()" style="width:auto;min-height:32px;font-size:10px">? How this works</button>`;
+  return `<button class="btn btn-default" onclick="showOnboarding()" style="width:auto;min-height:44px;font-size:11px">? How this works</button>`;
 }
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────
@@ -2231,14 +2243,14 @@ function renderDashboard(){
   if(md.confidence==='low') h+=`<div class="card" style="border-color:#92400e;background:#1c1206"><div class="flex gap-10" style="align-items:flex-start"><span style="font-size:18px">⚠</span><div><div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:4px">LOW CONFIDENCE PLAN</div><div style="font-size:11px;color:#fde68a;line-height:1.5">This plan relies heavily on estimated pricing because current ad data was limited. Verify prices before shopping.</div></div></div></div>`;
 
   // Pantry alerts
-  if(pa.length) h+=`<div class="card" style="border-color:#854d0e;background:#1a1506"><div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:8px">⚠ PANTRY ALERTS</div>${pa.map(a=>`<div class="flex gap-8" style="font-size:12px;margin-bottom:6px;line-height:1.5"><span style="color:#f59e0b;font-weight:700;white-space:nowrap;flex-shrink:0">${esc(a.item)}:</span><span style="color:#fde68a">${esc(a.concern)}</span></div>`).join('')}</div>`;
+  if(pa.length) h+=`<div class="card" style="border-color:#854d0e;background:#1a1506"><div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:8px">⚠ PANTRY ALERTS</div>${pa.map(a=>`<div class="flex gap-8" style="font-size:12px;margin-bottom:6px;line-height:1.5"><span style="color:#f59e0b;font-weight:700;white-space:nowrap;flex-shrink:0">${esc(a.item)}:</span><span style="color:var(--fg)">${esc(a.concern)}</span></div>`).join('')}</div>`;
 
   // Cost summary
   h+=`<div class="card flex gap-24 items-center flex-wrap">
-    <div><div style="font-size:10px;color:var(--fg3);text-transform:uppercase">Total Estimated</div><div style="font-size:22px;font-weight:700;color:var(--blue)">$${n2(cs.total_estimated)}</div></div>
-    <div><div style="font-size:10px;color:var(--fg3);text-transform:uppercase">Per Person / Day</div><div style="font-size:22px;font-weight:700;color:var(--green)">$${n2(cs.per_person_per_day)}</div></div>
-    ${cs.by_store?Object.entries(cs.by_store).map(([s,a])=>`<div><div style="font-size:10px;color:var(--fg3)">${esc(s)}</div><div style="font-size:14px;font-weight:600;color:var(--fg2)">$${n2(a)}</div></div>`).join(''):''}
-    ${(conf.length||est.length)?`<div style="width:100%;padding-top:6px;border-top:1px solid var(--border);font-size:10px;color:var(--fg3)">${conf.length?'Confirmed: '+esc(conf.join(', ')):''}${conf.length&&est.length?' · ':''}${est.length?'<span style="color:var(--amber)">Estimated: '+esc(est.join(', '))+'</span>':''}</div>`:''}
+    <div><div style="font-size:11px;color:var(--fg3);text-transform:uppercase">Total Estimated</div><div style="font-size:22px;font-weight:700;color:var(--blue)">$${n2(cs.total_estimated)}</div></div>
+    <div><div style="font-size:11px;color:var(--fg3);text-transform:uppercase">Per Person / Day</div><div style="font-size:22px;font-weight:700;color:var(--green)">$${n2(cs.per_person_per_day)}</div></div>
+    ${cs.by_store?Object.entries(cs.by_store).map(([s,a])=>`<div><div style="font-size:11px;color:var(--fg3)">${esc(s)}</div><div style="font-size:14px;font-weight:600;color:var(--fg2)">$${n2(a)}</div></div>`).join(''):''}
+    ${(conf.length||est.length)?`<div style="width:100%;padding-top:6px;border-top:1px solid var(--border);font-size:11px;color:var(--fg3)">${conf.length?'Confirmed: '+esc(conf.join(', ')):''}${conf.length&&est.length?' · ':''}${est.length?'<span style="color:var(--amber)">Estimated: '+esc(est.join(', '))+'</span>':''}</div>`:''}
   </div>`;
 
   // Weekly nutrition — plain informational line (MyPlate weekly frame). Minimal by
@@ -2251,7 +2263,7 @@ function renderDashboard(){
     bits.push('Produce ~half the plate: '+(ns.produce_half_plate?'yes':'no'));
     const sf=Array.isArray(ns.shortfalls)?ns.shortfalls.filter(x=>x!=null&&String(x).trim()):[];
     const sfHtml=sf.length?`<div style="color:var(--amber);font-weight:600;margin-top:6px">⚠ Nutrition shortfalls this week:</div>${sf.map(x=>`<div style="color:#fde68a;margin-top:2px">• ${esc(String(x))}</div>`).join('')}`:'';
-    h+=`<div class="card" style="padding:12px 16px"><div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Weekly nutrition (MyPlate frame — general guidance)</div><div style="font-size:11px;color:var(--fg2);line-height:1.6">${bits.join(' · ')}${sfHtml}${ns.notes?`<div style="color:var(--fg3);margin-top:3px">${esc(ns.notes)}</div>`:''}</div></div>`;
+    h+=`<div class="card" style="padding:12px 16px"><div style="font-size:11px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Weekly nutrition (MyPlate frame — general guidance)</div><div style="font-size:11px;color:var(--fg2);line-height:1.6">${bits.join(' · ')}${sfHtml}${ns.notes?`<div style="color:var(--fg3);margin-top:3px">${esc(ns.notes)}</div>`:''}</div></div>`;
   }
 
   // Shopping list first on both mobile and desktop — it's the active working area
@@ -2277,7 +2289,7 @@ function renderWhyPlanCard(plan){
   // Teaser: first non-empty line (or first ~90 chars) — a taste, not the whole thing.
   const firstLine=(text.split(/\r?\n/).find(l=>l.trim())||'').trim();
   const teaser=firstLine.length>90?firstLine.slice(0,90).replace(/\s+$/,'')+'…':firstLine;
-  const teaserHtml=open?'':`<span style="color:var(--fg3);font-size:11px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(teaser)}</span>`;
+  const teaserHtml=open?'':`<span id="whyplan-teaser" style="color:var(--fg3);font-size:11px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(teaser)}</span>`;
   let body='';
   if(open){
     const paras=text.split(/\n\s*\n/).map(p=>p.trim()).filter(Boolean);
@@ -2397,7 +2409,7 @@ function renderWasteRecorded(d,state){
   else{
     const dl=wasteDollars(S.wasteLog[d]);
     const dollar=dl.priced>0?('$'+dl.sum.toFixed(2)):'$—';   // 0 priced items → $— (never a fabricated $0.00)
-    const estTag=dl.estimated?'<span style="font-size:9px;opacity:.8"> (est.)</span>':'';
+    const estTag=dl.estimated?'<span style="font-size:11px"> (est.)</span>':'';
     const unp=dl.unpriced>0?` · + ${dl.unpriced} unpriced`:'';
     inner=`${dollar}${estTag} tossed${unp}`;
   }
@@ -2452,7 +2464,7 @@ function renderWasteDraftLine(ln,idx){
   const seg=`<span style="display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;flex-shrink:0">${pill(0.25,'a little')}${pill(0.5,'about half')}${pill(1,'most/all')}</span>`;
   const priced=(typeof ln.price==='number');
   const dollar=priced?('$'+(ln.price*f).toFixed(2)):'$—';                       // null price → $— (never $0.00)
-  const estTag=(priced&&ln.price_type==='estimated')?'<span style="font-size:9px;opacity:.8"> (est.)</span>':'';
+  const estTag=(priced&&ln.price_type==='estimated')?'<span style="font-size:11px"> (est.)</span>':'';
   const col=priced?(ln.price_type==='confirmed'?'var(--green)':'var(--amber)'):'var(--fg4)';
   const offNote=ln._offList?` <span style="font-size:9px;color:var(--fg4)">(not on last week's list)</span>`:'';
   return `<div class="flex items-center gap-8" style="padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;min-height:40px">
@@ -3033,14 +3045,14 @@ function renderMealCards(mp){
     if(isNoCook){
       // Non-cook: title in --fg (blue is reserved for real recipe links), category pill replaces the metadata line.
       const p=noCookPill(d.name);
-      dinnerBlock=`<div style="font-weight:600;color:var(--fg);font-size:12px">${esc(d.name)}</div>
-        <div style="margin-top:2px"><span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;padding:2px 8px;border-radius:10px;background:#94a3b81a;color:var(--fg2)">${p.glyph} ${esc(p.text)}</span></div>`;
+      dinnerBlock=`<div style="font-weight:600;color:var(--fg);font-size:13px">${esc(d.name)}</div>
+        <div style="margin-top:2px"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;padding:2px 8px;border-radius:10px;background:#94a3b81a;color:var(--fg2)">${p.glyph} ${esc(p.text)}</span></div>`;
     }else{
       // Cook night: unchanged — blue recipe link (if URL) + source · cost · servings metadata line.
       const su=safeUrl(d.source_url);
       const link=su?`<a href="${esc(su)}" target="_blank" rel="noopener">${esc(d.name)} ↗</a>`:esc(d.name);
-      dinnerBlock=`<div style="font-weight:600;color:var(--blue);font-size:12px">${link}</div>
-        <div style="font-size:10px;color:var(--fg3);margin-top:2px">${esc(d.source_site)} · $${n2(d.cost_per_serving)}/serving · ${d.servings} servings</div>`;
+      dinnerBlock=`<div style="font-weight:600;color:var(--blue);font-size:13px">${link}</div>
+        <div style="font-size:11px;color:var(--fg2);margin-top:2px">${esc(d.source_site)} · $${n2(d.cost_per_serving)}/serving · ${d.servings} servings</div>`;
     }
     // 🔴 COMMIT-2 CARRIER HOIST. The ⏱-note gate (below) demotes only when every safety class the note
     // matches is covered by a chip that FIRED on this card, so it must know which chips fired BEFORE it
@@ -3051,8 +3063,8 @@ function renderMealCards(mp){
     let comeoutChip={html:'',classes:new Set()}, freeze1Chip={html:'',classes:new Set()}, plateChip={html:'',classes:new Set()}, pfChip={html:'',classes:new Set()};
     return `<div class="card" style="padding:14px">
       <div class="flex justify-between" style="margin-bottom:8px"><span style="font-weight:700;color:#f1f5f9">Day ${day.day}</span><span style="font-size:11px;color:var(--fg3)">${esc(day.date)}</span></div>
-      <div style="font-size:11px;color:var(--fg2);margin-bottom:3px"><span style="color:var(--fg3)">B:</span> ${esc(day.breakfast)}</div>
-      <div style="font-size:11px;color:var(--fg2);margin-bottom:6px"><span style="color:var(--fg3)">L:</span> ${esc(day.lunch)}</div>
+      <div style="font-size:12px;color:var(--fg);margin-bottom:3px"><span style="font-size:11px;color:var(--fg2)">B:</span> ${esc(day.breakfast)}</div>
+      <div style="font-size:12px;color:var(--fg);margin-bottom:6px"><span style="font-size:11px;color:var(--fg2)">L:</span> ${esc(day.lunch)}</div>
       <div style="border-top:1px solid var(--border);padding-top:6px">
         ${dinnerBlock}
         ${/* DESIGN-L4. THE THAW-DAY CHIP. Across all 35 day-cards of the five live runs, ZERO chips
@@ -3424,12 +3436,12 @@ function renderMealCards(mp){
         ${plateChip.html}
         ${pfChip.html}
         ${(()=>{const un=(d.ingredients||[]).filter(x=>x&&!x.cook_by&&!x.freeze_by&&!pfCoherent(x)&&(x.protein_state==='fresh'||x.shelf_life_tier===0||x.shelf_life_tier===1)).map(x=>x.item);const pl=un.length>1;return un.length?`<div style="font-size:10px;color:var(--red);margin-top:3px">⚠ no cook-by or freeze-by date on ${pl?'highly perishable items':'a highly perishable item'} (${esc(un.join(', '))}) — cook ${pl?'them':'it'} within 2 days of shopping, or freeze ${pl?'them':'it'} the day you buy ${pl?'them':'it'}</div>`:'';})()}
-        ${d.quality_note?`<div style="font-size:10px;color:#a78bfa;margin-top:3px">★ ${esc(d.quality_note)}</div>`:''}
+        ${d.quality_note?`<div style="font-size:12px;color:var(--fg2);line-height:1.5;margin-top:3px">★ ${esc(d.quality_note)}</div>`:''}
       </div></div>`}).join('')}</div>`;
 }
 
 function renderShoppingSection(sl,byStore,cc){
-  let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>Shopping List</h2><div class="sub" id="shop-counter" data-total="${sl.length}">${cc} of ${sl.length} items checked</div></div><button class="btn btn-primary" onclick="exportShoppingList()" style="width:auto;min-height:40px;font-size:11px">📋 Export List</button></div>`;
+  let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>Shopping List</h2><div class="sub" id="shop-counter" data-total="${sl.length}">${cc} of ${sl.length} items checked</div></div><button class="btn btn-primary" onclick="exportShoppingList()" style="width:auto;min-height:44px;font-size:11px">📋 Export List</button></div>`;
   h+=`<div class="grid grid-shop">${Object.entries(byStore).map(([store,items])=>`<div class="card">
     <div style="font-weight:700;color:var(--blue);font-size:13px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">${esc(store)}</div>
     ${items.map(item=>{
@@ -3438,12 +3450,12 @@ function renderShoppingSection(sl,byStore,cc){
       return `<div class="shop-row ${chk?'checked':''}" data-shoprow="${item._gi}" role="checkbox" aria-checked="${chk?'true':'false'}" tabindex="0">
         <input type="checkbox" ${chk?'checked':''} tabindex="-1" aria-hidden="true">
         <div class="shop-main">
-          <span class="shop-name" style="font-size:12px">${esc(item.item)}${item.meals_spanned!=null?` <span style="font-size:9px;color:var(--fg4)">· feeds ${item.meals_spanned} meal${item.meals_spanned===1?'':'s'}</span>`:''}</span>
+          <span class="shop-name" style="font-size:12px">${esc(item.item)}${item.meals_spanned!=null?` <span style="font-size:11px;color:var(--fg2)">· feeds ${item.meals_spanned} meal${item.meals_spanned===1?'':'s'}</span>`:''}</span>
           ${item.notes?`<div class="shop-note">${esc(item.notes)}</div>`:''}
         </div>
         <span class="cat-badge" style="background:${ci.color}18;color:${ci.color}">${ci.label}</span>
         <span class="shop-qty" style="font-size:11px;color:var(--fg3);min-width:50px;text-align:right">${esc(item.quantity)}</span>
-        <span class="shop-price" style="font-size:11px;color:${item.price_type==='confirmed'?'var(--green)':'var(--amber)'};min-width:60px;text-align:right">$${n2(item.price)}${item.price_type==='estimated'?'<span style="font-size:9px;opacity:.8"> (est.)</span>':''}</span>
+        <span class="shop-price" style="font-size:11px;color:${item.price_type==='confirmed'?'var(--green)':'var(--amber)'};min-width:60px;text-align:right">$${n2(item.price)}${item.price_type==='estimated'?'<span style="font-size:11px"> (est.)</span>':''}</span>
         <button class="rm-btn" onclick="event.stopPropagation();removeShoppingItem(${item._gi})" title="Remove item">×</button>
       </div>`}).join('')}</div>`).join('')}</div>`;
   // Removed items section
