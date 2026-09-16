@@ -59,7 +59,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 
 /* Grid helpers */
 .grid{display:grid;gap:8px}.grid-2{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
-.grid-3{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.grid-3{grid-template-columns:repeat(auto-fill,minmax(360px,1fr))}
 .grid-shop{grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
 .flex{display:flex}.flex-wrap{flex-wrap:wrap}.gap-4{gap:4px}.gap-6{gap:6px}.gap-8{gap:8px}.gap-10{gap:10px}.gap-12{gap:12px}.gap-16{gap:16px}.gap-24{gap:24px}
 .items-center{align-items:center}.justify-between{justify-content:space-between}.flex-1{flex:1}
@@ -124,6 +124,29 @@ textarea.inp{resize:vertical;line-height:1.6}
   .grid-shop{grid-template-columns:1fr}
   .btn{width:100%}
   .card{padding:12px}
+  /* M1 — THE TOAST WAS SITTING ON THE PAGE TITLE. At 360px, top:16px;right:16px put a 180px
+     confirmation panel across "This Week's Meal Plan" — measured 2246px² of overlap with the
+     heading, on all five corpus plans, at the exact moment the household arrives. The app's
+     longest own message overlaps by 4640px² and is 300px wide in a 360px viewport. On a
+     desktop this is a harmless corner notification; on a phone it covers the page's only
+     orienting label. It moves to the bottom, full width inside a 12px gutter.
+     ⚠ bottom:88px is DELIBERATELY NOT TUNED to today's bottom-nav, which measures 50px tall
+     at all three phone widths — the 38px of slack is there so a nav whose labels wrap does not
+     silently put the toast back underneath it. A constant fitted to today's number is a
+     constant that goes stale without saying so. */
+  #toast{left:12px;right:12px;max-width:none;top:auto;bottom:88px}
+  /* M2 — THE "WHY THIS PLAN" TEASER WAS CLIPPED WITH NO WAY TO SEE THE REST OF IT. The header
+     is a flex row whose chevron and label are flex-shrink:0, so the teaser got 191px of a
+     360px screen for 616px of content and lost it to overflow:hidden.
+     ⚠ WHAT WAS ACTUALLY LOST, measured rather than assumed: the teaser is ALREADY a deliberate
+     ~90-character taste, it is ALREADY ellipsised, and the full rationale is one tap away —
+     this header is role="button" with a 44px minimum. So the content was never unreachable;
+     what was lost was about 62 of the teaser's 90 characters, and the ellipsis at least said
+     so. Wrapping it onto its own line shows all 90 and keeps the disclosure exactly as it was.
+     overflow:visible is what takes the element out of the clipped set; the wrap is what makes
+     that safe. */
+  #whyplan-header{flex-wrap:wrap}
+  #whyplan-teaser{flex-basis:100%;white-space:normal;overflow:visible;text-overflow:clip}
 }
 
 /* Remove button */
