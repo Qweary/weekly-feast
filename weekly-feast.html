@@ -3010,6 +3010,47 @@ function freezeText(p){
   if(ds.length===1) return `the ${andList(p.map(x=>x.i))} — meant to go in the freezer on ${ds[0]}`;
   return p.map((x,i)=>`the ${x.i}${i===0?' — meant to go in the freezer on ':' on '}${x.d}`).join(', ');
 }
+// 🔴 C6 — ENUMERATED STEPS AS LINES. PRESENTATIONAL, AND THAT BOUND IS THE WHOLE DESIGN.
+// A perishability note can already CONTAIN a numbered procedure — "(1) Cook 0.75 lb tonight.
+// (2) Of the remaining 2.25 lb, portion 1 lb … (3) Portion, bag, date and FREEZE the 1 lb of
+// ground beef" — and it was set as one unbroken 15-line paragraph at 10px. A three-step
+// procedure rendered as run-on prose is a legibility failure at any type size, and the
+// abandonment it invites happens at line 1, which is strictly worse than abandonment at step 2.
+// A LIST ALSO MAKES NON-COMPLETION VISIBLE: three markers with one acted on is self-evidently
+// unfinished, where a half-read paragraph is not — the same silent-versus-loud axis the rest of
+// this file's hazard rules turn on.
+//
+// ⛔ NOT ONE CHARACTER OF THE NOTE MOVES, AND THE GUARANTEE IS STRONGER THAN "MODULO WHITESPACE".
+// The <br> is inserted AFTER the whitespace that was already in front of the marker, so the
+// element's textContent is BYTE-IDENTICAL to the untransformed note. Inserting it in PLACE of
+// that whitespace would have produced "…this.(2) Of the…" — a dropped space, invisible in a
+// screenshot, and a real corruption of a safety procedure.
+//
+// ⛔ IT TRANSFORMS THE ALREADY-ESCAPED STRING, ON PURPOSE. esc() has already turned every < into
+// &lt;, and it leaves parentheses and digits alone, so the only tag this function can ever emit
+// is the <br> written here. Nothing a model wrote can become markup through this path.
+//
+// ⛔ THE MARKER IS PARENTHESES AROUND DIGITS AND NOTHING ELSE, and it fires only on an ascending
+// run that starts at (1). MEASURED, on the five live runs: a relaxed `n)` marker matches 16
+// sites and ALL SIXTEEN are the closing paren of "(day 5)" or of an ISO date — "…cooks it
+// tomorrow (day 2)" would have broken mid-phrase. That corruption PRESERVES textContent, so the
+// text-preservation assertion this change is scored against could not have caught it. The
+// narrow marker is the finding, not a limitation.
+//
+// ⛔ IT NEVER REORDERS. In the corpus's one enumerated note the time-critical, least reversible
+// act is step (3) — freezing raw ground beef — and the steps are ordered narratively. Emitting
+// safety steps in hazard order is the PRODUCER's job, in the prompt template. A renderer must
+// never reorder a safety procedure it did not author. Renderer presentational; producer
+// semantic; the boundary is here.
+function stepBreaks(escaped){
+  const s=String(escaped);
+  const ms=[...s.matchAll(/\((\d+)\)/g)];
+  if(ms.length<2) return s;                                   // a lone parenthesised number is not a list
+  const nums=ms.map(m=>parseInt(m[1],10));
+  if(nums[0]!==1) return s;                                    // a run must open at (1)
+  for(let i=1;i<nums.length;i++) if(nums[i]!==nums[i-1]+1) return s;   // strictly ascending by one
+  return s.replace(/(\s)(\(\d+\))/g,'$1<br>$2');            // break AFTER the existing space
+}
 function renderMealCards(mp){
   // 🔴 COMMIT-2. Carrier chips return {html, classes:Set<string>}. `norm` tolerates a bare-string
   // return so the goldCHIP freeze (which reverts chip COPY to a pre-class base commit) still renders:
@@ -3143,7 +3184,7 @@ function renderMealCards(mp){
              "out of the freezer" is a LOCATION word, and crediting it would demote a Class-1 sole-channel
              freeze imperative (the T-F7 regression). */
           const r1r2=` Once thawed, keep the ${names} no more than 1–2 days in the fridge. If plans change, the ${names} may go back in the freezer uncooked — but only after a fridge thaw, and only if nothing sat out more than 2 hours.`, r1r2Classes=['KEEPWIN','REFREEZE'];
-          return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 TAKE IT OUT TONIGHT — move ${obj} to the REFRIGERATOR to thaw. Never on the counter, never in hot water.${r1r2}</div>`, classes:new Set(['THAW','PROHIB',...r1r2Classes]), foods:new Set([...due,...hf])};})())).html}
+          return {html:`<div style="font-size:13px;font-weight:600;color:var(--amber);line-height:1.5;margin-top:3px">🧊 TAKE IT OUT TONIGHT — move ${obj} to the REFRIGERATOR to thaw. Never on the counter, never in hot water.${r1r2}</div>`, classes:new Set(['THAW','PROHIB',...r1r2Classes]), foods:new Set([...due,...hf])};})())).html}
         ${/* 🔴 S36 DAY-1 FREEZE CHIP (DURABLE half of AMB-1). Class-1 sole-channel closure: a
               home-frozen fresh raw protein's day-0/day-1 FREEZE imperative had NO structured chip — it
               survived only as buried ⏱ prose (hazard-map B3, OBSERVED N=5 on DEFAULT_PANTRY). This gives
@@ -3155,14 +3196,14 @@ function renderMealCards(mp){
         ${(freeze1Chip=norm((()=>{const fz=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* S37 NR1 — raw-protein only: a frozen vegetable is a quality choice, not a pathogen control (:270) */if(pfCoherent(x)||!x.freeze_by)continue;if(!ISO_DATE.test(String(x.freeze_by))||!ISO_DATE.test(String(day.date)))continue;if(String(day.date)!==String(x.freeze_by))continue;fz.push(x.item);}}
           const items=[...new Set(fz)]; if(!items.length) return '';
           const pl=items.length>1, subj=pl?"They're":"It's", obj=pl?'them':'it', prot=pl?'fresh raw proteins':'a fresh raw protein', din=pl?'dinners':'a dinner';
-          return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 PUT IT IN THE FREEZER TODAY — portion and freeze the ${esc(andList(items))} now. ${subj} for ${din} later this week, and ${prot} won't keep in the fridge past a day or two — freezing ${obj} today is what keeps ${obj} safe to cook then.</div>`, classes:new Set(['FREEZE']), foods:new Set(items)};})())).html}
+          return {html:`<div style="font-size:13px;font-weight:600;color:var(--amber);line-height:1.5;margin-top:3px">🧊 PUT IT IN THE FREEZER TODAY — portion and freeze the ${esc(andList(items))} now. ${subj} for ${din} later this week, and ${prot} won't keep in the fridge past a day or two — freezing ${obj} today is what keeps ${obj} safe to cook then.</div>`, classes:new Set(['FREEZE']), foods:new Set(items)};})())).html}
         ${/* CARRIER CAPTURE (plate/pf). They RENDER after the gate but the gate needs their classes, so
               they are COMPUTED here and emit nothing (comma operator ⇒ ''); their .html is placed at the
               render slots below. Kept as inline ${…} expressions — NOT hoisted const statements — so
               goldCHIP's structural chip-parser reads them the same way it reads the inline come-out/freeze1
               chips (a hoisted const desyncs that parser; the render output is identical either way). */''}
-        ${(plateChip=norm((()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by&&isRawProtein(x)).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);if(!fbs.length)return'';return {html:`<div style="font-size:11px;font-weight:600;color:var(--amber);margin-top:3px">🧊 ${esc(freezeText(fbs))}. If this food never went in the freezer and sat out, do not cook it. If it thawed in the refrigerator as planned and your plans changed, it may go back in the freezer uncooked — but only if nothing sat out more than 2 hours. If it did go in the freezer and is still frozen at dinner, thaw it fast in COLD water — sealed in a leak-proof bag, fully submerged, with fresh cold water every 30 minutes (about 30 minutes per pound) — then cook it right away, and don't refreeze it uncooked. Never thaw on the counter or in warm or hot water.</div>`, classes:new Set(['FREEZE','DNC','PROHIB','REFREEZE']), foods:new Set(fbs.map(x=>x.i))};})()),'')/* plate: NEVER THAW/KEEPWIN */}
-        ${(pfChip=norm((()=>{const pf=(d.ingredients||[]).filter(pfCoherent).map(x=>x.item);const pl=pf.length>1;return pf.length?{html:`<div style="font-size:10px;color:var(--amber);margin-top:3px">🧊 bought frozen (${esc(pf.join(', '))}) — keep ${pl?'them':'it'} frozen until ${pl?'their':'its'} thaw day, then thaw in the refrigerator, never on the counter. Once thawed ${pl?'they keep':'it keeps'} 1–2 days.</div>`, classes:new Set(['FREEZE','PROHIB','KEEPWIN']), foods:new Set(pf)}:'';})()),'')/* pf: NEVER THAW */}
+        ${(plateChip=norm((()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by&&isRawProtein(x)).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);if(!fbs.length)return'';return {html:`<div style="font-size:13px;font-weight:600;color:var(--amber);line-height:1.5;margin-top:3px">🧊 ${esc(freezeText(fbs))}. If this food never went in the freezer and sat out, do not cook it. If it thawed in the refrigerator as planned and your plans changed, it may go back in the freezer uncooked — but only if nothing sat out more than 2 hours. If it did go in the freezer and is still frozen at dinner, thaw it fast in COLD water — sealed in a leak-proof bag, fully submerged, with fresh cold water every 30 minutes (about 30 minutes per pound) — then cook it right away, and don't refreeze it uncooked. Never thaw on the counter or in warm or hot water.</div>`, classes:new Set(['FREEZE','DNC','PROHIB','REFREEZE']), foods:new Set(fbs.map(x=>x.i))};})()),'')/* plate: NEVER THAW/KEEPWIN */}
+        ${(pfChip=norm((()=>{const pf=(d.ingredients||[]).filter(pfCoherent).map(x=>x.item);const pl=pf.length>1;return pf.length?{html:`<div style="font-size:13px;color:var(--amber);line-height:1.5;margin-top:3px">🧊 bought frozen (${esc(pf.join(', '))}) — keep ${pl?'them':'it'} frozen until ${pl?'their':'its'} thaw day, then thaw in the refrigerator, never on the counter. Once thawed ${pl?'they keep':'it keeps'} 1–2 days.</div>`, classes:new Set(['FREEZE','PROHIB','KEEPWIN']), foods:new Set(pf)}:'';})()),'')/* pf: NEVER THAW */}
         ${/* ══ THE ⏱-NOTE GATE — CLASS-WISE COVERAGE (commit 2). THIS COMMENT IS THE SAFETY CONTROL. ══
               This repo ships as 3 files with NO in-repo harness. A fresh clone's guard at this gate is the
               P-FLOOR assertion at the foot of this script plus THIS comment — and a FALSE comment blocks the
@@ -3358,7 +3399,7 @@ function renderMealCards(mp){
           // every() is vacuously true ⇒ DEMOTE — that is the amber-wall drain; do NOT guard on matched.length>0
           // (that would HOLD pure narration amber, re-erecting the wall). HOLD iff some matched class uncovered.
           const demote = !planHasOrphan && matched.every(covered);
-          return `<div style="${demote?'font-size:11px;color:var(--fg2)':'font-size:10px;color:var(--amber)'};margin-top:3px">⏱ ${esc(note)}</div>`;})()}
+          return `<div style="${demote?'font-size:12px;color:var(--fg2)':'font-size:13px;color:var(--amber)'};line-height:1.5;margin-top:3px">⏱ ${stepBreaks(esc(note))}</div>`;})()}
         ${/* 🔴 P1. WAS 10px `--fg3` = 3.71:1 (I recomputed it: #64748b on #161822), BELOW the
               4.5:1 WCAG 2.1 AA 1.4.3 floor. This chip carries the FRESH-protein pathogen deadline — 11 raw
               rows across the five real runs, against the frozen fish's 5 — and it was rendered MORE FAINTLY
@@ -3369,7 +3410,18 @@ function renderMealCards(mp){
               and not to the kitchen. Now 11px `--fg2` = 6.89:1 (recomputed): clears AA and AAA.
               And it named NO ITEM AT ALL: one card in run A carries THREE items with a cook_by and rendered
               a single bare date. It now names every item it speaks for. */''}
-        ${(()=>{const cbs=(d.ingredients||[]).filter(x=>x&&x.cook_by).map(x=>({i:x.item,d:x.cook_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);return cbs.length?`<div style="font-size:11px;color:var(--fg2);margin-top:3px">🍳 ${esc(cookByText(cbs))}</div>`:'';})()}
+        ${(()=>{const all=(d.ingredients||[]).filter(x=>x&&x.cook_by);
+          const mk=x=>({i:x.item,d:x.cook_by});
+          const byDate=(a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0;
+          // SILENT: the date is the only line of defence. Structured, exact, ZERO text matching.
+          const silent=all.filter(x=>isRawProtein(x)).map(mk).sort(byDate);
+          // SIGNALLING: a wrinkled pepper tells you it is late. The date is a second line of
+          // defence and narration is the honest register for it.
+          const signal=all.filter(x=>!isRawProtein(x)).map(mk).sort(byDate);
+          let out='';
+          if(silent.length) out+=`<div style="font-size:13px;color:var(--amber);line-height:1.5;margin-top:3px">🍳 ${esc(cookByText(silent))}</div>`;
+          if(signal.length) out+=`<div style="font-size:12px;color:var(--fg2);line-height:1.5;margin-top:3px">🍳 ${esc(cookByText(signal))}</div>`;
+          return out;})()}
         ${/* 🔴 RE-GATE / DESIGN-L3(a), RULED BLOCKING. THE APP MUST NOT ASSERT A PHYSICAL
               EVENT IT CANNOT OBSERVE. This chip previously read "🧊 from freezer (frozen 2026-07-13)"
               — stating a past event as ACCOMPLISHED FACT, WITH A DATE — derived from nothing but a
@@ -3435,7 +3487,7 @@ function renderMealCards(mp){
                    co-occurrence card prints two "this food"s with different referents (copy review §2). */''}
         ${plateChip.html}
         ${pfChip.html}
-        ${(()=>{const un=(d.ingredients||[]).filter(x=>x&&!x.cook_by&&!x.freeze_by&&!pfCoherent(x)&&(x.protein_state==='fresh'||x.shelf_life_tier===0||x.shelf_life_tier===1)).map(x=>x.item);const pl=un.length>1;return un.length?`<div style="font-size:10px;color:var(--red);margin-top:3px">⚠ no cook-by or freeze-by date on ${pl?'highly perishable items':'a highly perishable item'} (${esc(un.join(', '))}) — cook ${pl?'them':'it'} within 2 days of shopping, or freeze ${pl?'them':'it'} the day you buy ${pl?'them':'it'}</div>`:'';})()}
+        ${(()=>{const un=(d.ingredients||[]).filter(x=>x&&!x.cook_by&&!x.freeze_by&&!pfCoherent(x)&&(x.protein_state==='fresh'||x.shelf_life_tier===0||x.shelf_life_tier===1)).map(x=>x.item);const pl=un.length>1;return un.length?`<div style="font-size:13px;color:var(--red);line-height:1.5;margin-top:3px">⚠ no cook-by or freeze-by date on ${pl?'highly perishable items':'a highly perishable item'} (${esc(un.join(', '))}) — cook ${pl?'them':'it'} within 2 days of shopping, or freeze ${pl?'them':'it'} the day you buy ${pl?'them':'it'}</div>`:'';})()}
         ${d.quality_note?`<div style="font-size:12px;color:var(--fg2);line-height:1.5;margin-top:3px">★ ${esc(d.quality_note)}</div>`:''}
       </div></div>`}).join('')}</div>`;
 }
