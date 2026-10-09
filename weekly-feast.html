@@ -983,6 +983,9 @@ function normalizeDay(day,idx){
     dinner: dn
   };
 }
+// ⚠ This literal DROPS every field it does not name. The deferred row-level cold-chain field (see
+// freezerChecklist) must be added HERE in the same template bump that asks the producer for it, or it
+// will be emitted, discarded on import, and every check on it will pass vacuously.
 function normalizeShopItem(it){
   if(it==null)return null;
   if(typeof it==='string')return{item:it,quantity:'',store:'any',price:null,price_type:'estimated',category:'staple',notes:null,meals_spanned:null};
@@ -3553,8 +3556,94 @@ function renderMealCards(mp){
       </div></div>`}).join('')}</div>`;
 }
 
+// ══ 🧊 FREEZER CHECKLIST — THE IN-STORE COLD-CHAIN DIRECTIVE, AT THE HEAD OF THE SHOPPING LIST ══
+// The one act a household must do BETWEEN the register and home — "keep it frozen, straight into the
+// freezer, not the refrigerator" — had no typed-side home on the surface they hold in the store. Every 🧊
+// chip that carries it sits on a meal-plan day card (the freeze day or the eating day), and the only
+// copy on the store surface was producer prose in a grey .shop-note.
+// WHY A BLOCK AND NOT AMBER ON THE ROW (refused by the food-safety review, under any name): to amber a
+// row the app must know WHICH row is the protein, i.e. match a shopping row to an ingredient. That match
+// is a join, and measured on the five real plans it resolves 5 of the 6 bought proteins and LOSES the
+// salmon in run D ("wild alaska sockeye salmon frozen" vs "wild sockeye salmon fillets"). A text match
+// is refused for the same reason. This block is attached to NO row, so it needs no join.
+// THE ROW-LEVEL CURE IS PRODUCER-SIDE and is deferred: a structured cold-chain field on shopping_list
+// items. LIFTING MOMENT: the next DEFAULT_PROMPT_TEMPLATE version bump, which must ALSO teach
+// normalizeShopItem to carry the field — it drops every key it does not name.
+// POPULATION, EXACT, NO FURTHER FILTER: isRawProtein(x) && (x.freeze_by != null ||
+// x.protein_state === "purchased_frozen") over meal_plan[].dinner.ingredients, de-duplicated by the item
+// string. `source` changes the WORDING only (pantry lines carry no transport clause, because the item is
+// already home), so no new exclusion can fail closed; an unknown source normalises to "staple", which
+// reads as bought — the safe direction. Empty population ⇒ NO block: an empty amber card is a false alarm.
+// BLIND CELLS, KNOWN, EMPTY ON THE REAL PLANS — LOOK FOR THEM AFTER ANY MODEL BUMP: a malformed
+// protein_state ('Fresh', 'frozen', '') normalises to null and drops out; a key-absent ingredient with
+// BOTH dates null (an unannotated frozen fish) fails the second conjunct and drops out.
+// PLACE: after the section title, before .grid-shop, in DOM ORDER — never CSS `order:`. For a
+// screen-reader user DOM order is the only rank channel. It is the first thing on the store surface
+// in either order of the dashboard's sections, because it travels with the list.
+// REGISTER: 13px --amber, the act phrase at 600 and the rest at 400; NO amber below 13px inside the
+// block. Estimated prices on the rows also render amber (11px); the remedy for that collision is to
+// demote the price, never to promote this block.
+// COPY: the UX review's strings, verbatim, assembled here as plain text and escaped as a WHOLE at render
+// — item, store and freeze_by are pasted model output and untrusted. An unreadable date fails toward the
+// EARLIER freeze. ⚠ One sub-case has no reviewed string: a pantry item whose freeze date AND whose plan
+// day-1 date are both unreadable. It reuses the day-one chip's reviewed imperative "PUT IT IN THE
+// FREEZER TODAY" (the earliest possible freeze) rather than print an unreadable value or drop the line.
+// The same lines lead the 📋 Export text (see exportShoppingList), where capitals are the only emphasis.
+function freezerChecklist(mp){
+  const plan=Array.isArray(mp)?mp:[];
+  const items=[], seen=new Set();
+  for(const z of plan){
+    const ings=(z&&z.dinner&&Array.isArray(z.dinner.ingredients))?z.dinner.ingredients:[];
+    for(const x of ings){
+      if(!(isRawProtein(x) && (x.freeze_by != null || x.protein_state === "purchased_frozen"))) continue;
+      if(seen.has(x.item)) continue;
+      seen.add(x.item); items.push(x);
+    }
+  }
+  if(!items.length) return null;
+  // "readable" = ISO yyyy-mm-dd AND a real calendar date (2026-02-30 is not readable).
+  const readable=v=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v==null?'':String(v)); if(!m) return false;
+    const t=new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));
+    return t.getUTCFullYear()===+m[1]&&t.getUTCMonth()===+m[2]-1&&t.getUTCDate()===+m[3];};
+  const dayOf=v=>{const z=plan.find(z=>z&&z.date===v); return z?` (Day ${z.day})`:'';};
+  const d1=plan.find(z=>z&&z.day===1)||plan[0];
+  const d1date=(d1&&readable(d1.date))?d1.date:null;
+  const from=x=>(x.store!=null&&String(x.store).trim()!=='')?` from ${x.store}`:'';
+  const UNREAD=' (The plan’s freeze date could not be read.)';
+  const line=x=>{   // → [ACT, REST]; first match wins
+    const pantry=x.source==='pantry', pf=x.protein_state==='purchased_frozen', ok=readable(x.freeze_by);
+    if(pantry){
+      if(ok) return [`FREEZE BY ${x.freeze_by}${dayOf(x.freeze_by)}`, ` — ${x.item}.`];
+      if(pf) return ['KEEP IT FROZEN', ` — ${x.item}.`];
+      return [d1date?`FREEZE BY ${d1date}${dayOf(d1date)}`:'PUT IT IN THE FREEZER TODAY', ` — ${x.item}.${UNREAD}`];
+    }
+    if(pf) return ['KEEP IT FROZEN', ` — ${x.item}${from(x)}: straight into the freezer when you get home, not the refrigerator.`];
+    if(ok) return [`FREEZE BY ${x.freeze_by}${dayOf(x.freeze_by)}`, ` — ${x.item}${from(x)}: straight into the freezer when you get home.`];
+    return ['FREEZE IT WHEN YOU GET HOME', ` — ${x.item}${from(x)}: straight into the freezer.${UNREAD}`];
+  };
+  return {
+    head:'🧊 FREEZER CHECKLIST',
+    // transit clause only when something is BOUGHT on this trip; an all-pantry block carries none
+    transit: items.some(x=>x.source!=='pantry')
+      ? 'Raw meat, poultry and fish from this shop: register to freezer in 2 hours at most — 1 hour if the air is over 90 °F (32 °C).'
+      : null,
+    lines: items.map(line)
+  };
+}
+function renderFreezerChecklist(mp){
+  const fc=freezerChecklist(mp); if(!fc) return '';
+  const st='font-size:13px;color:var(--amber);line-height:1.5';
+  return `<div class="card" style="border-color:#854d0e;background:#1a1506">`
+    +`<div style="${st};font-weight:600">${esc(fc.head)}</div>`
+    +(fc.transit?`<div style="${st}">${esc(fc.transit)}</div>`:'')
+    +fc.lines.map(([a,r])=>`<div style="${st};margin-top:4px"><span style="font-weight:600">${esc(a)}</span>${esc(r)}</div>`).join('')
+    +`</div>`;
+}
+
 function renderShoppingSection(sl,byStore,cc){
   let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>Shopping List</h2><div class="sub" id="shop-counter" data-total="${sl.length}">${cc} of ${sl.length} items checked</div></div><button class="btn btn-primary" onclick="exportShoppingList()" style="width:auto;min-height:44px;font-size:11px">📋 Export List</button></div>`;
+  // 🧊 freezer checklist: first on the store surface, ahead of every row (see freezerChecklist).
+  h+=renderFreezerChecklist(S.currentPlan&&S.currentPlan.meal_plan);
   h+=`<div class="grid grid-shop">${Object.entries(byStore).map(([store,items])=>`<div class="card">
     <div style="font-weight:700;color:var(--blue);font-size:13px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">${esc(store)}</div>
     ${items.map(item=>{
@@ -4012,6 +4101,11 @@ function exportShoppingList(){
   const{shopping_list:sl=[],cost_summary:cs={},metadata:md={}}=plan;
   const byStore={};sl.forEach(item=>{const s=item.store||'Other';if(!byStore[s])byStore[s]=[];byStore[s].push(item)});
   let txt=`Shopping List — Week of ${md.plan_date||todayStr()}\nTotal: $${n2(cs.total_estimated)} ($${n2(cs.per_person_per_day)}/person/day)\n`;
+  // 🧊 The freezer checklist leads the copied list too: a household that shops from a pasted list
+  // never sees the app's amber, so the capital ACT phrase leading each line is the only emphasis left.
+  // Lines are "* ", not "[ ]": they are not tick items. Plain text, so NOT escaped (see freezerChecklist).
+  const fc=freezerChecklist(plan.meal_plan);
+  if(fc) txt+=`\n${fc.head}\n${fc.transit?fc.transit+'\n':''}${fc.lines.map(([a,r])=>`* ${a}${r}`).join('\n')}\n`;
   Object.entries(byStore).forEach(([store,items])=>{
     txt+=`\n── ${store} ──\n`;
     items.forEach(item=>{
