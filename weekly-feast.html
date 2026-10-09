@@ -3662,9 +3662,9 @@ function renderShoppingSection(sl,byStore,cc){
       </div>`}).join('')}</div>`).join('')}</div>`;
   // Removed items section
   if(S.removedShoppingItems.length){
-    h+=`<div style="margin-top:12px"><button class="btn btn-default" onclick="S.showRemovedItems=!S.showRemovedItems;render()" style="width:auto;font-size:10px;min-height:32px">${S.showRemovedItems?'Hide':'Show'} removed items (${S.removedShoppingItems.length})</button>`;
+    h+=`<div style="margin-top:12px"><button class="btn btn-default" onclick="S.showRemovedItems=!S.showRemovedItems;render()" style="width:auto;font-size:11px;min-height:44px">${S.showRemovedItems?'Hide':'Show'} removed items (${S.removedShoppingItems.length})</button>`;
     if(S.showRemovedItems){
-      h+=`<div class="card" style="margin-top:8px;opacity:.7">${S.removedShoppingItems.map((item,i)=>`<div class="flex items-center gap-8" style="padding:5px 0;border-bottom:1px solid var(--border);min-height:40px;font-size:12px"><span style="flex:1;text-decoration:line-through;color:var(--fg2)">${esc(item.item)} — ${esc(item.quantity)} — $${n2(item.price)}</span><button class="btn btn-default" onclick="restoreShoppingItem(${i})" style="width:auto;font-size:10px;padding:4px 10px;min-height:28px">Add back</button></div>`).join('')}</div>`;
+      h+=`<div class="card" style="margin-top:8px;opacity:.7">${S.removedShoppingItems.map((item,i)=>`<div class="flex items-center gap-8" style="padding:5px 0;border-bottom:1px solid var(--border);min-height:40px;font-size:12px"><span style="flex:1;text-decoration:line-through;color:var(--fg2)">${esc(item.item)} — ${esc(item.quantity)} — $${n2(item.price)}</span><button class="btn btn-default" onclick="restoreShoppingItem(${i})" style="width:auto;font-size:11px;padding:4px 10px;min-height:44px">Add back</button></div>`).join('')}</div>`;
     }
     h+=`</div>`;
   }
