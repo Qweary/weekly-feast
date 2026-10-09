@@ -2636,7 +2636,7 @@ function renderConsumption(){
     // zero — but NOT a $0/week hero (that celebrates the clean week → fake-clean reward, WATCH-BQ4/D7). Neutral words.
   return header+renderWasteRate(agg)+renderWasteOffenders(agg);   // A2: hook (rate) then co-equal payoff (offenders)
 }
-// N=0 empty state (U6 / C4): centered faint 40px/.3 glyph + h2 + one --fg3
+// N=0 empty state (U6 / C4): centered faint 40px/.3 glyph + h2 + one --fg2
 // sub, FORWARD-framed, NO rendered zero, NO warning hue, NO capture CTA. The "door back to
 // the loop" (C4) is a text-weight nav link (data-nav idiom, keyboard-accessible) — NOT a
 // filled/primary button, so it is a route back, not the capture nag U6 forbids.
@@ -2710,7 +2710,7 @@ function renderWasteRate(agg){
 }
 // The co-equal PAYOFF (A2 / U4 / C5): repeat-offender items as an
 // AGENCY-framed inventory, NOT a scoreboard. Weight on the item NAME (13px --fg); the
-// occurrence is a quiet ≤11px --fg3 TRAILING clause, never a right-aligned/bold/colored
+// occurrence is a quiet ≤11px --fg2 TRAILING clause, never a right-aligned/bold/colored
 // numeral, never a verified exact count; FRESH-FIRST order (already sorted), unranked; a
 // small handful, not exhaustive; no valence hue on any row. Its own first-class card —
 // never nested under the figure (C2).
@@ -3229,7 +3229,7 @@ function renderMealCards(mp){
               it its own amber home so it stops being the one freeze warning a household never reads.
               Fires on the FREEZE-DAY card by EXACT freeze_by↦day.date match (forward-scan mirror of the
               come-out chip); collision-free with come-out (:2979 strict >), plate-day (:3101), purchased
-              (:3102). Same 11px/w600/--amber action register as the come-out chip. Copy = FSIS first-48,
+              (:3102). Same 13px/w600/--amber action register as the come-out chip. Copy = FSIS first-48,
               plan-not-observation, every-item-named (guards the [0]-drop). No schema field. */''}
         ${(freeze1Chip=norm((()=>{const fz=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* S37 NR1 — raw-protein only: a frozen vegetable is a quality choice, not a pathogen control (:270) */if(pfCoherent(x)||!x.freeze_by)continue;if(!ISO_DATE.test(String(x.freeze_by))||!ISO_DATE.test(String(day.date)))continue;if(String(day.date)!==String(x.freeze_by))continue;fz.push(x.item);}}
           const items=[...new Set(fz)]; if(!items.length) return '';
@@ -3445,12 +3445,35 @@ function renderMealCards(mp){
               line beside it. The deadline for raw chicken and the cost-per-serving were the same colour and
               the same size. It is the IDENTICAL defect a reviewer found in the shopping list, which S33 fixed
               there (`.shop-note` → 11px `--fg2`, 6.89:1) AND LEFT STANDING HERE — the fix went to the aisle
-              and not to the kitchen. Now 11px `--fg2` = 6.89:1 (recomputed): clears AA and AAA.
+              and not to the kitchen. Now SPLIT by whether a missed date is SILENT (below): a raw animal
+              protein's deadline renders 13px `--amber` (the act-now rank), every other deadline 12px
+              `--fg2` = 6.89:1 (narration). Both clear AA.
               And it named NO ITEM AT ALL: one card in run A carries THREE items with a cook_by and rendered
               a single bare date. It now names every item it speaks for. */''}
         ${(()=>{const all=(d.ingredients||[]).filter(x=>x&&x.cook_by);
           const mk=x=>({i:x.item,d:x.cook_by});
           const byDate=(a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0;
+          // ⏳ DEFERRAL — COOKED READY-TO-EAT FOODS. THIS COMMENT IS THE CARRIER. The food-safety review
+          // ruled this gap when the split below was built; until now it was recorded only in that commit's
+          // message, which nobody editing this line reads. It is recorded here so it fires.
+          // The SILENT split uses isRawProtein(x), which MISSES cooked ready-to-eat foods: their rows carry
+          // protein_state:null, source:"pantry", tier 1 — the same signature as a bell pepper — so they
+          // render in the 12px --fg2 narration branch. On live-run-v11 (app sha256 057f8f00…) that is SIX rows:
+          //   A d3 cooked shredded chicken (from Day 2)          C d4 shredded chicken tinga (cooked day 1)
+          //   C d5 carnitas (cooked day 3)                        D d3 cooked chicken thighs (leftover from day 1)
+          //   D d3 cooked white rice (leftover from day 1)  ← Bacillus cereus vehicle: heat-stable emetic toxin
+          //   E d3 cooked shredded chicken (from day 1)
+          // THE RULE:   SILENT ⇔ isRawProtein(x) || x.rte_cooked     (rte_cooked does not exist yet)
+          // REFUSED, BY NAME: the text proxy /cooked|leftover/ and any widening of it (adding "shredded"
+          // files "romaine lettuce, shredded" as cooked ready-to-eat). Classify the FOOD, never the words.
+          // LIFTING MOMENT: the next DEFAULT_PROMPT_TEMPLATE version bump IN THIS FILE. That edit adds
+          // rte_cooked (true = a cooked food carried forward from an earlier cooking day) to the ingredient
+          // schema; normalizeIngredient must carry it (it drops every key it does not name); this split
+          // becomes isRawProtein(x)||x.rte_cooked.
+          // SAME BUMP, SEPARATE QUESTION: cut_produce (pre-cut / bagged leafy greens) is a sibling CONTRACT
+          // gap, NOT a SILENT disjunct — do not add it to the rule above; its register is unruled.
+          // LOOK FOR: a cooked component routed to the FREEZER (the template invites it). It is silent-class,
+          // and isRawProtein, and every predicate built on it, is blind to it.
           // SILENT: the date is the only line of defence. Structured, exact, ZERO text matching.
           const silent=all.filter(x=>isRawProtein(x)).map(mk).sort(byDate);
           // SIGNALLING: a wrinkled pepper tells you it is late. The date is a second line of
