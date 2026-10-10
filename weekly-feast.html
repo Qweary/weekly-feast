@@ -181,6 +181,13 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
+// ⏳ TEMPLATE-BUMP TRIGGER. Bumping the prompt-template version (the promptTemplate key in KEYS below, with
+// DEFAULT_PROMPT_TEMPLATE and a new migration block) is the trigger for three deferred contract fields, owed
+// in the SAME change:
+//   · rte_cooked and cut_produce — see the comment containing
+//     "DEFERRAL — COOKED READY-TO-EAT FOODS. THIS COMMENT IS THE CARRIER." (at the cook-by split);
+//   · the shopping-row cold-chain field — see the comment containing "THE ROW-LEVEL CURE IS PRODUCER-SIDE"
+//     (at freezerChecklist); normalizeShopItem must carry it too.
 const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v11',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items',wasteLog:'mp:waste-log-v1',wasteDismissed:'mp:waste-dismissed-v1',safetyNoticeV10:'mp:safety-notice-v10-dismissed',safetyNoticeV11:'mp:safety-notice-v11-dismissed',lastTick:'mp:last-tick-v1'};
 
 const DEFAULT_PANTRY={tier1:[
