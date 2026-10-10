@@ -3625,7 +3625,7 @@ function freezerChecklist(mp){
     head:'🧊 FREEZER CHECKLIST',
     // transit clause only when something is BOUGHT on this trip; an all-pantry block carries none
     transit: items.some(x=>x.source!=='pantry')
-      ? 'Raw meat, poultry and fish from this shop: register to freezer in 2 hours at most — 1 hour if the air is over 90 °F (32 °C).'
+      ? 'The raw meat, poultry and fish listed below that you buy on this trip: once you take them from the store’s fridge or freezer case, you have 2\u00A0hours to get them into your freezer — 1\u00A0hour if the air is over 90\u00A0°F (32\u00A0°C). Pick them up last.'
       : null,
     lines: items.map(line)
   };
