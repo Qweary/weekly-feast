@@ -4339,6 +4339,7 @@ function exportAllData(){
     currentPlan:S.currentPlan,planHistory:S.planHistory,
     promptTemplate:S.promptTemplate,anchorRecipes:S.anchorRecipes,
     checkedItems:S.checkedItems,
+    specialInstructions:S.specialInstructions,   // typed text that steers every plan → without it a move to another browser silently loses it.
     wasteLog:S.wasteLog   // E2-1 (N4): enumerated explicitly → MUST be here or a restore silently destroys it.
                           // wasteDismissed is deliberately OMITTED (UI-suppression, not household data — Q4).
   };
@@ -4383,6 +4384,10 @@ function importAllData(event){
       // planHistory. NO destructive else: a pre-E2 backup legitimately lacks wasteLog; clearing it
       // would silently destroy irreplaceable longitudinal waste history. Absent-in-backup ⇒ PRESERVE.
       if(data.wasteLog&&typeof data.wasteLog==='object'){S.wasteLog=normalizeWasteLog(data.wasteLog);saveWasteLog()}
+      // Same NON-destructive shape as wasteLog: backups made before this field was exported lack it, so
+      // absent-in-backup ⇒ PRESERVE this copy's text (NO else). The typeof guard is load-bearing: the prompt
+      // calls .trim() on it, so a non-string from a hand-edited file would break the Prompt screen. '' DOES overwrite.
+      if(typeof data.specialInstructions==='string'){S.specialInstructions=data.specialInstructions;saveSpecialInstructions()}
       S.removedShoppingItems=[];S.showRemovedItems=false;saveRemovedItems();
       try{localStorage.removeItem(KEYS.lastTick)}catch(e){}   // a restored backup opens at the top
       showToast(_tplUpgraded?'Data restored — upgraded an old prompt template to the new import format.':'Data restored from backup!');render();
