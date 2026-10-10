@@ -3312,11 +3312,11 @@ function renderMealCards(mp){
               about. The ⏱ note was that food's only surface. So the earlier absolute — that a demote can
               NEVER strand X's first-order safety — is FALSE for a fresh food, and it is WITHDRAWN. What is
               true after CF2 is narrower: where the note NAMES that food in the sentence carrying the recognised
-              directive, the referent resolves, no fired chip carries it, and the note HOLDS. The residue is
-              a deadline that names its food by an ALTERNATE or PARTIAL name — it resolves to nothing and
-              falls back to a test quantified only over foods that DID fire a chip, which is the
-              sole-channel shape measured above. Closing that is not CF2's job, and it is named here rather
-              than buried.
+              directive, the referent resolves, no fired chip carries it, and the note HOLDS. The residue WAS
+              a deadline that names its food by an ALTERNATE or PARTIAL name — it resolved to nothing and
+              fell back to a test quantified only over foods that DID fire a chip, which is the
+              sole-channel shape measured above. That fallback is now REMOVED (see `sameFood` below): a
+              note that resolves to no food for a class leaves that class UNCOVERED, and the note HOLDS.
 
               IDENTITY (S45) MOVES THIS PREMISE IN BOTH DIRECTIONS, AND IT IS STILL NOT UNCONDITIONAL.
               Coverage now compares RAW ITEM STRINGS, not folded match keys: `foodKey` still performs the
@@ -3354,13 +3354,16 @@ function renderMealCards(mp){
               (CF2) it was discharged CROSS-FOOD by another food's chip and demoted.
               CF2 closes that: coverage now ranges over Class AND REFERENT. Each chip DECLARES the foods it
               speaks for beside the classes it declares, and a chip covers a class only for the food it names.
-              Where the note names a card ingredient in the sentence carrying the directive (or the sentence
-              before it, so a pronoun resolves), that food IS the referent; where it names none, the gate
-              quantifies over EVERY food any fired chip names, and an empty referent set is an UNPROVEN
-              coverage claim that must HOLD — a universal quantifier over an empty set is vacuously true,
-              which is this gate's own original sickness one level up. What CF2 does NOT close: a deadline
-              that names its food by an alternate or partial name resolves to nothing and falls back to that
-              universal test, which can still credit across foods; recognising such a name is open-ended
+              Where the note names a card ingredient, or a food a fired chip on this card speaks for, in the
+              sentence carrying the directive (or the sentence before it, so a pronoun resolves), that food IS
+              the referent; where it names none, the class is UNCOVERED and the note HOLDS — no substitute
+              set (the fired chips' foods, the card's ingredients, anything else) stands in for an empty
+              referent. An empty referent set is an UNPROVEN coverage claim — a universal quantifier over an
+              empty set is vacuously true, which is this gate's own original sickness one level up — and the
+              gate used to fill it with every food any fired chip names, which could credit across foods.
+              What CF2 does NOT close: a deadline that names its food by an alternate or partial name still
+              resolves to nothing; it now HOLDS amber rather than being credited across foods, which is the
+              safe direction at an amber cost. Recognising such a name is open-ended
               referent recognition, the same open problem as open-ended deadline recognition, and closing THAT
               is not CF2's job. A demote is correct ONLY where a same-food amber chip already carries the
               matched class on this card — the intended redundant-restatement drain.
@@ -3379,14 +3382,17 @@ function renderMealCards(mp){
               the alias half of the referent premise and NEITHER note-side conjunct: a note naming its food
               by an alternate or partial name still resolves to nothing, and `noteRefOf`'s substring
               containment still over-resolves. Over-resolution points toward HOLD: it adds referents and
-              `every()` gets harder. Non-resolution does NOT. When a note fails to resolve, the gate quantifies
+              `every()` gets harder. Non-resolution USED NOT TO. When a note failed to resolve, the gate quantified
               over `cardFoods` — the foods that DID fire a chip — so if the note's real subject fired no chip it
-              is not in the set being checked, and the class can be credited ACROSS FOODS, greying a directive.
-              That is the unsafe direction, it is the same one named eleven lines above ("the universal test,
-              which can still credit across foods"), and it is measured: a cooked-leftover
-              refrigeration-and-room-temperature directive greys on the strength of a come-out chip about
-              frozen raw chicken thighs — a different food on a different hazard clock. Unchanged by this
-              commit: neither created nor closed here. */''}
+              was not in the set being checked, and the class could be credited ACROSS FOODS, greying a directive.
+              That was the unsafe direction, the same one named above ("could credit across foods"), and it was
+              measured: a cooked-leftover
+              refrigeration-and-room-temperature directive greyed on the strength of a come-out chip about
+              frozen raw chicken thighs — a different food on a different hazard clock. CLOSED by the
+              fail-closed `sameFood` below: non-resolution now points toward HOLD too. What keeps that from
+              over-holding is that resolution also ranges over the foods this card's fired chips speak for,
+              so a come-out-day note that names the thawing food (a food on a LATER card, not in this card's
+              ingredients) still resolves and still drains. */''}
         ${(()=>{if(!d.perishability_note)return'';
           const note=d.perishability_note;
           // 7-CLASS SAFETY MAP (regexes = the FLOOR tokens partitioned by act + CFF/KEEPWIN/REFREEZE; single-sourced).
@@ -3441,18 +3447,27 @@ function renderMealCards(mp){
           const cardFoods=new Set(); for(const k of chipsFired) for(const f of k.foods) cardFoods.add(f);
           const carriersOf=(c)=>{const s=new Set();for(const k of chipsFired){if(k.classes.has(c))for(const f of k.foods)s.add(f);}return s;};
           const NOTE_SENT=String(note).split(/(?<=[.!?])\s+/);
-          // The note's referent for class c: every card ingredient whose FULL name appears in a sentence
+          // The foods a note may NAME: this card's ingredients AND every food a fired chip on this card
+          // speaks for. The come-out and freeze-today chips speak for a LATER card's dinner, so a
+          // come-out-day note that names its thawing food would otherwise never resolve. This widens what
+          // a note can be RESOLVED to, never what is CREDITED: the note must still name the food.
+          const nameable=new Set(); for(const x of (d.ingredients||[])) if(x&&x.item) nameable.add(x.item);
+          for(const f of cardFoods) nameable.add(f);
+          // The note's referent for class c: every nameable food whose FULL name appears in a sentence
           // where c matches, or in the sentence before it (so a pronoun subject resolves to its antecedent).
           const noteRefOf=(c)=>{const out=new Set();
             for(let i=0;i<NOTE_SENT.length;i++){ if(!CLASS_RE[c].test(NOTE_SENT[i]))continue;
               const win=' '+foodKey(NOTE_SENT.slice(Math.max(0,i-1),i+1).join(' '))+' ';
-              for(const x of (d.ingredients||[])){ if(!x||!x.item)continue;
-                const n=foodKey(x.item); if(n&&win.includes(' '+n+' ')) out.add(x.item); } }
+              for(const it of nameable){
+                const n=foodKey(it); if(n&&win.includes(' '+n+' ')) out.add(it); } }
             return out;};
-          // Resolve if we can; otherwise quantify over EVERY candidate referent. An empty referent set is
-          // an UNPROVEN coverage claim, and `for (f of ∅)` is vacuously true — the same every()-on-empty
-          // trap this gate exists to fix — so it must return false explicitly.
-          const sameFood=(c)=>{ const nr=noteRefOf(c); const R=nr.size?nr:cardFoods;
+          // FAIL CLOSED ON NO REFERENT. A class is covered only if the note resolves to at least one food
+          // for it AND every resolved food has a fired chip on this card declaring that class for it. An
+          // empty referent set is an UNPROVEN coverage claim, and `for (f of ∅)` is vacuously true — the
+          // same every()-on-empty trap this gate exists to fix — so it returns false explicitly, and NO
+          // substitute set may stand in for it: filling it with the fired chips' foods is how a directive
+          // about one food was greyed on the strength of a chip about another.
+          const sameFood=(c)=>{ const R=noteRefOf(c);
             if(R.size===0) return false;
             const car=carriersOf(c); for(const f of R) if(!car.has(f)) return false; return true; };
           const covered=(c)=> c==='CFF'?false : c==='KEEPWIN'?(sameFood('KEEPWIN')&&keepAll12) : sameFood(c);
@@ -4401,7 +4416,11 @@ try{
      carries:'the refreeze permission WITH the scope that makes it safe — stated bare it authorizes what FSIS forbids'},
     {plan:_pfBare,    note:'This is its last safe day.',
      carries:'the untokened keep-window deadline (CF1) — a use-by stated with no keep(s)-token, which before CF1 went sole-channel on a bare card'},
-    {plan:_pfCovered, note:'If the salmon is still solid at dinner, cook it from frozen.',
+    // The seventh names its item by its FULL name, and must keep doing so. Coverage credits a chip only
+    // for a food the note RESOLVES to, and "the salmon" does not resolve to "salmon fillets"; spelled
+    // that way, the neighbour this card's chip is meant to cover stays uncovered too, the fixture is no
+    // longer isolated by coverage, and deleting its own class leaves the check SILENT.
+    {plan:_pfCovered, note:'If the salmon fillets are still solid at dinner, cook them from frozen.',
      carries:'the recovery move that prevents the reach for the hot tap'},
   ];
   // ── LOGIC. Everything from here down is free of food words, class names and safety tokens by
