@@ -4240,11 +4240,15 @@ function exportShoppingList(){
   // tap meant for a row, so the row stayed unticked. Said here, the confirmation sits where the
   // eye already is and covers nothing. The control is a polite live region, so the outcome is also
   // announced. The label keeps the outcome until the next render; tapping again copies again.
+  // The control's pre-tap width is frozen as BOTH its minimum and its maximum, so no outcome label can
+  // widen it: on a narrow phone a wider control wraps below the heading and pushes the freezer checklist
+  // down at the moment of failure. A label longer than that width wraps inside the button instead,
+  // which its 44px minimum height absorbs at two lines.
   copyText(txt).then(ok=>{
     const b=document.getElementById('export-list-btn');
-    if(!b){showToast(ok?'Shopping list copied!':'Copy failed — try again');return;}
-    if(!b.style.minWidth)b.style.minWidth=b.offsetWidth+'px';
-    b.textContent=ok?'✓ Copied':'Copy failed — try again';
+    if(!b){showToast(ok?'Shopping list copied!':'Copy failed — retry');return;}
+    if(!b.style.minWidth){const w=b.getBoundingClientRect().width+'px';b.style.minWidth=w;b.style.maxWidth=w;}
+    b.textContent=ok?'✓ Copied':'Copy failed — retry';
   });
 }
 
