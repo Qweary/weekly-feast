@@ -225,7 +225,7 @@ const DEFAULT_HOUSEHOLD={size:2,mealStructure:"Simple breakfasts and lunches, la
 const WALMART_LABELS={"only-major":"Only for major savings (>20%)","moderate":"Moderate savings okay (10-15%)","include-freely":"Include Walmart freely"};
 const WALMART_PROMPT={"only-major":"Only recommend Walmart when savings exceed 20% on enough items to justify a separate trip.","moderate":"Recommend Walmart when savings exceed 10-15% on key items.","include-freely":"Treat Walmart as an equal-priority store."};
 const STATUS_COLORS={"well-stocked":"#22c55e","getting-low":"#f59e0b","out":"#ef4444"};
-const CATEGORY_LABELS={sale:{color:"#34d399",label:"sale"},staple:{color:"#94a3b8",label:"staple"},restock:{color:"#f59e0b",label:"restock"}};
+const CATEGORY_LABELS={sale:{color:"#34d399",label:"sale"},staple:{color:"#94a3b8",label:"staple"},restock:{color:"#a78bfa",label:"restock"}};
 const STATUS_ORDER=["well-stocked","getting-low","out"];
 
 const NAV_ITEMS=[
@@ -3690,6 +3690,9 @@ function renderShoppingSection(sl,byStore,cc){
     ${items.map(item=>{
       const ci=CATEGORY_LABELS[item.category]||CATEGORY_LABELS.staple;
       const chk=S.checkedItems[item._gi];
+      // On the store surface amber means one thing: a food-safety act, which here is the freezer
+      // checklist at the head of the list. An estimated price is already labelled "(est.)" in text, so
+      // it is quiet grey beside a confirmed price's green, and the restock badge is violet, not orange.
       return `<div class="shop-row ${chk?'checked':''}" data-shoprow="${item._gi}" role="checkbox" aria-checked="${chk?'true':'false'}" tabindex="0">
         <input type="checkbox" ${chk?'checked':''} tabindex="-1" aria-hidden="true">
         <div class="shop-main">
@@ -3698,7 +3701,7 @@ function renderShoppingSection(sl,byStore,cc){
         </div>
         <span class="cat-badge" style="background:${ci.color}18;color:${ci.color}">${ci.label}</span>
         <span class="shop-qty" style="font-size:11px;color:var(--fg2);min-width:50px;text-align:right">${esc(item.quantity)}</span>
-        <span class="shop-price" style="font-size:11px;color:${item.price_type==='confirmed'?'var(--green)':'var(--amber)'};min-width:60px;text-align:right">$${n2(item.price)}${item.price_type==='estimated'?'<span style="font-size:11px"> (est.)</span>':''}</span>
+        <span class="shop-price" style="font-size:11px;color:${item.price_type==='confirmed'?'var(--green)':'var(--fg2)'};min-width:60px;text-align:right">$${n2(item.price)}${item.price_type==='estimated'?'<span style="font-size:11px"> (est.)</span>':''}</span>
         <button class="rm-btn" onclick="event.stopPropagation();removeShoppingItem(${item._gi})" title="Remove item">×</button>
       </div>`}).join('')}</div>`).join('')}</div>`;
   // Removed items section
