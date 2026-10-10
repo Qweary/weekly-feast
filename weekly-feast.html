@@ -3412,15 +3412,31 @@ function renderMealCards(mp){
               POST-freeze names, so the amber rate is model-phrasing-dependent in a new place. This closes
               the alias half of the referent premise and NEITHER note-side conjunct: a note naming its food
               by an alternate or partial name still resolves to nothing, and `noteRefOf`'s substring
-              containment still over-resolves. Over-resolution points toward HOLD: it adds referents and
-              `every()` gets harder. Non-resolution USED NOT TO. When a note failed to resolve, the gate quantified
+              containment still over-resolves. Over-resolution USUALLY points toward HOLD: it adds referents
+              and `every()` gets harder. TWO KNOWN, DEFERRED RESIDUALS where it does not, named here so neither
+              is rediscovered as a surprise. (1) SAME-NAME: a cooked leftover written with the raw item's
+              name ("the leftover chicken thighs curry") resolves to the raw item, which a chip carries. (2)
+              ADJACENCY CARRY: the previous-sentence window can carry a food a chip speaks for into the next
+              sentence when that sentence's real subject is something the note never names as a food (cooked
+              rice, a soup, a dish): "Move the chicken thighs to the refrigerator tonight. Never leave the
+              cooked rice at room temperature for more than 2 hours." The thighs are then that sentence's only
+              referent, a chip carries them, and a directive about a different food greys. The one mechanical
+              cure measured (a chip-only food resolves only in its own sentence) also holds the intended
+              subjectless restatement, "Never on the counter, never in hot water." after the sentence naming
+              the food, so telling the two apart is open-ended referent recognition. Both are deferred until a
+              captured plan shows either one changing a note's verdict; the greyed text stays readable. Non-resolution USED NOT TO. When a note failed to resolve, the gate quantified
               over `cardFoods` — the foods that DID fire a chip — so if the note's real subject fired no chip it
               was not in the set being checked, and the class could be credited ACROSS FOODS, greying a directive.
               That was the unsafe direction, the same one named above ("could credit across foods"), and it was
               measured: a cooked-leftover
               refrigeration-and-room-temperature directive greyed on the strength of a come-out chip about
               frozen raw chicken thighs — a different food on a different hazard clock. CLOSED by the
-              fail-closed `sameFood` below: non-resolution now points toward HOLD too. What keeps that from
+              fail-closed `noteRefOf`/`sameFood` below, which require EVERY sentence carrying a class to name a
+              food in its own window (that sentence or the one before it); one that names none leaves the class
+              uncovered, and a sibling sentence's food may not stand in for it. Pooling the sentences' foods
+              into one set had reopened the same hole one level down: a leftover-soup sentence that named no
+              food was greyed because an earlier sentence of the same note named the thawing thighs. So
+              non-resolution now points toward HOLD too. What keeps that from
               over-holding is that resolution also ranges over the foods this card's fired chips speak for,
               so a come-out-day note that names the thawing food (a food on a LATER card, not in this card's
               ingredients) still resolves and still drains. */''}
@@ -3484,16 +3500,21 @@ function renderMealCards(mp){
           // a note can be RESOLVED to, never what is CREDITED: the note must still name the food.
           const nameable=new Set(); for(const x of (d.ingredients||[])) if(x&&x.item) nameable.add(x.item);
           for(const f of cardFoods) nameable.add(f);
-          // The note's referent for class c: every nameable food whose FULL name appears in a sentence
-          // where c matches, or in the sentence before it (so a pronoun subject resolves to its antecedent).
+          // The note's referent for class c, sentence by sentence. Each sentence where c matches has a
+          // window: that sentence and the one before it (so a pronoun subject resolves to its antecedent).
+          // Every one of those windows must name at least one nameable food by its FULL name; if ANY window
+          // names none, c has NO referent and the result is empty. The foods of the other windows are not
+          // allowed to stand in for it: that pooling is exactly the substitute set the rule below forbids.
           const noteRefOf=(c)=>{const out=new Set();
             for(let i=0;i<NOTE_SENT.length;i++){ if(!CLASS_RE[c].test(NOTE_SENT[i]))continue;
               const win=' '+foodKey(NOTE_SENT.slice(Math.max(0,i-1),i+1).join(' '))+' ';
+              let named=0;
               for(const it of nameable){
-                const n=foodKey(it); if(n&&win.includes(' '+n+' ')) out.add(it); } }
+                const n=foodKey(it); if(n&&win.includes(' '+n+' ')){ out.add(it); named++; } }
+              if(!named) return new Set(); }
             return out;};
-          // FAIL CLOSED ON NO REFERENT. A class is covered only if the note resolves to at least one food
-          // for it AND every resolved food has a fired chip on this card declaring that class for it. An
+          // FAIL CLOSED ON NO REFERENT. A class is covered only if every sentence carrying it names a food
+          // (above) AND every food so named has a fired chip on this card declaring that class for it. An
           // empty referent set is an UNPROVEN coverage claim, and `for (f of ∅)` is vacuously true — the
           // same every()-on-empty trap this gate exists to fix — so it returns false explicitly, and NO
           // substitute set may stand in for it: filling it with the fired chips' foods is how a directive
