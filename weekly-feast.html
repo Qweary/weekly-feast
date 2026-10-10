@@ -86,7 +86,18 @@ textarea.inp{resize:vertical;line-height:1.6}
 .cat-badge{font-size:11px;padding:1px 6px;border-radius:8px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
 
 /* Shopping item row */
-.shop-row{display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;border-bottom:1px solid var(--border);min-height:44px;transition:opacity .12s,background .12s}
+/* ROW GRAMMAR — one grammar at every width, so it lives OUTSIDE the phone-only block. The old row was
+   one flex line: checkbox, name+note, then badge, quantity, price and the remove button. That fixed
+   cluster took about 250px, so on a phone (and at every desktop width where the shopping grid adds a
+   column and the cards narrow) the name and its note were left 8-67px, and a storage instruction like
+   "KEEP IT FROZEN. Put it straight into the freezer..." painted one to three words per line for dozens
+   of lines, while the remove button fell off the card. Now: line 1 is the checkbox and the item name;
+   the note sits directly under the name at the full width of the row; the last line carries badge,
+   quantity, price and remove, flush right, with remove in a fixed 44px column so prices line up down a
+   card. Every placement is explicit and follows DOM order (name, note, badge, quantity, price, remove),
+   so what a screen reader reads first is what the eye reads first. Card width, not viewport width,
+   decides the squeeze, which is why there is no breakpoint here. */
+.shop-row{display:grid;grid-template-columns:18px minmax(auto,1fr) auto auto 44px;column-gap:8px;row-gap:2px;align-items:center;padding:6px 0;cursor:pointer;border-bottom:1px solid var(--border);min-height:44px;transition:opacity .12s,background .12s}
 .shop-row:last-child{border-bottom:none}
 /* DESIGN NOTE — THE NOTE MUST SURVIVE THE CHECK.
    The row-level `opacity:.55` is GONE. It could not be undone by any child rule, and it dragged the
@@ -101,13 +112,19 @@ textarea.inp{resize:vertical;line-height:1.6}
 .shop-row.checked .cat-badge,
 .shop-row.checked .shop-qty,
 .shop-row.checked .shop-price{opacity:.55}
-.shop-main{flex:1;min-width:0}
+.shop-main{grid-column:2/-1;grid-row:1;min-width:0}
+.shop-name{font-weight:600}
+.shop-name span{font-weight:400}
 /* DESIGN NOTE — was 9px `--fg3` (#64748b on #161822 = 3.71:1, BELOW the 4.5:1 WCAG AA floor), in
    parentheses, INSIDE .shop-name. Now 11px `--fg2` (#94a3b8 on #161822 = 6.9:1 — passes AA and AAA)
    in its own block element, OUTSIDE .shop-name, where the strike-through cannot reach it. */
-.shop-note{font-size:11px;color:var(--fg2);line-height:1.4;margin-top:3px}
+.shop-note{font-size:11px;color:var(--fg2);line-height:1.4;margin-top:3px;max-width:72ch}
 .shop-row.checked .shop-note{opacity:1;text-decoration:none}
-.shop-row input[type=checkbox]{accent-color:var(--blue);width:18px;height:18px;flex-shrink:0;pointer-events:none}
+.shop-row input[type=checkbox]{accent-color:var(--blue);width:18px;height:18px;flex-shrink:0;pointer-events:none;grid-column:1;grid-row:1;align-self:start}
+.shop-row .cat-badge{grid-column:2;grid-row:2;justify-self:end}
+.shop-row .shop-qty{grid-column:3;grid-row:2}
+.shop-row .shop-price{grid-column:4;grid-row:2}
+.shop-row .rm-btn{grid-column:5;grid-row:2}
 
 /* Progress bar */
 .progress{display:flex;gap:8px;margin-bottom:20px}
@@ -3708,7 +3725,7 @@ function renderShoppingSection(sl,byStore,cc){
           ${item.notes?`<div class="shop-note">${esc(item.notes)}</div>`:''}
         </div>
         <span class="cat-badge" style="background:${ci.color}18;color:${ci.color}">${ci.label}</span>
-        <span class="shop-qty" style="font-size:11px;color:var(--fg2);min-width:50px;text-align:right">${esc(item.quantity)}</span>
+        <span class="shop-qty" style="font-size:11px;color:var(--fg2);min-width:50px;text-align:right">${esc(item.quantity).replace(/\([^()]*\)/g,m=>`<span style="white-space:nowrap">${m}</span>`)}</span>
         <span class="shop-price" style="font-size:11px;color:${item.price_type==='confirmed'?'var(--green)':'var(--fg2)'};min-width:60px;text-align:right">$${n2(item.price)}${item.price_type==='estimated'?'<span style="font-size:11px"> (est.)</span>':''}</span>
         <button class="rm-btn" onclick="event.stopPropagation();removeShoppingItem(${item._gi})" title="Remove item">×</button>
       </div>`}).join('')}</div>`).join('')}</div>`;
