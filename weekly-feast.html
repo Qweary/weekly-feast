@@ -129,7 +129,13 @@ textarea.inp{resize:vertical;line-height:1.6}
   #sidebar{display:none}
   #main{padding:16px 12px 80px}
   #bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);z-index:100;overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .bnav-btn{flex:1;min-width:56px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border:none;background:transparent;color:var(--fg2);font-size:9px;font-family:var(--font);cursor:pointer;white-space:nowrap}
+  /* The bottom-nav labels were 9px, under the app's 11px type floor, on the one piece of chrome a
+     phone always shows. At 11px "Dashboard" no longer fits a 56px button, so that destination is
+     named "Plan" (its screen's heading is "This Week's Meal Plan") in BOTH navs and in the in-app
+     link, never in one place only. This type rule sits inside the phone-only block on purpose: the
+     bottom nav is display:none above 640px, so a phone-only size cannot leave a desktop label
+     under the floor. */
+  .bnav-btn{flex:1;min-width:56px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border:none;background:transparent;color:var(--fg2);font-size:11px;font-family:var(--font);cursor:pointer;white-space:nowrap}
   .bnav-btn.active{color:var(--blue)}
   .bnav-btn.disabled{color:#334155;cursor:not-allowed}
   .bnav-btn .icon{font-size:16px}
@@ -223,7 +229,7 @@ const CATEGORY_LABELS={sale:{color:"#34d399",label:"sale"},staple:{color:"#94a3b
 const STATUS_ORDER=["well-stocked","getting-low","out"];
 
 const NAV_ITEMS=[
-{id:"dashboard",label:"Dashboard",icon:"◉"},
+{id:"dashboard",label:"Plan",icon:"◉"},
 {id:"pantry",label:"Pantry",icon:"◫"},
 {id:"review",label:"Review",icon:"↻"},
 {id:"generate",label:"Prompt",icon:"⟩"},
@@ -2172,7 +2178,7 @@ function renderRecoveryPanel(err){
         <div style="font-size:12px;color:#fde68a;line-height:1.6;margin-bottom:10px">Some of your saved data looks malformed, so this view failed to render. Your other data is untouched. Try switching to another screen, or reset this app's data to clear the bad state (this only clears weekly-feast's own storage).</div>
         <div style="font-size:10px;color:var(--fg2);margin-bottom:14px;word-break:break-word">Details: ${esc(msg)}</div>
         <div class="flex gap-8 flex-wrap">
-          <button class="btn btn-default" onclick="S.screen='dashboard';render()" style="width:auto">Go to Dashboard</button>
+          <button class="btn btn-default" onclick="S.screen='dashboard';render()" style="width:auto">Go to Plan</button>
           <button class="btn btn-danger" onclick="resetAppData()" style="width:auto">Reset app data</button>
         </div>
       </div>
@@ -2270,7 +2276,7 @@ function renderDashboard(){
   if(!plan){
     // Explainer auto-shows on first run (mp:onboarded-v1 unset); "How this works" forces it via S.showOnboarding.
     const showExp=S.showOnboarding||!load(KEYS.onboarded,false);
-    let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8" style="margin-bottom:12px"><div style="font-size:11px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px">Dashboard</div>${reentryBtn()}</div>`;
+    let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8" style="margin-bottom:12px"><div style="font-size:11px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px">Plan</div>${reentryBtn()}</div>`;
     if(showExp)h+=renderOnboardingExplainer();
     h+=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:46vh;text-align:center">
       <div style="font-size:48px;margin-bottom:16px;opacity:.3">◉</div>
