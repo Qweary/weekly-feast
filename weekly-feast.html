@@ -3725,7 +3725,7 @@ function renderShoppingSection(sl,byStore,cc){
           ${item.notes?`<div class="shop-note">${esc(item.notes)}</div>`:''}
         </div>
         <span class="cat-badge" style="background:${ci.color}18;color:${ci.color}">${ci.label}</span>
-        <span class="shop-qty" style="font-size:11px;color:var(--fg2);min-width:50px;text-align:right">${esc(item.quantity).replace(/\([^()]*\)/g,m=>`<span style="white-space:nowrap">${m}</span>`)}</span>
+        <span class="shop-qty" style="font-size:11px;color:var(--fg2);min-width:50px;text-align:right">${esc(item.quantity).replace(/(\d)\s+(?=(?:fl\.?\s?oz|oz|lbs?|kg|g|ml|l|qt|pt|gal)\b)/gi,'$1&nbsp;')}</span>
         <span class="shop-price" style="font-size:11px;color:${item.price_type==='confirmed'?'var(--green)':'var(--fg2)'};min-width:60px;text-align:right">$${n2(item.price)}${item.price_type==='estimated'?'<span style="font-size:11px"> (est.)</span>':''}</span>
         <button class="rm-btn" onclick="event.stopPropagation();removeShoppingItem(${item._gi})" title="Remove item">×</button>
       </div>`}).join('')}</div>`).join('')}</div>`;
