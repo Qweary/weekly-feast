@@ -3676,7 +3676,7 @@ function renderFreezerChecklist(mp){
 }
 
 function renderShoppingSection(sl,byStore,cc){
-  let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>Shopping List</h2><div class="sub" id="shop-counter" data-total="${sl.length}">${cc} of ${sl.length} items checked</div></div><button class="btn btn-primary" onclick="exportShoppingList()" style="width:auto;min-height:44px;font-size:11px">📋 Export List</button></div>`;
+  let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>Shopping List</h2><div class="sub" id="shop-counter" data-total="${sl.length}">${cc} of ${sl.length} items checked</div></div><button class="btn btn-primary" id="export-list-btn" aria-live="polite" onclick="exportShoppingList()" style="width:auto;min-height:44px;font-size:11px">📋 Export List</button></div>`;
   // 🧊 freezer checklist: first on the store surface, ahead of every row (see freezerChecklist).
   h+=renderFreezerChecklist(S.currentPlan&&S.currentPlan.meal_plan);
   h+=`<div class="grid grid-shop">${Object.entries(byStore).map(([store,items])=>`<div class="card">
@@ -4200,7 +4200,18 @@ function exportShoppingList(){
       txt+=line+'\n';
     });
   });
-  copyText(txt).then(ok=>showToast(ok?'Shopping list copied!':'Copy failed — select and copy manually'));
+  // The outcome is said ON THE CONTROL, not in the toast. On a phone the toast is a fixed bar
+  // 88px above the bottom nav, and the Export button is tapped wherever it happens to sit, so the
+  // bar landed on the freezer checklist or on shopping rows — and, being on top, it took the next
+  // tap meant for a row, so the row stayed unticked. Said here, the confirmation sits where the
+  // eye already is and covers nothing. The control is a polite live region, so the outcome is also
+  // announced. The label keeps the outcome until the next render; tapping again copies again.
+  copyText(txt).then(ok=>{
+    const b=document.getElementById('export-list-btn');
+    if(!b){showToast(ok?'Shopping list copied!':'Copy failed — try again');return;}
+    if(!b.style.minWidth)b.style.minWidth=b.offsetWidth+'px';
+    b.textContent=ok?'✓ Copied':'Copy failed — try again';
+  });
 }
 
 // Shopping list item removal/restore
