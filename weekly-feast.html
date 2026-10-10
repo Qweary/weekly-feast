@@ -2307,10 +2307,11 @@ function renderDashboard(){
     h+=`<div class="card" style="padding:12px 16px"><div style="font-size:11px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Weekly nutrition (MyPlate frame — general guidance)</div><div style="font-size:11px;color:var(--fg2);line-height:1.6">${bits.join(' · ')}${sfHtml}${ns.notes?`<div style="color:var(--fg2);margin-top:3px">${esc(ns.notes)}</div>`:''}</div></div>`;
   }
 
-  // Meal plan FIRST, then the shopping list — in DOM ORDER, never CSS `order:`. The safety directives
-  // live on the meal cards (the ⏱ hold notes, the 🧊 and 🍳 act-now chips). With the list first, every
-  // one of them sat below the entire shopping list, at every width measured from 360px to 1920px. DOM
-  // order is the only rank channel a screen-reader user gets, so the order itself is the cure, and there
+  // Meal plan FIRST, then the shopping list — in DOM ORDER, never CSS `order:`. The meal plan's safety
+  // directives live on the meal cards (the ⏱ hold notes, the 🧊 and 🍳 act-now chips). With the list
+  // first, every one of them sat below the entire shopping list, at every width measured from 360px to
+  // 1920px. The freezer checklist is the exception: it heads the shopping section, so it travels with the
+  // list and comes before every tickable row in either order. DOM order is the only rank channel a screen-reader user gets, so the order itself is the cure, and there
   // is deliberately no jump-to-list control or scroll: either would let the list be reached without
   // passing the plan. KNOWN AND MEASURED COST, on the store side: on a 360px phone the first item you
   // can tick, and a reload's way back to your place in the list, both sit about 5 to 7 screenfuls
