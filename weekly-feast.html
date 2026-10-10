@@ -181,7 +181,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v11',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items',wasteLog:'mp:waste-log-v1',wasteDismissed:'mp:waste-dismissed-v1',safetyNoticeV10:'mp:safety-notice-v10-dismissed',safetyNoticeV11:'mp:safety-notice-v11-dismissed'};
+const KEYS={pantry:'mp:pantry-v2',preferences:'mp:preferences-v1',household:'mp:household-v1',currentPlan:'mp:current-plan-v1',planHistory:'mp:plan-history-v1',promptTemplate:'mp:prompt-template-v11',anchorRecipes:'mp:anchor-recipes-v1',checkedItems:'mp:checked-items-v1',onboarded:'mp:onboarded-v1',specialInstructions:'mp:special-instructions',startDate:'mp:start-date',importRaw:'mp:import-raw',removedShoppingItems:'mp:removed-shopping-items',wasteLog:'mp:waste-log-v1',wasteDismissed:'mp:waste-dismissed-v1',safetyNoticeV10:'mp:safety-notice-v10-dismissed',safetyNoticeV11:'mp:safety-notice-v11-dismissed',lastTick:'mp:last-tick-v1'};
 
 const DEFAULT_PANTRY={tier1:[
 {id:"t1-1",name:"All-purpose flour",category:"grain",status:"well-stocked",onHand:4,unit:"lb",par:2,updatedAt:new Date().toISOString()},
@@ -2311,11 +2311,16 @@ function renderDashboard(){
   // directives live on the meal cards (the ⏱ hold notes, the 🧊 and 🍳 act-now chips). With the list
   // first, every one of them sat below the entire shopping list, at every width measured from 360px to
   // 1920px. The freezer checklist is the exception: it heads the shopping section, so it travels with the
-  // list and comes before every tickable row in either order. DOM order is the only rank channel a screen-reader user gets, so the order itself is the cure, and there
-  // is deliberately no jump-to-list control or scroll: either would let the list be reached without
-  // passing the plan. KNOWN AND MEASURED COST, on the store side: on a 360px phone the first item you
-  // can tick, and a reload's way back to your place in the list, both sit about 5 to 7 screenfuls
-  // further down (five real plans). Ticking does not move the page; every page load opens at the top.
+  // list and comes before every tickable row in either order. DOM order is the only rank channel a
+  // screen-reader user gets, so the order itself is the cure. There is deliberately no jump-to-list
+  // control, and no scroll on an ordinary load: a fresh load, and any load that cannot be shown to be the
+  // same shopping trip, opens at the top, on the plan. The ONE exception is restoreShoppingPlace(), at
+  // page load only: a reload within 10 minutes of a tick on this plan, on the same local date, with rows
+  // still unticked, lands with the freezer checklist at the top of the viewport (the Shopping List
+  // heading when the checklist is empty) — so a restore re-presents the checklist and never lands past
+  // it. It sets the scroll position only. KNOWN AND MEASURED COST, on the store side: on a 360px phone
+  // the first item you can tick sits about 5 to 7 screenfuls further down on a load that opens at the
+  // top (five real plans). Ticking does not move the page.
   h+=renderMealCards(mp);
   h+=renderShoppingSection(sl,byStore,cc);
   // Reflective epilogue — the loop you close after the week (E2-1 waste capture) + the
@@ -3959,6 +3964,8 @@ function bindEvents(){
       const now=!S.checkedItems[gi];
       S.checkedItems[gi]=now;
       saveCheckedItems();
+      // When the shopper last touched the list, and on which plan. Read ONLY by restoreShoppingPlace().
+      save(KEYS.lastTick,{t:Date.now(),plan:(S.currentPlan&&S.currentPlan.importedAt)||null});
       row.classList.toggle('checked',now);
       row.setAttribute('aria-checked',now?'true':'false'); // keep SR checked-state in sync
       const cb=row.querySelector('input[type=checkbox]');
@@ -4093,6 +4100,7 @@ function doImport(){
   S.currentPlan={...plan,importedAt:new Date().toISOString()};
   S.planHistory=[{date:new Date().toISOString(),plan},...S.planHistory].slice(0,52);
   S.checkedItems={};S.removedShoppingItems=[];S.showRemovedItems=false;S.importRaw='';S.importError=null;S.importParsed=null;
+  try{localStorage.removeItem(KEYS.lastTick)}catch(e){}   // a new plan is a new trip: never restore into it
   savePlan();saveHistory();saveCheckedItems();saveRemovedItems();saveImportRaw();showToast('Meal plan imported!');nav('dashboard');
 }
 
@@ -4104,6 +4112,51 @@ function addPositivePref(){const el=document.getElementById('new-pref');if(!el||
 function removePrefsItem(list,idx){S.prefs[list].splice(idx,1);savePrefs();render()}
 
 // Export shopping list
+// ══ RESTORE ON RELOAD — the ONE place this app sets a scroll position ═══════════════════════════════
+// The dashboard puts the meal plan before the shopping list, so every page load opens on the plan, and a
+// phone that reloads the tab mid-trip (a discarded tab, a relaunch) used to send the shopper back through
+// the whole plan. This restore runs ONCE, at page load, and only when every guard below holds. Any guard
+// failing leaves the page where every other load opens: at the top, on the plan. That is the safe
+// direction (the food-safety review): guessing "same trip" wrongly can land a new trip, or the kitchen at
+// home, past a directive; guessing "new trip" wrongly costs only scrolling.
+//   · a tick on THIS plan (≥1 ticked row, recorded against this plan's importedAt) — a new plan or a
+//     restored backup clears the record;
+//   · the last tick under 10 minutes ago — a CEILING ruled by the food-safety review, below a typical
+//     checkout-plus-drive, so a re-open at home after the trip lands at the top;
+//   · the same LOCAL calendar date as that tick;
+//   · not every row ticked — a finished list opens at the top.
+// WHERE IT LANDS: the freezer checklist card at the top of the viewport — never the shopper's own row.
+// Landing on the row would skip the checklist, the one in-trip, time-bound directive on the typed side
+// (its cold-case clock, "pick them up last"); landing on the card re-presents it on every restore, and a
+// re-open at home within the window lands on the freezer acts, as the live pre-reorder app did. With no
+// checklist items it lands on the Shopping List heading. Found by structure (the section title, then the
+// element after it), never by text.
+// SCROLL POSITION ONLY: no focus move, no scroll-into-view call, no URL fragment, no skip link — a
+// screen-reader user's reading position is not moved. This function holds the app's ONLY scroll assignment; ticking
+// still mutates rows in place and never scrolls.
+function restoreShoppingPlace(){
+  try{
+    if(S.screen!=='dashboard'||!S.currentPlan)return;
+    const rec=load(KEYS.lastTick,null);
+    if(!rec||typeof rec.t!=='number')return;
+    if(rec.plan!==((S.currentPlan.importedAt)||null))return;                 // this plan's tick, not an old one
+    const n=(S.currentPlan.shopping_list||[]).length;
+    let ticked=0; for(let i=0;i<n;i++) if(S.checkedItems[i]) ticked++;
+    if(ticked<1)return;                                                       // at least one tick on this plan
+    if(ticked>=n)return;                                                      // every row ticked ⇒ top
+    const now=Date.now(), age=now-rec.t;
+    if(!(age>=0&&age<600000))return;                                          // under 10 minutes (clock skew ⇒ top)
+    const a=new Date(rec.t), b=new Date(now);
+    if(a.getFullYear()!==b.getFullYear()||a.getMonth()!==b.getMonth()||a.getDate()!==b.getDate())return; // same local date
+    const main=document.getElementById('main'), counter=document.getElementById('shop-counter');
+    const title=counter&&counter.closest('.section-title'); if(!main||!title)return;
+    const next=title.nextElementSibling;
+    const target=(next&&!next.classList.contains('grid-shop'))?next:title.querySelector('h2');
+    if(!target)return;
+    main.scrollTop=target.getBoundingClientRect().top-main.getBoundingClientRect().top+main.scrollTop;
+  }catch(e){}
+}
+
 function exportShoppingList(){
   const plan=S.currentPlan;if(!plan)return;
   const{shopping_list:sl=[],cost_summary:cs={},metadata:md={}}=plan;
@@ -4240,6 +4293,7 @@ function importAllData(event){
       // would silently destroy irreplaceable longitudinal waste history. Absent-in-backup ⇒ PRESERVE.
       if(data.wasteLog&&typeof data.wasteLog==='object'){S.wasteLog=normalizeWasteLog(data.wasteLog);saveWasteLog()}
       S.removedShoppingItems=[];S.showRemovedItems=false;saveRemovedItems();
+      try{localStorage.removeItem(KEYS.lastTick)}catch(e){}   // a restored backup opens at the top
       showToast(_tplUpgraded?'Data restored — upgraded an old prompt template to the new import format.':'Data restored from backup!');render();
     }catch(err){showToast('Failed to parse backup file: '+err.message)}
   };
@@ -4248,6 +4302,7 @@ function importAllData(event){
 }
 
 render();
+restoreShoppingPlace();
 if(_pendingUpgradeToast){showToast(_pendingUpgradeToast);_pendingUpgradeToast=null;}
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════
