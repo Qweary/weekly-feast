@@ -689,9 +689,15 @@ function num0(v){ // -> finite number >= 0, else undefined (NOT 0: absent must s
   return (Number.isFinite(n)&&n>=0)?n:undefined;
 }
 function str(v){return (typeof v==='string')?v:(v!=null?String(v):'');}
+// A pantry id is written into the inline click/input handlers on the Pantry and Review screens, so it
+// must be a plain token. Every id this app mints (the t1-N defaults, tier+'-'+genId(), 'x-'+genId())
+// matches; anything else can only come from a hand-edited or hostile backup and gets a fresh id. No
+// stored data is keyed by pantry id, so a fresh id breaks no reference.
+const PANTRY_ID_RE=/^[A-Za-z0-9_-]{1,64}$/;
 function normalizePantryItem(it,tier){
   if(it==null||typeof it!=='object') return null;
-  const base={id:str(it.id)||('x-'+genId()),name:str(it.name),category:str(it.category)||'other'};
+  const id0=str(it.id);
+  const base={id:PANTRY_ID_RE.test(id0)?id0:('x-'+genId()),name:str(it.name),category:str(it.category)||'other'};
   const oh=num0(it.onHand), un=(it.unit!=null?str(it.unit):undefined);
   if(tier==='tier1'){
     const status=(it.status==='well-stocked'||it.status==='getting-low'||it.status==='out')?it.status:'well-stocked';
@@ -720,6 +726,30 @@ function normalizePantry(p){
   const norm=(arr,tier)=>Array.isArray(arr)?arr.map(i=>normalizePantryItem(i,tier)).filter(Boolean):[];
   return {tier1:norm(src.tier1,'tier1'),tier2:norm(src.tier2,'tier2'),tier3:norm(src.tier3,'tier3')};
 }
+
+// ── Household / preferences normalization ──────────────────────────────────
+// Both are restored verbatim from a backup file and then rendered and fed to the prompt, so each field is
+// type-checked once here, on load and on restore. A well-formed value passes through UNCHANGED; only a
+// wrong-typed one falls back to its default. Never throws.
+function normalizeHousehold(h){
+  const src=(h&&typeof h==='object'&&!Array.isArray(h))?h:{};
+  const o={...DEFAULT_HOUSEHOLD,...src};   // defaults under stored, as the load path always did
+  const int=(v,d)=>(typeof v==='number')?(Number.isFinite(v)?v:d):((typeof v==='string'&&/^\s*-?\d+\s*$/.test(v))?parseInt(v,10):d);
+  o.size=int(o.size,DEFAULT_HOUSEHOLD.size);
+  o.planDays=int(o.planDays,DEFAULT_HOUSEHOLD.planDays);
+  for(const k of ['mealStructure','region','stores']) if(typeof o[k]!=='string') o[k]=DEFAULT_HOUSEHOLD[k];
+  if(typeof o.starterActive!=='boolean') o.starterActive=DEFAULT_HOUSEHOLD.starterActive;
+  if(!Object.prototype.hasOwnProperty.call(WALMART_LABELS,o.walmartThreshold)) o.walmartThreshold=DEFAULT_HOUSEHOLD.walmartThreshold;
+  return o;
+}
+// Allergies are hard exclusions, so a malformed entry is KEPT as text rather than dropped: a bare string
+// becomes a one-item list and a number becomes its text. Only null/object entries are discarded.
+function normalizePrefs(p){
+  const src=(p&&typeof p==='object'&&!Array.isArray(p))?p:DEFAULT_PREFERENCES;
+  const list=v=>Array.isArray(v)?v.filter(x=>x!=null&&typeof x!=='object').map(String):((typeof v==='string'&&v.trim())?[v]:[]);
+  return {...src,allergies:list(src.allergies),dislikes:list(src.dislikes),positives:list(src.positives)};
+}
+const isPlainObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 
 // ── Waste-log normalization (E2-1 CAPTURE) ───────────────
 // House idiom (reuses num0 L545 + str L549): never throws, never fabricates,
@@ -1490,8 +1520,8 @@ function hasWalmartStore(hh){return storesList(hh).some(s=>s.toLowerCase()==='wa
 const S={
   screen:'dashboard',
   pantry:normalizePantry(load(KEYS.pantry,DEFAULT_PANTRY)),
-  prefs:load(KEYS.preferences,DEFAULT_PREFERENCES),
-  household:{...DEFAULT_HOUSEHOLD,...load(KEYS.household,{})}, // merge defaults under stored (S6 P1-6): injects `stores` for pre-existing households, future-proofs later scalar fields
+  prefs:normalizePrefs(load(KEYS.preferences,DEFAULT_PREFERENCES)),
+  household:normalizeHousehold(load(KEYS.household,{})), // merge defaults under stored (S6 P1-6): injects `stores` for pre-existing households, future-proofs later scalar fields
   // 🔴🔴 S37 LANDMINE — THE MISSING `normalizePlan(...)` HERE IS LOAD-BEARING. DO NOT "FIX" IT.
   // `pantry` and `wasteLog` above/below are normalized on load; `currentPlan`/`planHistory` are loaded
   // RAW. That asymmetry LOOKS like an oversight and is the only thing that preserves the LEGACY TELL.
@@ -1516,7 +1546,7 @@ const S={
   currentPlan:load(KEYS.currentPlan,null),
   planHistory:load(KEYS.planHistory,[]),
   promptTemplate:load(KEYS.promptTemplate,DEFAULT_PROMPT_TEMPLATE),
-  anchorRecipes:load(KEYS.anchorRecipes,''),
+  anchorRecipes:(a=>typeof a==='string'?a:'')(load(KEYS.anchorRecipes,'')),
   checkedItems:load(KEYS.checkedItems,{}),
   removedShoppingItems:load(KEYS.removedShoppingItems,[]),
   wasteLog:normalizeWasteLog(load(KEYS.wasteLog,{})),          // E2-1 waste-capture store (normalize-on-load, like pantry L1080)
@@ -4366,8 +4396,10 @@ function importAllData(event){
       if(!confirm('This will replace ALL current data (pantry, preferences, plans, history) with the backup. Continue?'))return;
       // Restore state
       if(data.pantry){S.pantry=normalizePantry(data.pantry);savePantry()}
-      if(data.preferences){S.prefs=data.preferences;savePrefs()}
-      if(data.household){S.household=data.household;saveHousehold()}
+      // Wrong-typed preferences/household in the file leave this copy's own in place; well-formed ones are
+      // field-checked by the same normalizers the load path uses (both are rendered and fed to the prompt).
+      if(isPlainObj(data.preferences)){S.prefs=normalizePrefs(data.preferences);savePrefs()}
+      if(isPlainObj(data.household)){S.household=normalizeHousehold(data.household);saveHousehold()}
       if('currentPlan' in data){S.currentPlan=data.currentPlan;savePlan()}
       if(data.planHistory){S.planHistory=data.planHistory;saveHistory()}
       let _tplUpgraded=false;
@@ -4377,8 +4409,8 @@ function importAllData(event){
         else{S.promptTemplate=DEFAULT_PROMPT_TEMPLATE;_tplUpgraded=true;}
         saveTemplate();
       }
-      if('anchorRecipes' in data){S.anchorRecipes=data.anchorRecipes;saveAnchors()}
-      if(data.checkedItems){S.checkedItems=data.checkedItems;saveCheckedItems()}
+      if(typeof data.anchorRecipes==='string'){S.anchorRecipes=data.anchorRecipes;saveAnchors()}   // same typeof guard as specialInstructions below
+      if(isPlainObj(data.checkedItems)){S.checkedItems=data.checkedItems;saveCheckedItems()}
       else{S.checkedItems={};saveCheckedItems()}
       // E2-1 (N4): guarded, NON-destructive restore — DEPARTS from checkedItems, FOLLOWS
       // planHistory. NO destructive else: a pre-E2 backup legitimately lacks wasteLog; clearing it
