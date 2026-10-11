@@ -10,7 +10,7 @@ The system tracks your pantry inventory across three tiers (shelf-stable staples
 
 ## Getting Started
 
-1. Download 'weekly-feast.html`
+1. Download `weekly-feast.html`
 2. Double-click the file to open it in your browser
 3. That's it — there is no step 3
 
@@ -18,11 +18,41 @@ The app runs entirely in your browser from a single HTML file. No server, no bui
 
 ### Generating Your First Meal Plan
 
-When you open the app for the first time, you'll see a default pantry and set of preferences. The recommended workflow is to go to Preferences first and set your household size, region, allergies, and dietary preferences. Then go to Pantry and adjust the default items to reflect what you actually have on hand. Run through the Weekly Review (a guided three-step flow that takes about two minutes) to confirm your pantry state. Hit Generate Prompt, copy the output, and paste it into a conversation with Claude at [claude.ai](https://claude.ai). Claude will search for current grocery deals, find matching recipes, and return a structured JSON meal plan. Copy Claude's response, go to Import Response in the app, paste it in, and hit Parse. The meal plan and shopping list appear on your dashboard.
+When you open the app for the first time, you'll see a default pantry and set of preferences. The recommended workflow is to go to Preferences first and set your household size, region, allergies, and dietary preferences. Then go to Pantry and adjust the default items to reflect what you actually have on hand. Run through the Weekly Review (a guided three-step flow that takes about two minutes) to confirm your pantry state. Hit Generate Prompt, copy the output, and paste it into a conversation with Claude at [claude.ai](https://claude.ai). Claude will search for current grocery deals, find matching recipes, and return a structured JSON meal plan. Copy Claude's response, go to the Import tab in the app, paste it in, and click Parse Response. The meal plan and shopping list appear on your dashboard.
 
 ### Using the Shopping List on Your Phone
 
 The app works on mobile browsers — open the HTML file on any phone and the layout adapts with a bottom navigation bar and the shopping list displayed first. For the simplest mobile experience, use the Export List button on the dashboard, which copies a clean plain-text shopping list to your clipboard. Paste it into any notes app, text it to yourself, or share it however you prefer.
+
+## Upgrading to a New Version
+
+Your pantry, preferences, and plans are saved in your web browser, not inside the `weekly-feast.html` file. A newly downloaded copy is a new file, and depending on your browser it may or may not show your existing data on its own. The steps below work either way.
+
+Do steps 1 and 2 in your **old** copy, before you move, rename, replace, or delete it.
+
+1. **Make a backup.** Open your current copy and go to **Prefs** (the gear icon). Near the bottom, in the **Data Management** box, click **Export All Data**. You will see "Backup exported!" and a file named like `weekly-feast-backup-2026-10-10.json` will download (very old copies name it `meal-planner-backup-...json`). Note where your browser saved it, usually your Downloads folder.
+2. **Copy your Special Instructions, if you use them.** Go to **Prompt** and copy the text in the **Special Instructions (optional)** box into a note or an email to yourself. Backups from many versions of the app leave this text out, so copy it by hand. If that text mentions an allergy, also add the allergy in the new copy under **Prefs**, in the **Allergies (Hard Exclusions)** box, because every backup keeps that box.
+3. **Download the new version.** Download the new `weekly-feast.html` from this page and open it in the same browser you used before.
+4. **Check whether your data is already there.** Look for something you added yourself: a pantry item you typed in, or your **Region** under **Prefs** (a fresh copy says "Your city, ST"). Every new copy starts with a sample pantry, so a pantry full of items does not prove it is yours.
+5. **If your own data is there, do not import.** You are done. Go to **Prompt**, and if the **Special Instructions (optional)** box is empty, paste your text back in. Then skip to step 8.
+6. **If you see the sample data, import your backup before you change anything.** Go to **Prefs**, and in the **Data Management** box click **Import Data**, then choose the backup file from step 1. Use this button, not the **Import** tab in the menu, which is for pasting Claude's meal plan. Importing replaces everything in the new copy, so anything you add there first will be lost.
+7. **Confirm.** The app asks "This will replace ALL current data (pantry, preferences, plans, history) with the backup. Continue?" Click **OK**. A message starting with "Data restored" means it worked. Then go to **Prompt**, and if the **Special Instructions (optional)** box is empty, paste your text back in.
+8. **Stop using the old file.** Once the new copy shows your data, delete the old file and keep the backup. In some browsers both copies share the same saved data, and the old file still has older food-safety rules in its prompt. After that, leave the new file's name and folder as they are. In some browsers, renaming or moving it, even to the old file's name, makes it open different saved data.
+
+Your backup brings back your whole pantry (all three tiers, with status, quantities, par levels, units, and opened dates), your allergies, dislikes, and likes, household settings, current plan, plan history, anchor recipes, prompt template, shopping-list check-offs, and waste log (if your old version had one). The backup is a plain text file that includes your household details and allergies, so keep it somewhere private.
+
+**If something looks different:**
+
+- **You see "Invalid backup: missing" or "Failed to parse backup file".** You picked the wrong file. Choose the `weekly-feast-backup-...json` file from step 1.
+- **A red notice says "Your custom prompt template has out-of-date food-safety rules".** If you never edited your prompt template, this is expected: your backup carried an older built-in template. Go to **Prompt**, click **Edit Template**, then click **Reset to Default**. You will see "Template reset" and the notice goes away. If you did edit your template, follow the notice's own instructions instead.
+- **Your Stores box is empty or says "Store A, Store B, Store C".** Copies from before July 2026 did not save a store list. Enter yours in **Prefs** under **Stores (priority order)**.
+- **A few things reset.** The plan start date goes back to today, shopping-list rows you had hidden come back, and the first-run guide or a safety notice may show once. Dismiss them as usual.
+- **You already deleted or replaced the old file without a backup.** Your data is usually still in that browser. Open the new copy and check it (step 4). In Chrome, any copy of the app opened from your computer should show your data. In Firefox, your data stays with the old file's exact name and folder: save a copy of `weekly-feast.html` under the old name in the old folder, open it, and do step 1 from there. In other browsers, the Firefox approach is worth trying.
+- **You moved or renamed the file later and now your data is missing or out of date.** Some browsers tie your data to the file's exact name and folder, so a moved or renamed file can open with sample data or with your data from before the upgrade. Move or rename it back to where it was and what it was called. If that is not possible, import your latest backup (steps 6 and 7).
+- **You are moving to a different browser or computer.** Do steps 1 and 2 in the old browser, open the new copy in the new browser, and go straight to steps 6 and 7.
+- **You use a phone or tablet.** The same steps apply. It is not known whether a new copy on a phone or tablet picks up your data on its own, so always make the backup first.
+
+<sub>Why this is needed: the app keeps your data in your browser's storage, and browsers handle files opened from your computer differently. Some share the data with every copy of the app, others keep it tied to one exact file name and folder, and none of this is guaranteed to stay the same. A backup file works in every case.</sub>
 
 ## How It Works
 
@@ -65,7 +95,7 @@ The dashboard displays a shopping list grouped by store, with each item showing 
 
 ### Data Backup and Portability
 
-Your data lives in your browser's localStorage. The Preferences screen includes Export All Data (downloads a JSON backup file) and Import Data (restores from a backup file) buttons. Use these to back up regularly, transfer your data to a different browser or computer, or recover from an accidental data loss. The backup file is a standard JSON file that includes your pantry, preferences, household config, current plan, plan history, prompt template, and anchor recipes.
+Your data lives in your browser's localStorage. The Preferences screen includes Export All Data (downloads a JSON backup file) and Import Data (restores from a backup file) buttons. Use these to back up regularly, transfer your data to a different browser or computer, or recover from an accidental data loss. The backup file is a standard JSON file that includes your pantry, preferences, household config, current plan, plan history, prompt template, anchor recipes, shopping-list check-offs, waste log, and Special Instructions. Backups made by older copies of the app leave out the Special Instructions, so when you move to a new copy of the app, follow [Upgrading to a New Version](#upgrading-to-a-new-version).
 
 ### Meal Plan Intelligence
 
@@ -75,8 +105,9 @@ When Claude generates a plan, it sequences meals by perishability (fresh produce
 
 ```
 weekly-feast/
-├── meal-planner.html    ← the entire application
-└── README.md
+├── weekly-feast.html    ← the entire application
+├── README.md
+└── LICENSE
 ```
 
 There is intentionally only one file that matters. The app is self-contained by design.
@@ -85,7 +116,7 @@ There is intentionally only one file that matters. The app is self-contained by 
 
 All data is stored in your browser's localStorage under keys prefixed with `mp:`. The storage footprint is small — a typical setup with a full pantry, preferences, and 52 weeks of plan history uses well under 1 MB. If you want to start fresh, you can clear your browser's localStorage for the file's origin, or use the Import Data feature with a clean backup.
 
-Note that localStorage is per-browser and per-origin. If you open the file in Chrome and then later open it in Firefox, they will have separate data stores. Use the export/import feature to transfer between browsers.
+Note that localStorage is per-browser and per-origin. If you open the file in Chrome and then later open it in Firefox, they will have separate data stores. Use the export/import feature to transfer between browsers. To move to a newly downloaded copy of the file, see [Upgrading to a New Version](#upgrading-to-a-new-version).
 
 ## Customization
 
