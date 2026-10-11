@@ -2336,7 +2336,7 @@ function renderDashboard(){
   const cc=Object.values(S.checkedItems).filter(Boolean).length;
   const conf=md.stores_confirmed||[],est=md.stores_estimated||[];
 
-  let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>This Week's Meal Plan</h2><div class="sub">Plan for ${esc(md.plan_date||'this week')} · ${md.household_size||'?'} people · ${md.plan_days||7} days</div></div>${reentryBtn()}</div>`;
+  let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>This Week's Meal Plan</h2><div class="sub">Plan for ${esc(md.plan_date||'this week')} · ${esc(md.household_size||'?')} people · ${esc(md.plan_days||7)} days</div></div>${reentryBtn()}</div>`;
   // Re-openable explainer (via "How this works") also surfaces on the populated dashboard.
   if(S.showOnboarding)h+=renderOnboardingExplainer();
 
@@ -2511,6 +2511,9 @@ function renderWasteCard(){
   const entry=hist[1];                             // the just-closed (pre-import, superseded) week
   if(!entry||typeof entry!=='object'||typeof entry.date!=='string'||!entry.date) return '';
   const d=entry.date;
+  // d is written into inline handlers below and history can come from a backup file, so only a plain
+  // date/timestamp token is accepted (the app only ever writes ISO strings here); otherwise no card.
+  if(!/^[\w:.+-]{1,64}$/.test(d)) return '';
   const state=wasteStateFor(d);
   const editing=(S.wasteEditing===d);
   if(state!=='absent' && !editing) return renderWasteRecorded(d,state);   // (a/b) recorded → quiet muted line
@@ -3207,7 +3210,7 @@ function renderMealCards(mp){
       const su=safeUrl(d.source_url);
       const link=su?`<a href="${esc(su)}" target="_blank" rel="noopener">${esc(d.name)} ↗</a>`:esc(d.name);
       dinnerBlock=`<div style="font-weight:600;color:var(--blue);font-size:13px">${link}</div>
-        <div style="font-size:11px;color:var(--fg2);margin-top:2px">${esc(d.source_site)} · $${n2(d.cost_per_serving)}/serving · ${d.servings} servings</div>`;
+        <div style="font-size:11px;color:var(--fg2);margin-top:2px">${esc(d.source_site)} · $${n2(d.cost_per_serving)}/serving · ${esc(String(d.servings))} servings</div>`;
     }
     // 🔴 COMMIT-2 CARRIER HOIST. The ⏱-note gate (below) demotes only when every safety class the note
     // matches is covered by a chip that FIRED on this card, so it must know which chips fired BEFORE it
@@ -3217,7 +3220,7 @@ function renderMealCards(mp){
     // that fired, never a regex run over the chip's rendered text (which rots on long item names).
     let comeoutChip={html:'',classes:new Set()}, freeze1Chip={html:'',classes:new Set()}, plateChip={html:'',classes:new Set()}, pfChip={html:'',classes:new Set()};
     return `<div class="card" style="padding:14px">
-      <div class="flex justify-between" style="margin-bottom:8px"><span style="font-weight:700;color:#f1f5f9">Day ${day.day}</span><span style="font-size:11px;color:var(--fg2)">${esc(day.date)}</span></div>
+      <div class="flex justify-between" style="margin-bottom:8px"><span style="font-weight:700;color:#f1f5f9">Day ${esc(String(day.day))}</span><span style="font-size:11px;color:var(--fg2)">${esc(day.date)}</span></div>
       <div style="font-size:12px;color:var(--fg);margin-bottom:3px"><span style="font-size:11px;color:var(--fg2)">B:</span> ${esc(day.breakfast)}</div>
       <div style="font-size:12px;color:var(--fg);margin-bottom:6px"><span style="font-size:11px;color:var(--fg2)">L:</span> ${esc(day.lunch)}</div>
       <div style="border-top:1px solid var(--border);padding-top:6px">
@@ -3772,7 +3775,7 @@ function renderShoppingSection(sl,byStore,cc){
       return `<div class="shop-row ${chk?'checked':''}" data-shoprow="${item._gi}" role="checkbox" aria-checked="${chk?'true':'false'}" tabindex="0">
         <input type="checkbox" ${chk?'checked':''} tabindex="-1" aria-hidden="true">
         <div class="shop-main">
-          <span class="shop-name" style="font-size:12px">${esc(item.item)}${item.meals_spanned!=null?` <span style="font-size:11px;color:var(--fg2)">· feeds ${item.meals_spanned} meal${item.meals_spanned===1?'':'s'}</span>`:''}</span>
+          <span class="shop-name" style="font-size:12px">${esc(item.item)}${item.meals_spanned!=null?` <span style="font-size:11px;color:var(--fg2)">· feeds ${esc(item.meals_spanned)} meal${item.meals_spanned===1?'':'s'}</span>`:''}</span>
           ${item.notes?`<div class="shop-note">${esc(item.notes)}</div>`:''}
         </div>
         <span class="cat-badge" style="background:${ci.color}18;color:${ci.color}">${ci.label}</span>
@@ -4036,13 +4039,13 @@ function renderPreferences(){
 
   // Household
   h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:12px">Household Configuration</div><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px">
-    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Household Size</label><input type="number" class="inp" value="${hh.size}" min="1" max="20" style="width:80px" onchange="S.household.size=parseInt(this.value)||1;saveHousehold();render()"></div>
+    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Household Size</label><input type="number" class="inp" value="${esc(hh.size)}" min="1" max="20" style="width:80px" onchange="S.household.size=parseInt(this.value)||1;saveHousehold();render()"></div>
     <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Region</label><input class="inp" value="${esc(hh.region)}" placeholder="e.g., Your city, ST" oninput="S.household.region=this.value;saveHousehold()"></div>
     <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Stores (priority order)</label>
       <input class="inp" value="${esc(hh.stores)}" placeholder="e.g., Store A, Store B, Store C, Walmart"
         onchange="S.household.stores=this.value;saveHousehold();render()">
       <div style="font-size:10px;color:var(--fg2);margin-top:3px;line-height:1.4">Comma-separated, most-preferred first. Claude searches these stores' weekly ads.</div></div>
-    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Plan Days</label><input type="number" class="inp" value="${hh.planDays||7}" min="1" max="14" style="width:80px" onchange="S.household.planDays=parseInt(this.value)||7;saveHousehold();render()"></div>
+    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Plan Days</label><input type="number" class="inp" value="${esc(hh.planDays||7)}" min="1" max="14" style="width:80px" onchange="S.household.planDays=parseInt(this.value)||7;saveHousehold();render()"></div>
     <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Meal Structure</label><input class="inp" value="${esc(hh.mealStructure)}" oninput="S.household.mealStructure=this.value;saveHousehold()"></div>
     <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Sourdough Starter</label><button class="btn ${hh.starterActive?'btn-success':'btn-default'}" onclick="S.household.starterActive=!S.household.starterActive;saveHousehold();render()" style="width:auto">${hh.starterActive?'Active ✓':'Inactive'}</button></div>
     ${hasWalmartStore(hh)?`<div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Walmart Threshold</label><select class="inp" onchange="S.household.walmartThreshold=this.value;saveHousehold()">${Object.entries(WALMART_LABELS).map(([v,l])=>`<option value="${v}" ${hh.walmartThreshold===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>`:''}
