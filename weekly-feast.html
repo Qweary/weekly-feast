@@ -2178,7 +2178,7 @@ function safetyNoticeBanner(){
         ${missing.map(k=>SAFETY_RULE_BULLETS[k]||'').join('\n        ')}
       </ul>
       Until you fix your template, plans it generates may give you a <strong>cook-by date that is too late</strong>, or leave a raw protein with <strong>no handling instructions at all</strong>.
-      To take the corrections, open <strong>Prompt → Reset to Default</strong> (this replaces your customizations), or paste the rules above into your own template by hand.
+      To take the corrections, open <strong>Prompt → Edit Template → Reset to Default</strong> (this replaces your customizations), or paste the rules above into your own template by hand.
     </div>
     <button class="btn btn-default" onclick="dismissSafetyNotice();render()" style="margin-top:8px;width:auto;font-size:10px;min-height:32px">I've handled this — dismiss</button>
   </div>`;
@@ -4052,7 +4052,7 @@ function renderPreferences(){
   </div></div>`;
 
   // Data Management
-  h+=`<div class="card" style="border-color:var(--border)"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:6px">Data Management</div><div style="font-size:11px;color:var(--fg2);margin-bottom:12px;line-height:1.5">Your data is stored in this browser's local storage. Export regularly to back up your data, or to transfer it to another device or browser.</div><div class="flex gap-8 flex-wrap"><button class="btn btn-primary" onclick="exportAllData()" style="width:auto">Export All Data</button><button class="btn btn-default" onclick="document.getElementById('import-file-input').click()" style="width:auto">Import Data</button><input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importAllData(event)"></div><div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--fg2);margin-bottom:8px;line-height:1.5">Something broken or stuck? Reset clears all of this app's data from this browser and starts fresh. Export a backup first.</div><button class="btn btn-danger" onclick="resetAppData()" style="width:auto">Reset app data</button></div></div>`;
+  h+=`<div class="card" style="border-color:var(--border)"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:6px">Data Management</div><div style="font-size:11px;color:var(--fg2);margin-bottom:12px;line-height:1.5">Your data is stored in this browser's local storage. Export regularly to back up your data, or to transfer it to another device or browser. Upgrading to a new version? Export here first, then open the new file. If your own data isn't there, use Import Data in the new file.</div><div class="flex gap-8 flex-wrap"><button class="btn btn-primary" onclick="exportAllData()" style="width:auto">Export All Data</button><button class="btn btn-default" onclick="document.getElementById('import-file-input').click()" style="width:auto">Import Data</button><input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importAllData(event)"></div><div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--fg2);margin-bottom:8px;line-height:1.5">Something broken or stuck? Reset clears all of this app's data from this browser and starts fresh. Export a backup first.</div><button class="btn btn-danger" onclick="resetAppData()" style="width:auto">Reset app data</button></div></div>`;
 
   return h;
 }
