@@ -116,7 +116,7 @@ textarea.inp{resize:vertical;line-height:1.6}
 .shop-name{font-weight:600}
 .shop-name span{font-weight:400}
 /* DESIGN NOTE — was 9px `--fg3` (#64748b on #161822 = 3.71:1, BELOW the 4.5:1 WCAG AA floor), in
-   parentheses, INSIDE .shop-name. Now 11px `--fg2` (#94a3b8 on #161822 = 6.9:1 — passes AA and AAA)
+   parentheses, INSIDE .shop-name. Now 11px `--fg2` (#94a3b8 on #161822 = 6.9:1 — passes AA; AAA needs 7:1)
    in its own block element, OUTSIDE .shop-name, where the strike-through cannot reach it. */
 .shop-note{font-size:11px;color:var(--fg2);line-height:1.4;margin-top:3px;max-width:72ch}
 .shop-row.checked .shop-note{opacity:1;text-decoration:none}
@@ -2346,12 +2346,12 @@ function renderDashboard(){
   // Pantry alerts
   if(pa.length) h+=`<div class="card" style="border-color:#854d0e;background:#1a1506"><div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:8px">⚠ PANTRY ALERTS</div>${pa.map(a=>`<div class="flex gap-8" style="font-size:12px;margin-bottom:6px;line-height:1.5"><span style="color:#f59e0b;font-weight:700;white-space:nowrap;flex-shrink:0">${esc(a.item)}:</span><span style="color:var(--fg)">${esc(a.concern)}</span></div>`).join('')}</div>`;
 
-  // Cost summary
+  // Cost summary. An estimated store is already labelled "Estimated:" in text, so it stays in the footer's grey, like an estimated price on the shopping list.
   h+=`<div class="card flex gap-24 items-center flex-wrap">
     <div><div style="font-size:11px;color:var(--fg2);text-transform:uppercase">Total Estimated</div><div style="font-size:22px;font-weight:700;color:var(--blue)">$${n2(cs.total_estimated)}</div></div>
     <div><div style="font-size:11px;color:var(--fg2);text-transform:uppercase">Per Person / Day</div><div style="font-size:22px;font-weight:700;color:var(--green)">$${n2(cs.per_person_per_day)}</div></div>
     ${cs.by_store?Object.entries(cs.by_store).map(([s,a])=>`<div><div style="font-size:11px;color:var(--fg2)">${esc(s)}</div><div style="font-size:14px;font-weight:600;color:var(--fg2)">$${n2(a)}</div></div>`).join(''):''}
-    ${(conf.length||est.length)?`<div style="width:100%;padding-top:6px;border-top:1px solid var(--border);font-size:11px;color:var(--fg2)">${conf.length?'Confirmed: '+esc(conf.join(', ')):''}${conf.length&&est.length?' · ':''}${est.length?'<span style="color:var(--amber)">Estimated: '+esc(est.join(', '))+'</span>':''}</div>`:''}
+    ${(conf.length||est.length)?`<div style="width:100%;padding-top:6px;border-top:1px solid var(--border);font-size:11px;color:var(--fg2)">${conf.length?'Confirmed: '+esc(conf.join(', ')):''}${conf.length&&est.length?' · ':''}${est.length?'Estimated: '+esc(est.join(', ')):''}</div>`:''}
   </div>`;
 
   // Weekly nutrition — plain informational line (MyPlate weekly frame). Minimal by
