@@ -3364,7 +3364,7 @@ function renderMealCards(mp){
         ${/* ══ THE ⏱-NOTE GATE — CLASS-WISE COVERAGE (commit 2). THIS COMMENT IS THE SAFETY CONTROL. ══
               This repo ships as 3 files with NO in-repo harness. A fresh clone's guard at this gate is the
               P-FLOOR assertion at the foot of this script plus THIS comment — and a FALSE comment blocks the
-              commit. The assertion drives this gate over seven fixture directives, one per class below, and
+              commit. The assertion drives this gate over eight fixture directives, one per class below, and
               console.errors if any stops rendering AMBER. It holds NO copy of these regexes: it supplies a
               plan and reads the rendered colour, so DELETING a class here makes the assertion FAIL without
               the assertion being touched — though a class merely NARROWED slips past it, and the
@@ -3382,12 +3382,12 @@ function renderMealCards(mp){
 
               WHAT PROTECTS THE MUST-HOLD SET — AND WHAT DOES NOT. It is NOT any come-out/plate disjointness:
               that claim is FALSE — come-out and plate/pf CO-FIRE on 5 of 35 cards on live-run-v11. The floor
-              is three structurally UNCARRIED classes: CFF (no chip carries cook-from-frozen, by construction —
-              it is a sole-channel recovery directive), and REFREEZE / KEEPWIN before their clause exists in a
+              is four structurally UNCARRIED classes: CFF (no chip carries cook-from-frozen, by construction —
+              it is a sole-channel recovery directive), the cold-holding clock (never covered, also by construction), and REFREEZE / KEEPWIN before their clause exists in a
               firing chip. A class with no carrier can never be covered, so a note carrying it can never be
               demoted — that IS the whole floor.
 
-              TWO WAYS TO VOID IT, BOTH FORBIDDEN: (1) add a carrier for CFF; (2) credit a class to a chip whose
+              TWO WAYS TO VOID IT, BOTH FORBIDDEN: (1) add a carrier for CFF or COLDHOLD; (2) credit a class to a chip whose
               rendered copy does not carry it. Class membership is DECLARED by each chip beside the copy it
               emits (the {html, classes, foods} return), NEVER by a hardcoded list here — so if you revert a
               chip's clause, its class credit must vanish with it. If it does not, the gate is crediting content
@@ -3507,17 +3507,25 @@ function renderMealCards(mp){
               ingredients) still resolves and still drains. */''}
         ${(()=>{if(!d.perishability_note)return'';
           const note=d.perishability_note;
-          // 7-CLASS SAFETY MAP (regexes = the FLOOR tokens partitioned by act + CFF/KEEPWIN/REFREEZE; single-sourced).
+          // 8-CLASS SAFETY MAP (regexes = the FLOOR tokens partitioned by act + CFF/KEEPWIN/REFREEZE + the cold-holding clock; single-sourced).
+          // The cold-holding clock is the 2-hour (1-hour when hot) limit out of the fridge, plus cooling, ice and marinade.
+          // Each of its co-occurrence windows is bounded and stays inside one sentence, so no pattern can scan a whole note.
+          // Its refreeze exclusion is the refreeze body, byte for byte, and must stay so: a sentence may cede this clock
+          // only to a class that actually matches it. Wider would let it fall through to a freeze credit and grey.
           const CLASS_RE={
             CFF:/\b(?:from frozen|straight from frozen|cook it from frozen|without thawing)\b/i,
             KEEPWIN:/(?:\bkeeps?\b[^.]*?\b\d+\s*(?:to|[–-])\s*\d+\s*(?:more\s+)?days?\b|\b\d+\s*(?:to|[–-])\s*\d+\s*days?\s*(?:item|window|limit)\b|\b(?:last|final)\s+safe\s+day\b|\bgood\s+(?:through|until)\s+(?:\d{4}-\d\d-\d\d|\d+\s*days?\b|(?:mon|tues|wednes|thurs|fri|satur|sun)day\b))/i,
-            REFREEZE:/\b(?:refreez\w*|refroz\w*|back in the freezer|return (?:it|them) to the freezer)\b/i,
+            REFREEZE:/\b(?:refreez\w*|refroz\w*|re-?freez\w*|back in(?:to)? the freezer|return (?:it|them) to the freezer|freez\w* (?:it|them) again)\b/i,
             THAW:/\b(?:thaw\w*|defrost\w*|refrigerat\w*)\b/i,
             FREEZE:/\b(?:freez|froz)\w*\b/i,
             DNC:/\bdo ?n['’o]?t cook\b/i,
             PROHIB:/\b(?:never (?:on the )?counter|room temperature|(?:hot|warm) water)\b/i,
+            COLDHOLD:/\bshallow\b|\bon ice\b|\bmarinat\w*(?:[^.!?]|[.!?](?!\s)){0,200}?\b(?:refrigerat\w*|fridge)\b|\b(?:refrigerat\w*|fridge)\b(?:[^.!?]|[.!?](?!\s)){0,200}?\bmarinat\w*|\bboil\w*(?:[^.!?]|[.!?](?!\s)){0,200}?\bmarinade\b|\bmarinade\b(?:[^.!?]|[.!?](?!\s)){0,200}?\bboil\w*|\b(?:2|two|1|one|an)[ -]hours?\b(?:[^.!?]|[.!?](?!\s)){0,200}?\b(?:cool\w*|leftover\w*)\b|\b(?:cool\w*|leftover\w*)\b(?:[^.!?]|[.!?](?!\s)){0,200}?\b(?:2|two|1|one|an)[ -]hours?\b|(?:^|(?<=[.!?])\s)(?!(?:[^.!?]|[.!?](?!\s)){0,600}?\b(?:refreez\w*|refroz\w*|re-?freez\w*|back in(?:to)? the freezer|return (?:it|them) to the freezer|freez\w* (?:it|them) again)\b)(?=(?:[^.!?]|[.!?](?!\s)){0,600}?(?:\b(?:2|two|1|one|an)[ -]hours?\b(?:[^.!?]|[.!?](?!\s)){0,200}?\b(?:out|fridge|refrigerat\w*|counter|room|sat|left|cool\w*|cook\w*)\b|\b(?:out|fridge|refrigerat\w*|counter|room|sat|left|cool\w*|cook\w*)\b(?:[^.!?]|[.!?](?!\s)){0,200}?\b(?:2|two|1|one|an)[ -]hours?\b))/i,
           };
-          const matched=[];for(const c in CLASS_RE)if(CLASS_RE[c].test(note))matched.push(c);
+          // A note over 16384 characters is held amber and no class regex runs on it. A real note is under 1 KB;
+          // an oversize one comes from a crafted or corrupt backup and must not cost render time on every paint.
+          // It is held under the cold-holding clock because no chip can ever cover that class (see covered below).
+          const matched=[];if(String(note).length>16384)matched.push('COLDHOLD');else for(const c in CLASS_RE)if(CLASS_RE[c].test(note))matched.push(c);
           const keepAll12=(()=>{const a=[...note.matchAll(/\b(\d+)\s*(?:to|[–-])\s*(\d+)\s*(?:more\s+)?days?\b/gi)];return a.length?a.every(m=>m[1]==='1'&&m[2]==='2'):false;})();
           // COVERAGE IS Class × Referent. A chip covers a class ONLY for the food that chip names.
           // Each chip DECLARES its foods beside its classes — never regexed off its rendered copy.
@@ -3587,7 +3595,7 @@ function renderMealCards(mp){
           const sameFood=(c)=>{ const R=noteRefOf(c);
             if(R.size===0) return false;
             const car=carriersOf(c); for(const f of R) if(!car.has(f)) return false; return true; };
-          const covered=(c)=> c==='CFF'?false : c==='KEEPWIN'?(sameFood('KEEPWIN')&&keepAll12) : sameFood(c);
+          const covered=(c)=> c==='COLDHOLD'?false : c==='CFF'?false : c==='KEEPWIN'?(sameFood('KEEPWIN')&&keepAll12) : sameFood(c);
           // DEMOTE iff no orphan hold AND every matched class is covered. matched=∅ (pure narration) ⇒
           // every() is vacuously true ⇒ DEMOTE — that is the amber-wall drain; do NOT guard on matched.length>0
           // (that would HOLD pure narration amber, re-erecting the wall). HOLD iff some matched class uncovered.
@@ -4475,7 +4483,7 @@ if(_pendingUpgradeToast){showToast(_pendingUpgradeToast);_pendingUpgradeToast=nu
    ruling §7, designed S41). Runs ONCE, here, after the household's first paint has already been
    produced by render() above.
 
-   WHAT IT DOES. Seven synthetic plans — one carrying a real food-safety directive of each class the
+   WHAT IT DOES. Eight synthetic plans — one carrying a real food-safety directive of each class the
    gate can recognize — are driven through the app's OWN renderMealCards. It reads the colour back off
    the rendered string and console.errors any directive that has stopped rendering amber.
 
@@ -4507,7 +4515,7 @@ if(_pendingUpgradeToast){showToast(_pendingUpgradeToast);_pendingUpgradeToast=nu
    still matches. This check then stays SILENT while the pole behind it is dead. Nothing in this block
    changes, and nothing in this block can detect it. Driven S41: widening the counter/hot-water class to
    also cover "sat out" kills the discard directive's pole outright, with no console output at any
-   point. Six of the seven directives below are isolated by matching exactly ONE class; the seventh
+   point. Seven of the eight directives below are isolated by matching exactly ONE class; the last
    cannot be, because every phrasing of it also matches a neighbour, so it is isolated by COVERAGE
    instead.
 
@@ -4525,9 +4533,9 @@ if(_pendingUpgradeToast){showToast(_pendingUpgradeToast);_pendingUpgradeToast=nu
    DELETED by someone who then opens the app to look at their own change, without knowing to look) and
    it stops nobody who means it.
 
-   FIXTURE HAZARD — READ BEFORE ADDING OR EDITING A FIXTURE (S41). Six ride a BARE card: no ingredient
+   FIXTURE HAZARD — READ BEFORE ADDING OR EDITING A FIXTURE (S41). Seven ride a BARE card: no ingredient
    carries freeze_by, cook_by or a bought-frozen mark, so NO chip fires at all and the ⏱ note is the
-   card's only safety surface — sole-channel by construction, not by argument. The seventh cannot be,
+   card's only safety surface — sole-channel by construction, not by argument. The last cannot be,
    because every English phrasing of that directive also matches a neighbouring class; it is isolated
    by COVERAGE instead — a chip fires and covers the neighbours, leaving its own class the only
    uncovered one. ANY fixture added or changed here MUST be re-driven for DISCRIMINATION: DELETE that
@@ -4560,7 +4568,9 @@ try{
      carries:'the refreeze permission WITH the scope that makes it safe — stated bare it authorizes what FSIS forbids'},
     {plan:_pfBare,    note:'This is its last safe day.',
      carries:'the untokened keep-window deadline (CF1) — a use-by stated with no keep(s)-token, which before CF1 went sole-channel on a bare card'},
-    // The seventh names its item by its FULL name, and must keep doing so. Coverage credits a chip only
+    {plan:_pfBare,    note:'Do not leave the pork shoulder out of the fridge for more than 2 hours.',
+     carries:'the two-hour limit out of the fridge — past it, the food is thrown out, not cooked'},
+    // The last names its item by its FULL name, and must keep doing so. Coverage credits a chip only
     // for a food the note RESOLVES to, and "the salmon" does not resolve to "salmon fillets"; spelled
     // that way, the neighbour this card's chip is meant to cover stays uncovered too, the fixture is no
     // longer isolated by coverage, and deleting its own class leaves the check SILENT.
