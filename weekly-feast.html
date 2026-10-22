@@ -1481,6 +1481,36 @@ const PREV_TEMPLATE_V10_HASH=157668145; // djb2 of the pristine v10 DEFAULT_PROM
   }catch(e){/* migration is best-effort */}
 })();
 
+// Every built-in prompt template this app has ever shipped that carries the import sentinel, as djb2 hashes
+// taken from the git history of this file (every distinct text shipped under each storage key, not only the
+// last one). The very first built-in template has no sentinel and the import path already replaces it, so it
+// is not listed. A stored or restored template byte-identical to one of these holds no user edits, so it is
+// swapped for the current default; a template that differs by even one character is kept exactly as it is.
+// These values come from the git blobs and must never be recomputed from the working tree.
+const RETIRED_DEFAULT_HASHES=[2394645090,1370498550,580936476,2342717482,2002962832,1247868438,2198782153,3481872628,229773398,3166374987,157668145];
+// The current default is never treated as retired, even if its hash is ever added above: a user who pressed
+// Reset to Default must not get an upgrade message on every load.
+function isRetiredDefault(t){
+  if(typeof t!=='string')return false;
+  const h=_djb2(t);
+  return RETIRED_DEFAULT_HASHES.includes(h)&&h!==_djb2(DEFAULT_PROMPT_TEMPLATE);
+}
+// Load-time sweep, after every one-time migration above and before state is read below: a stored template that
+// is byte-identical to an old built-in default is removed, so the load falls through to the current default
+// (the same mechanism as the pristine branches above). It runs on every load, writes nothing else, and does
+// nothing the second time. A stored value that is not valid JSON, or not a string, is left alone.
+(function sweepRetiredDefaultTemplate(){
+  try{
+    const raw=localStorage.getItem(KEYS.promptTemplate);
+    if(raw==null)return;
+    let t;try{t=JSON.parse(raw)}catch(e){return;}
+    if(!isRetiredDefault(t))return;
+    localStorage.removeItem(KEYS.promptTemplate);
+    // an upgrade message already queued by a migration above says more, so it keeps the single toast slot
+    if(_pendingUpgradeToast===null)_pendingUpgradeToast='Old unedited prompt template updated to the current version.';
+  }catch(e){/* best-effort, like the migrations above */}
+})();
+
 // S30 SAFETY PROBE. Content-derived, NOT migration-derived: it asks "does the user's effective
 // template carry the corrected shelf-life rule?", not "which key did their data arrive in?" — so it
 // also catches the one population no migration can ever reach: a user who restored a pre-S30 backup
@@ -2159,6 +2189,8 @@ function renderPriceWatch(){
 // S33 — the bullets are now derived from missingSafetyRules(), so a user is told about EXACTLY the rules
 // their template lacks and no others. A v10 hand-editor sees only the purchased-frozen bullet; a v9
 // hand-editor sees both. Telling a v10 user their poultry rule is missing would be a false accusation.
+// The trigger only reads the template's content, so the copy only claims something about the content: it
+// says the template differs from the built-in one, never who changed it (a restored backup may not be theirs).
 const SAFETY_RULE_BULLETS={
   'v10-tier':`<li><strong>Fresh poultry and raw sausage are Tier 0</strong> — cook or freeze within <strong>2 days</strong>, at any size. A whole chicken is not a "large raw cut"; the old rule let it run 3–5 days.</li>
         <li><strong>Leftovers</strong> — cook by <strong>4 days</strong> after cooking, <strong>never day 5</strong>. The old rule filed them in a 3–5 day band.</li>
@@ -2170,17 +2202,17 @@ function safetyNoticeBanner(){
   if(missing.length===0)return '';
   if(S.safetyNoticeDismissed)return '';
   return `<div class="card" style="border-left:3px solid var(--red);margin-bottom:12px">
-    <div style="font-size:12px;font-weight:600;margin-bottom:6px">⚠ Your custom prompt template has out-of-date food-safety rules</div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:6px">⚠ Your prompt template is missing food-safety corrections</div>
     <div style="font-size:11px;color:var(--fg2);line-height:1.5">
-      You've customized your prompt template, so we left it exactly as you wrote it — we never overwrite your edits.
-      But this update corrected shelf-life rules that were <strong>unsafe</strong>, and your copy still has the old ones:
+      Your prompt template has been changed from the built-in one, so we left it exactly as it is. We never overwrite edits.
+      Updates since then corrected food-safety rules that were <strong>unsafe</strong>, and your copy does not have the corrections:
       <ul style="margin:6px 0 6px 16px;padding:0">
         ${missing.map(k=>SAFETY_RULE_BULLETS[k]||'').join('\n        ')}
       </ul>
-      Until you fix your template, plans it generates may give you a <strong>cook-by date that is too late</strong>, or leave a raw protein with <strong>no handling instructions at all</strong>.
-      To take the corrections, open <strong>Prompt → Edit Template → Reset to Default</strong> (this replaces your customizations), or paste the rules above into your own template by hand.
+      Until you fix your template, plans it generates can repeat the old, unsafe advice above.
+      To take the corrections, open <strong>Prompt → Edit Template → Reset to Default</strong> (this replaces your edits), or add the rules above to your template by hand.
     </div>
-    <button class="btn btn-default" onclick="dismissSafetyNotice();render()" style="margin-top:8px;width:auto;font-size:10px;min-height:32px">I've handled this — dismiss</button>
+    <button class="btn btn-default" onclick="dismissSafetyNotice();render()" style="margin-top:8px;width:auto;font-size:10px;min-height:32px">Dismiss (I've handled this)</button>
   </div>`;
 }
 
@@ -3988,7 +4020,7 @@ function renderGenerate(){
   const prompt=generatePrompt();
   const tokens=Math.round(prompt.length/4);
   let h=`<div class="section-title"><h2>Generate Prompt</h2><div class="sub">Review the generated prompt, then copy and paste into Claude</div></div>`;
-  h+=`<div class="flex gap-12 flex-wrap" style="margin-bottom:16px"><div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Start Date</label><input type="date" class="inp" value="${S.startDate}" onchange="S.startDate=this.value;debouncedSave('startDate',saveStartDate);render()" style="width:150px"></div><div style="flex:1;min-width:200px"><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Special Instructions (optional)</label><input class="inp" value="${esc(S.specialInstructions)}" placeholder="e.g., Include at least 2 vegetarian dinners" oninput="S.specialInstructions=this.value;debouncedSave('specialInstructions',saveSpecialInstructions)"></div></div>`;
+  h+=`<div class="flex gap-12 flex-wrap" style="margin-bottom:16px"><div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Start Date</label><input type="date" class="inp" value="${S.startDate}" onchange="S.startDate=this.value;debouncedSave('startDate',saveStartDate);render()" style="width:150px"></div><div style="flex:1;min-width:200px"><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Special Instructions (optional)</label><input class="inp" value="${esc(S.specialInstructions)}" placeholder="e.g., Include at least 2 vegetarian dinners" oninput="S.specialInstructions=this.value;debouncedSave('specialInstructions',saveSpecialInstructions)"><div style="font-size:11px;color:var(--fg2);margin-top:3px">For allergies, use Prefs → Allergies. Only that list is sent as a hard rule.</div>${/allerg|anaphyla|celiac|coeliac|epipen|intoleran/i.test(S.specialInstructions||'')?'<div style="font-size:11px;color:var(--red);margin-top:3px">This looks like an allergy or intolerance. Add it to Prefs → Allergies so it is sent as a hard rule with every plan.</div>':''}</div></div>`;
   h+=`<div class="card"><div class="flex justify-between items-center flex-wrap gap-6" style="margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:var(--fg2)">${prompt.length.toLocaleString()} chars · ~${tokens.toLocaleString()} tokens</span><div class="flex gap-6 flex-wrap"><button class="btn btn-default" onclick="S.showAnchorEditor=!S.showAnchorEditor;S.showTemplateEditor=false;render()" style="width:auto;font-size:10px;min-height:36px">${S.showAnchorEditor?'Hide':'Edit'} Anchors</button><button class="btn btn-default" onclick="S.showTemplateEditor=!S.showTemplateEditor;S.showAnchorEditor=false;render()" style="width:auto;font-size:10px;min-height:36px">${S.showTemplateEditor?'Hide':'Edit'} Template</button><button class="btn btn-primary" onclick="copyPrompt()" style="width:auto;min-height:36px">Copy to Clipboard</button></div></div><textarea class="inp" readonly style="min-height:300px;font-size:11px">${esc(prompt)}</textarea></div>`;
   // SURFACE 1 — persistent next-step panel: always shown so the loop is discoverable up front.
   h+=renderNextStepPanel();
@@ -4405,11 +4437,13 @@ function importAllData(event){
       if(isPlainObj(data.household)){S.household=normalizeHousehold(data.household);saveHousehold()}
       if('currentPlan' in data){S.currentPlan=data.currentPlan;savePlan()}
       if(data.planHistory){S.planHistory=data.planHistory;saveHistory()}
-      let _tplUpgraded=false;
+      let _tplUpgraded=false,_tplRetired=false;
       if(typeof data.promptTemplate==='string'){
         // D4 field-level guard: keep a sentinel-aware template as-is; upgrade a stale one.
-        if(data.promptTemplate.includes('BEGIN_WEEKLY_FEAST_JSON')){S.promptTemplate=data.promptTemplate;}
-        else{S.promptTemplate=DEFAULT_PROMPT_TEMPLATE;_tplUpgraded=true;}
+        // A sentinel-aware template that is byte-identical to an old built-in default holds no edits, so it is
+        // replaced by the current default too (the string is only hashed and searched, never rendered here).
+        if(data.promptTemplate.includes('BEGIN_WEEKLY_FEAST_JSON')&&!isRetiredDefault(data.promptTemplate)){S.promptTemplate=data.promptTemplate;}
+        else{S.promptTemplate=DEFAULT_PROMPT_TEMPLATE;if(isRetiredDefault(data.promptTemplate))_tplRetired=true;else _tplUpgraded=true;}
         saveTemplate();
       }
       if(typeof data.anchorRecipes==='string'){S.anchorRecipes=data.anchorRecipes;saveAnchors()}   // same typeof guard as specialInstructions below
@@ -4425,7 +4459,7 @@ function importAllData(event){
       if(typeof data.specialInstructions==='string'){S.specialInstructions=data.specialInstructions;saveSpecialInstructions()}
       S.removedShoppingItems=[];S.showRemovedItems=false;saveRemovedItems();
       try{localStorage.removeItem(KEYS.lastTick)}catch(e){}   // a restored backup opens at the top
-      showToast(_tplUpgraded?'Data restored — upgraded an old prompt template to the new import format.':'Data restored from backup!');render();
+      showToast(_tplRetired?'Data restored. Old built-in prompt template replaced with the current one.':_tplUpgraded?'Data restored — upgraded an old prompt template to the new import format.':'Data restored from backup!');render();
     }catch(err){showToast('Failed to parse backup file: '+err.message)}
   };
   reader.readAsText(file);
