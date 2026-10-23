@@ -3783,11 +3783,12 @@ function renderMealCards(mp){
       </div></div>`}).join('')}</div>`;
 }
 
-// ══ 🧊 FREEZER CHECKLIST — THE IN-STORE COLD-CHAIN DIRECTIVE, AT THE HEAD OF THE SHOPPING LIST ══
-// The one act a household must do BETWEEN the register and home — "keep it frozen, straight into the
-// freezer, not the refrigerator" — had no typed-side home on the surface they hold in the store. Every 🧊
-// chip that carries it sits on a meal-plan day card (the freeze day or the eating day), and the only
-// copy on the store surface was producer prose in a grey .shop-note.
+// ══ 🧊 TRANSIT CHECKLIST — WHAT MUST STAY COLD ON THE WAY HOME, AT THE HEAD OF THE SHOPPING LIST ══
+// The one act a household must do BETWEEN the register and home — get each raw meat, poultry or fish bought
+// on this trip into the freezer or the refrigerator, whichever its line says, within 2 hours of leaving the
+// store's case (1 hour above 90°F) — had no typed-side home on the surface they hold in the store. The 🧊 chips
+// that carry the freezer half sit on a meal-plan day card (the freeze day or the eating day), nothing carried
+// the refrigerator half, and the only copy on the store surface was producer prose in a grey .shop-note.
 // WHY A BLOCK AND NOT AMBER ON THE ROW (refused by the food-safety review, under any name): to amber a
 // row the app must know WHICH row is the protein, i.e. match a shopping row to an ingredient. That match
 // is a join, and measured on the five real plans it resolves 5 of the 6 bought proteins and LOSES the
@@ -3798,14 +3799,26 @@ function renderMealCards(mp){
 // the five real plans is also a dinner ingredient, which a list built from the ingredients reaches with no
 // join. Re-open if a plan buys a raw meat, poultry or fish that no dinner uses. A field added then may only
 // ADD a row here, never remove one, and normalizeShopItem must carry it (it drops every key it does not name).
-// POPULATION, EXACT, NO FURTHER FILTER: isRawProtein(x) && (x.freeze_by != null ||
-// x.protein_state === "purchased_frozen") over meal_plan[].dinner.ingredients, de-duplicated by the item
-// string. `source` changes the WORDING only (pantry lines carry no transport clause, because the item is
-// already home), so no new exclusion can fail closed; an unknown source normalises to "staple", which
-// reads as bought — the safe direction. Empty population ⇒ NO block: an empty amber card is a false alarm.
+// POPULATION, EXACT, NO FURTHER FILTER, over meal_plan[].dinner.ingredients, de-duplicated by the item string:
+//   freezer route:      isRawProtein(x) && (x.freeze_by != null || x.protein_state === "purchased_frozen")
+//   refrigerator route: isRawProtein(x) && x.source !== "pantry" && x.protein_state === "fresh"
+// An item string with ANY freezer-route occurrence anywhere in the plan gets the freezer line only, whatever the
+// order of the days: a split purchase whose later portion is frozen must never be sent wholly to the refrigerator.
+// The refrigerator route only ADDS lines; it never removes or rewords a freezer line. Pantry items are off it
+// (they are already home; there is no trip), and an unknown source normalises to "staple", which reads as bought
+// — the safe direction. Only the plan's own "fresh" admits a row to it: a cook date is not evidence that a
+// protein came home unfrozen (see the blind cells below). Its line is chosen by membership (no freeze date, not
+// bought frozen), never by falling through the freezer lines. Neither route reads rte_cooked: a cooked-food mark
+// never takes a raw protein off this list. Empty population ⇒ NO block: an empty amber card is a false alarm.
 // BLIND CELLS, KNOWN, EMPTY ON THE REAL PLANS — LOOK FOR THEM AFTER ANY MODEL BUMP: a malformed
-// protein_state ('Fresh', 'frozen', '') normalises to null and drops out; a key-absent ingredient with
-// BOTH dates null (an unannotated frozen fish) fails the second conjunct and drops out.
+// protein_state ('Fresh', 'frozen', '') normalises to null on a paste and drops out of both routes. Rows restored
+// from a backup are not normalised again: there null and '' still drop out, and any other malformed value counts
+// as a raw protein, so it takes the freezer route if it carries a freeze_by and never the refrigerator route. A
+// key-absent ingredient (a plan made before template version 11, an unannotated frozen fish) takes the freezer
+// route by its freeze_by and never the refrigerator route, whatever its dates, ON PURPOSE: the app cannot tell
+// whether it is frozen, those older plans may give a protein bought frozen a cook date, and a refrigerator line
+// would start a frozen item's thaw on the shopping day. Eggs stay off both routes only because the template
+// gives them a null protein_state.
 // PLACE: after the section title, before .grid-shop, in DOM ORDER — never CSS `order:`. For a
 // screen-reader user DOM order is the only rank channel. It is the first thing on the store surface
 // in either order of the dashboard's sections, because it travels with the list.
@@ -3829,7 +3842,17 @@ function freezerChecklist(mp){
       seen.add(x.item); items.push(x);
     }
   }
-  if(!items.length) return null;
+  // refrigerator route (see POPULATION): a second pass, run after the freezer pass has filled seen
+  const fridge=[];
+  for(const z of plan){
+    const ings=(z&&z.dinner&&Array.isArray(z.dinner.ingredients))?z.dinner.ingredients:[];
+    for(const x of ings){
+      if(isRawProtein(x) && x.source !== "pantry" && x.protein_state === "fresh" && !seen.has(x.item)){
+        seen.add(x.item); fridge.push(x);
+      }
+    }
+  }
+  if(!items.length && !fridge.length) return null;
   // "readable" = ISO yyyy-mm-dd AND a real calendar date (2026-02-30 is not readable).
   const readable=v=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v==null?'':String(v)); if(!m) return false;
     const t=new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));
@@ -3842,21 +3865,22 @@ function freezerChecklist(mp){
   const line=x=>{   // → [ACT, REST]; first match wins
     const pantry=x.source==='pantry', pf=x.protein_state==='purchased_frozen', ok=readable(x.freeze_by);
     if(pantry){
-      if(ok) return [`FREEZE BY ${x.freeze_by}${dayOf(x.freeze_by)}`, ` — ${x.item}.`];
-      if(pf) return ['KEEP IT FROZEN', ` — ${x.item}.`];
-      return [d1date?`FREEZE BY ${d1date}${dayOf(d1date)}`:'PUT IT IN THE FREEZER TODAY', ` — ${x.item}.${UNREAD}`];
+      if(ok) return [`FREEZE BY ${x.freeze_by}${dayOf(x.freeze_by)}`, `: ${x.item}.`];
+      if(pf) return ['KEEP IT FROZEN', `: ${x.item}.`];
+      return [d1date?`FREEZE BY ${d1date}${dayOf(d1date)}`:'PUT IT IN THE FREEZER TODAY', `: ${x.item}.${UNREAD}`];
     }
-    if(pf) return ['KEEP IT FROZEN', ` — ${x.item}${from(x)}: straight into the freezer when you get home, not the refrigerator.`];
-    if(ok) return [`FREEZE BY ${x.freeze_by}${dayOf(x.freeze_by)}`, ` — ${x.item}${from(x)}: straight into the freezer when you get home.`];
-    return ['FREEZE IT WHEN YOU GET HOME', ` — ${x.item}${from(x)}: straight into the freezer.${UNREAD}`];
+    if(pf) return ['KEEP IT FROZEN', `: ${x.item}${from(x)}, straight into the freezer when you get home, not the refrigerator.`];
+    if(ok) return [`FREEZE BY ${x.freeze_by}${dayOf(x.freeze_by)}`, `: ${x.item}${from(x)}, straight into the freezer when you get home.`];
+    return ['FREEZE IT WHEN YOU GET HOME', `: ${x.item}${from(x)}, straight into the freezer.${UNREAD}`];
   };
+  const cold=x=>['KEEP IT COLD', `: ${x.item}${from(x)}, straight into the refrigerator when you get home.`];
   return {
-    head:'🧊 FREEZER CHECKLIST',
+    head: items.length ? (fridge.length ? '🧊 FREEZER AND FRIDGE CHECKLIST' : '🧊 FREEZER CHECKLIST') : '🧊 FRIDGE CHECKLIST',
     // transit clause only when something is BOUGHT on this trip; an all-pantry block carries none
-    transit: items.some(x=>x.source!=='pantry')
-      ? 'The raw meat, poultry and fish listed below that you buy on this trip: once you take them from the store’s fridge or freezer case, you have 2\u00A0hours to get them into your freezer — 1\u00A0hour if the air is over 90\u00A0°F (32\u00A0°C). Pick them up last.'
+    transit: items.concat(fridge).some(x=>x.source!=='pantry')
+      ? 'The raw meat, poultry and fish listed below that you buy on this trip: once you take them from the store’s fridge or freezer case, you have 2\u00A0hours to get each one into your refrigerator or freezer, whichever its line says, or 1\u00A0hour if the air is over 90\u00A0°F (32\u00A0°C). The trip home counts toward that limit, as does any other time they spend out of the cold, so pick them up last.'
       : null,
-    lines: items.map(line)
+    lines: items.map(line).concat(fridge.map(cold))
   };
 }
 function renderFreezerChecklist(mp){
