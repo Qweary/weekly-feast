@@ -187,6 +187,24 @@ textarea.inp{resize:vertical;line-height:1.6}
   #whyplan-teaser{flex-basis:100%;white-space:normal;overflow:visible;text-overflow:clip}
 }
 
+/* Bottom nav below 448px: the 8 buttons need 448px, so the bar scrolls sideways. Each button is
+   sized so the screen edge cuts the next button in half (5.5, 6.5 or 7.5 buttons in view), and a
+   fade sits over each edge that has more buttons beyond it. The half-cut button and the fade are
+   the only sign that the bar scrolls. Buttons stay at least 56px wide and labels stay 11px. */
+@media(max-width:447.98px){
+  .bnav-btn{flex:0 0 calc(100% / 7.5)}
+  .bnav-cue{position:sticky;flex:0 0 0;width:0;align-self:stretch;z-index:1;pointer-events:none}
+  .bnav-cue-l{left:0}
+  .bnav-cue-r{right:0}
+  .bnav-cue::before{content:"";position:absolute;top:0;bottom:0;width:20px}
+  .bnav-cue-l::before{left:0}
+  .bnav-cue-r::before{right:0}
+  #bottom-nav:not(.at-end) .bnav-cue-r::before{background:linear-gradient(to right,rgba(22,24,34,0),var(--bg2))}
+  #bottom-nav.scrolled .bnav-cue-l::before{background:linear-gradient(to left,rgba(22,24,34,0),var(--bg2))}
+}
+@media(max-width:419.98px){.bnav-btn{flex-basis:calc(100% / 6.5)}}
+@media(max-width:363.98px){.bnav-btn{flex-basis:calc(100% / 5.5)}}
+
 /* Remove button */
 .rm-btn{background:none;border:none;color:var(--fg2);cursor:pointer;font-size:16px;padding:4px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0}
 .rm-btn:hover{color:var(--red);background:#991b1b22}
@@ -2245,7 +2263,7 @@ function renderPriceWatch(){
 // says the template differs from the built-in one, never who changed it (a restored backup may not be theirs).
 const SAFETY_RULE_BULLETS={
   'v10-tier':`<li><strong>Fresh poultry and raw sausage are Tier 0</strong> — cook or freeze within <strong>2 days</strong>, at any size. A whole chicken is not a "large raw cut"; the old rule let it run 3–5 days.</li>
-        <li><strong>Leftovers</strong> — cook by <strong>4 days</strong> after cooking, <strong>never day 5</strong>. The old rule filed them in a 3–5 day band.</li>
+        <li><strong>Leftovers</strong> — eat or freeze within <strong>4 days</strong> after cooking, <strong>never day 5</strong>. The old rule filed them in a 3–5 day band.</li>
         <li>The produce and dairy windows are this planner's own estimates, <strong>not</strong> USDA FSIS figures — the old template claimed federal backing they never had.</li>`,
   'v11-frozen':`<li><strong>Food you buy already frozen</strong> — a raw protein bought frozen (fish fillets, shrimp, a frozen bird) stays Tier 3 and carries <strong>no cook-by and no freeze-by date at all</strong>. It has no clock while it is frozen — but the moment it thaws the clock starts and runs in full. Because it shows no date, its <strong>keep-it-frozen note</strong> and its <strong>thaw-in-the-refrigerator note</strong> are both required, and the old rule had neither.</li>`,
   'v12-refreeze':`<li><strong>Refreezing</strong>: plans may say food can go back in the freezer uncooked only if it thawed in the refrigerator <strong>and</strong> was out of the refrigerator no more than <strong>2 hours in total</strong> (1 hour if the air is over 90 °F). The old rule let plans say it with no conditions.</li>
@@ -2337,8 +2355,42 @@ function renderNav(){
     <div class="logo"><h1>weekly-feast</h1><div class="sub">${todayStr()}</div></div>
     ${NAV_ITEMS.map(n=>`<button class="nav-btn ${S.screen===n.id?'active':''} ${n.disabled?'disabled':''}" data-nav="${n.id}" ${n.disabled?'disabled':''}><span class="icon">${n.icon}</span><span>${n.label}</span>${n.disabled?'<span class="soon">soon</span>':''}</button>`).join('')}`;
   // Bottom nav
-  document.getElementById('bottom-nav').innerHTML=
-    NAV_ITEMS.map(n=>`<button class="bnav-btn ${S.screen===n.id?'active':''} ${n.disabled?'disabled':''}" data-nav="${n.id}" ${n.disabled?'disabled':''}><span class="icon">${n.icon}</span>${n.label}</button>`).join('');
+  const bn=document.getElementById('bottom-nav');
+  const btns=NAV_ITEMS.map(n=>`<button class="bnav-btn ${S.screen===n.id?'active':''} ${n.disabled?'disabled':''}" data-nav="${n.id}" ${n.disabled?'disabled':''}><span class="icon">${n.icon}</span>${n.label}</button>`).join('');
+  bn.innerHTML='<span class="bnav-cue bnav-cue-l" aria-hidden="true"></span>'+btns+'<span class="bnav-cue bnav-cue-r" aria-hidden="true"></span>';
+  // The edge fades and the scroll-into-view are decoration. If any of that code throws, the bar
+  // goes back to the plain buttons where they were, with no fade, and the error never reaches render().
+  const sl=bn.scrollLeft;
+  try{
+    bn.onscroll=bnavEdges;
+    if(!renderNav.resizeBound){window.addEventListener('resize',()=>bnavReveal(document.getElementById('bottom-nav')));renderNav.resizeBound=true;}
+    bnavReveal(bn);
+  }catch(e){
+    bn.innerHTML=btns;
+    bn.onscroll=null;
+    bn.scrollLeft=sl;
+  }
+}
+// The bottom nav scrolls sideways on a narrow phone. bnavEdges marks which edges have more buttons
+// beyond them (a fade is drawn over each one); bnavReveal brings the current screen's button into view
+// and, if a button lies past it, leaves half of that one showing so the bar still reads as scrollable.
+function bnavEdges(){
+  const bn=document.getElementById('bottom-nav'); if(!bn) return;
+  const max=bn.scrollWidth-bn.clientWidth;
+  bn.classList.toggle('scrolled',bn.scrollLeft>1);
+  bn.classList.toggle('at-end',bn.scrollLeft>=max-1);
+}
+function bnavReveal(bn){
+  if(!bn) return;
+  const a=bn.querySelector('.bnav-btn.active');
+  if(a&&bn.scrollWidth>bn.clientWidth+1){
+    const nr=bn.getBoundingClientRect(), ar=a.getBoundingClientRect();
+    const w=ar.width, l=ar.left-nr.left+bn.scrollLeft, r=l+w;
+    const p=a.previousElementSibling, n=a.nextElementSibling;
+    if(l<bn.scrollLeft) bn.scrollLeft=l-(p&&p.classList.contains('bnav-btn')?w/2:0);
+    else if(r>bn.scrollLeft+bn.clientWidth) bn.scrollLeft=r-bn.clientWidth+(n&&n.classList.contains('bnav-btn')?w/2:0);
+  }
+  bnavEdges();
 }
 
 // ─── Onboarding / next-step shared components (P0-2 · loop discoverability) ──
@@ -3908,11 +3960,11 @@ function renderShoppingSection(sl,byStore,cc){
       return `<div class="shop-row ${chk?'checked':''}" data-shoprow="${item._gi}" role="checkbox" aria-checked="${chk?'true':'false'}" tabindex="0">
         <input type="checkbox" ${chk?'checked':''} tabindex="-1" aria-hidden="true">
         <div class="shop-main">
-          <span class="shop-name" style="font-size:12px">${esc(item.item)}${item.meals_spanned!=null?` <span style="font-size:11px;color:var(--fg2)">· feeds ${esc(item.meals_spanned)} meal${item.meals_spanned===1?'':'s'}</span>`:''}</span>
-          ${item.notes?`<div class="shop-note">${esc(item.notes)}</div>`:''}
+          <span class="shop-name" style="font-size:12px">${esc(item.item)}${item.meals_spanned!=null?` <span style="font-size:11px;color:var(--fg2)">·&nbsp;feeds&nbsp;${esc(item.meals_spanned)}&nbsp;meal${item.meals_spanned===1?'':'s'}</span>`:''}</span>
+          ${item.notes?`<div class="shop-note">${esc(item.notes).replace(/\b(\d{4}-\d{2}-\d{2})\b/g,'<span style="white-space:nowrap">$1</span>')}</div>`:''}
         </div>
         <span class="cat-badge" style="background:${ci.color}18;color:${ci.color}">${ci.label}</span>
-        <span class="shop-qty" style="font-size:11px;color:var(--fg2);min-width:50px;text-align:right">${esc(item.quantity).replace(/(\d)\s+(?=(?:fl\.?\s?oz|oz|lbs?|kg|g|ml|l|qt|pt|gal)\b)/gi,'$1&nbsp;')}</span>
+        <span class="shop-qty" style="font-size:11px;color:var(--fg2);min-width:50px;text-align:right">${esc(item.quantity).replace(/(\d)\s+(?=(?:fl\.?\s?oz|oz|lbs?|kg|g|ml|l|qt|pt|gal)\b)/gi,'$1&nbsp;').replace(/\b(fl\.?)\s+(oz)\b/gi,'$1&nbsp;$2')}</span>
         <span class="shop-price" style="font-size:11px;color:${item.price_type==='confirmed'?'var(--green)':'var(--fg2)'};min-width:60px;text-align:right">$${n2(item.price)}${item.price_type==='estimated'?'<span style="font-size:11px"> (est.)</span>':''}</span>
         <button class="rm-btn" onclick="event.stopPropagation();removeShoppingItem(${item._gi})" title="Remove item">×</button>
       </div>`}).join('')}</div>`).join('')}</div>`;
@@ -4435,7 +4487,7 @@ function exportShoppingList(){
     const b=document.getElementById('export-list-btn');
     if(!b){showToast(ok?'Shopping list copied!':'Copy failed — retry');return;}
     if(!b.style.minWidth){const w=b.getBoundingClientRect().width+'px';b.style.minWidth=w;b.style.maxWidth=w;}
-    b.textContent=ok?'✓ Copied':'Copy failed — retry';
+    b.textContent=ok?'✓ Copied':'Failed, retry';
   });
 }
 
