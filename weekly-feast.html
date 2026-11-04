@@ -3875,10 +3875,12 @@ function renderMealCards(mp){
 // the five real plans is also a dinner ingredient, which a list built from the ingredients reaches with no
 // join. Re-open if a plan buys a raw meat, poultry or fish that no dinner uses. A field added then may only
 // ADD a row here, never remove one, and normalizeShopItem must carry it (it drops every key it does not name).
-// POPULATION, EXACT, NO FURTHER FILTER, over meal_plan[].dinner.ingredients, de-duplicated by the item string:
+// POPULATION, EXACT, NO FURTHER FILTER, over meal_plan[].dinner.ingredients, de-duplicated by pack: one
+// pack is one item name (compared in lower case, trimmed, with every run of whitespace as one space) that is
+// either at home (source "pantry") or bought at one store (compared the same way; no store is a store of its own):
 //   freezer route:      isRawProtein(x) && (x.freeze_by != null || x.protein_state === "purchased_frozen")
 //   refrigerator route: isRawProtein(x) && x.source !== "pantry" && x.protein_state === "fresh"
-// An item string with ANY freezer-route occurrence anywhere in the plan gets the freezer line only, whatever the
+// A pack with ANY freezer-route occurrence anywhere in the plan gets the freezer line only, whatever the
 // order of the days: a split purchase whose later portion is frozen must never be sent wholly to the refrigerator.
 // The refrigerator route only ADDS lines; it never removes or rewords a freezer line. Pantry items are off it
 // (they are already home; there is no trip), and an unknown source normalises to "staple", which reads as bought
@@ -3909,13 +3911,21 @@ function renderMealCards(mp){
 // The same lines lead the 📋 Export text (see exportShoppingList), where capitals are the only emphasis.
 function freezerChecklist(mp){
   const plan=Array.isArray(mp)?mp:[];
-  const items=[], seen=new Set();
+  // One pack, one line: seen compares each name trimmed, with every run of whitespace as one space, in lower case,
+  // and whether it is at home or bought, and for a bought one its store, compared the same way. A pack at home and
+  // a pack bought, or packs from two stores, are two packs and get a line each. A name that is not a string is
+  // compared as it is. Nothing is rewritten: a line prints the plan's own spelling.
+  const packKey=s=>typeof s==='string'?String(s).trim().replace(/\s+/g,' ').toLowerCase():s;
+  const packOf=x=>x.source==='pantry'?'home':'bought:'+((x.store!=null&&String(x.store).trim()!=='')?packKey(String(x.store)):'');
+  const packs=new Map(), seen={has:x=>{const p=packs.get(packKey(x.item)); return !!p&&p.has(packOf(x));},
+    add:x=>{const k=packKey(x.item); if(!packs.has(k)) packs.set(k,new Set()); packs.get(k).add(packOf(x));}};
+  const items=[];
   for(const z of plan){
     const ings=(z&&z.dinner&&Array.isArray(z.dinner.ingredients))?z.dinner.ingredients:[];
     for(const x of ings){
       if(!(isRawProtein(x) && (x.freeze_by != null || x.protein_state === "purchased_frozen"))) continue;
-      if(seen.has(x.item)) continue;
-      seen.add(x.item); items.push(x);
+      if(seen.has(x)) continue;
+      seen.add(x); items.push(x);
     }
   }
   // refrigerator route (see POPULATION): a second pass, run after the freezer pass has filled seen
@@ -3923,8 +3933,8 @@ function freezerChecklist(mp){
   for(const z of plan){
     const ings=(z&&z.dinner&&Array.isArray(z.dinner.ingredients))?z.dinner.ingredients:[];
     for(const x of ings){
-      if(isRawProtein(x) && x.source !== "pantry" && x.protein_state === "fresh" && !seen.has(x.item)){
-        seen.add(x.item); fridge.push(x);
+      if(isRawProtein(x) && x.source !== "pantry" && x.protein_state === "fresh" && !seen.has(x)){
+        seen.add(x); fridge.push(x);
       }
     }
   }
