@@ -753,24 +753,36 @@ function normalizePantry(p){
 
 // ── Household / preferences normalization ──────────────────────────────────
 // Both are restored verbatim from a backup file and then rendered and fed to the prompt, so each field is
-// type-checked once here, on load and on restore. A well-formed value passes through UNCHANGED; only a
-// wrong-typed one falls back to its default. Never throws.
+// type-checked once here, on load and on restore. A well-formed value passes through UNCHANGED; a
+// household number that is not a whole number in its range is rounded up and clamped into it, and a
+// non-finite or wrong-typed value falls back to its default. Never throws.
 function normalizeHousehold(h){
   const src=(h&&typeof h==='object'&&!Array.isArray(h))?h:{};
   const o={...DEFAULT_HOUSEHOLD,...src};   // defaults under stored, as the load path always did
-  const int=(v,d)=>(typeof v==='number')?(Number.isFinite(v)?v:d):((typeof v==='string'&&/^\s*-?\d+\s*$/.test(v))?parseInt(v,10):d);
-  o.size=int(o.size,DEFAULT_HOUSEHOLD.size);
-  o.planDays=int(o.planDays,DEFAULT_HOUSEHOLD.planDays);
+  // A finite number, or a whole number written as text, is rounded up to a whole one (so the plan never
+  // has fewer people or days than asked) and clamped to the range the Preferences inputs state, size 1 to
+  // 20 and days 1 to 14. Anything else takes the default.
+  const int=(v,d,max)=>{const t=typeof v==='string'&&/^\s*-?\d+\s*$/.test(v);const n=(typeof v==='number')?v:(t?parseInt(v,10):NaN);return (t||Number.isFinite(n))?Math.min(max,Math.max(1,Math.ceil(n))):d;};
+  o.size=int(o.size,DEFAULT_HOUSEHOLD.size,20);
+  o.planDays=int(o.planDays,DEFAULT_HOUSEHOLD.planDays,14);
   for(const k of ['mealStructure','region','stores']) if(typeof o[k]!=='string') o[k]=DEFAULT_HOUSEHOLD[k];
   if(typeof o.starterActive!=='boolean') o.starterActive=DEFAULT_HOUSEHOLD.starterActive;
   if(!Object.prototype.hasOwnProperty.call(WALMART_LABELS,o.walmartThreshold)) o.walmartThreshold=DEFAULT_HOUSEHOLD.walmartThreshold;
   return o;
 }
-// Allergies are hard exclusions, so a malformed entry is KEPT as text rather than dropped: a bare string
-// becomes a one-item list and a number becomes its text. Only null/object entries are discarded.
+// Allergies are hard exclusions, so no entry's text is ever dropped: nested lists are flattened, a
+// number or true/false inside a list becomes its text, and an object entry is kept as its JSON text.
+// An object nested too deep to write as JSON text is kept as its keys and values, in order, joined by
+// spaces. Inside a list only null, which carries no text, is discarded. A bare non-blank string becomes
+// a one-item list; any other value that is not a list gives an empty one.
 function normalizePrefs(p){
   const src=(p&&typeof p==='object'&&!Array.isArray(p))?p:DEFAULT_PREFERENCES;
-  const list=v=>Array.isArray(v)?v.filter(x=>x!=null&&typeof x!=='object').map(String):((typeof v==='string'&&v.trim())?[v]:[]);
+  // Flattened with an explicit stack, not recursion, so no depth of nesting can throw here.
+  const flat=a=>{const out=[],st=[[a,0]];while(st.length){const f=st[st.length-1];if(f[1]>=f[0].length){st.pop();continue}const x=f[0][f[1]++];if(Array.isArray(x))st.push([x,0]);else out.push(x)}return out};
+  // An object too deep for JSON text is read with an explicit stack too, so that cannot throw either.
+  const kv=x=>{const out=[],st=[x];while(st.length){const v=st.pop();if(v===null||typeof v!=='object'){out.push(String(v));continue}const ks=Object.keys(v),a=Array.isArray(v);for(let i=ks.length-1;i>=0;i--){st.push(v[ks[i]]);if(!a)st.push(ks[i])}}return out.join(' ')};
+  const txt=x=>{if(x===null||typeof x!=='object')return x;try{return JSON.stringify(x)}catch(e){return kv(x)}};
+  const list=v=>Array.isArray(v)?flat(v).map(txt).filter(x=>x!=null).map(String):((typeof v==='string'&&v.trim())?[v]:[]);
   return {...src,allergies:list(src.allergies),dislikes:list(src.dislikes),positives:list(src.positives)};
 }
 const isPlainObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
@@ -4171,13 +4183,17 @@ Where an item above recurs, consider whether a smaller quantity, a different pac
 function generatePrompt(){
   let prompt=S.promptTemplate;
   const r={'{{HOUSEHOLD_SIZE}}':String(S.household.size),'{{PLAN_DAYS}}':String(S.household.planDays||7),'{{START_DATE}}':S.startDate,'{{REGION}}':S.household.region||'Your city, ST','{{STARTER_ACTIVE}}':S.household.starterActive?'yes':'no','{{PANTRY_STATE}}':serializePantry(),'{{ALLERGIES}}':S.prefs.allergies.length?S.prefs.allergies.join(', '):'None','{{DISLIKES}}':S.prefs.dislikes.length?S.prefs.dislikes.join(', '):'None','{{PREFERENCES}}':S.prefs.positives.length?S.prefs.positives.join(', '):'None','{{STORES}}':storesList(S.household).join(', ')||'Store A, Store B, Store C','{{WALMART_BLOCK}}':hasWalmartStore(S.household)?'Walmart threshold: '+(WALMART_PROMPT[S.household.walmartThreshold]||WALMART_PROMPT['only-major'])+'.':'','{{SPECIAL_INSTRUCTIONS}}':S.specialInstructions.trim()||'None','{{ANCHOR_RECIPES}}':S.anchorRecipes.trim()||'None specified'};
-  Object.entries(r).forEach(([k,v])=>{prompt=prompt.replaceAll(k,v)});
-  // E2-3 — WASTE_FEEDBACK is whole-line, clean-vanish (NOT in r, so an empty value cannot leave a
-  // stray blank line). Run LAST so an empty floor scrubs the slot + its trailing newline (leaving the
-  // canonical two-blank section separator), and so a waste-item value cannot re-expand a {{...}} token
-  // (BQ-E23-SLOTINJECT insert-last guard). Present → block + one trailing newline.
-  const wf=wasteFeedbackBlock();
-  prompt=prompt.replace(/\{\{WASTE_FEEDBACK\}\}\n?/, wf?wf+'\n':'');
+  // Every slot is filled in ONE pass over the template, and every value goes in through a function. So
+  // nothing the household typed or imported is read as a pattern: "$&" or "$$" prints as typed, and a
+  // {{...}} inside a value prints as typed instead of being filled by another slot. A slot name the
+  // app does not fill is left as it is.
+  // WASTE_FEEDBACK is whole-line, clean-vanish (NOT in r, so an empty value cannot leave a stray blank
+  // line): its first slot takes the slot + its trailing newline (leaving the canonical two-blank section
+  // separator). Present → block + one trailing newline.
+  const wf=wasteFeedbackBlock();let wfDone=false;
+  prompt=prompt.replace(/\{\{([A-Z_]+)\}\}(\n?)/g,(m,k,nl)=>{
+    if(k==='WASTE_FEEDBACK'){if(wfDone)return m;wfDone=true;return wf?wf+'\n':'';}
+    const key='{{'+k+'}}';return Object.prototype.hasOwnProperty.call(r,key)?String(r[key])+nl:m;});
   return prompt;
 }
 
@@ -4236,13 +4252,13 @@ function renderPreferences(){
 
   // Household
   h+=`<div class="card"><div style="font-weight:700;font-size:13px;color:var(--fg2);margin-bottom:12px">Household Configuration</div><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px">
-    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Household Size</label><input type="number" class="inp" value="${esc(hh.size)}" min="1" max="20" style="width:80px" onchange="S.household.size=parseInt(this.value)||1;saveHousehold();render()"></div>
+    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Household Size</label><input type="number" class="inp" value="${esc(hh.size)}" min="1" max="20" style="width:80px" onchange="S.household.size=this.value===''?1:Number(this.value);S.household=normalizeHousehold(S.household);saveHousehold();render()"></div>
     <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Region</label><input class="inp" value="${esc(hh.region)}" placeholder="e.g., Your city, ST" oninput="S.household.region=this.value;saveHousehold()"></div>
     <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Stores (priority order)</label>
       <input class="inp" value="${esc(hh.stores)}" placeholder="e.g., Store A, Store B, Store C, Walmart"
         onchange="S.household.stores=this.value;saveHousehold();render()">
       <div style="font-size:10px;color:var(--fg2);margin-top:3px;line-height:1.4">Comma-separated, most-preferred first. Claude searches these stores' weekly ads.</div></div>
-    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Plan Days</label><input type="number" class="inp" value="${esc(hh.planDays||7)}" min="1" max="14" style="width:80px" onchange="S.household.planDays=parseInt(this.value)||7;saveHousehold();render()"></div>
+    <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Plan Days</label><input type="number" class="inp" value="${esc(hh.planDays||7)}" min="1" max="14" style="width:80px" onchange="S.household.planDays=this.value===''?7:Number(this.value);S.household=normalizeHousehold(S.household);saveHousehold();render()"></div>
     <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Meal Structure</label><input class="inp" value="${esc(hh.mealStructure)}" oninput="S.household.mealStructure=this.value;saveHousehold()"></div>
     <div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Sourdough Starter</label><button class="btn ${hh.starterActive?'btn-success':'btn-default'}" onclick="S.household.starterActive=!S.household.starterActive;saveHousehold();render()" style="width:auto">${hh.starterActive?'Active ✓':'Inactive'}</button></div>
     ${hasWalmartStore(hh)?`<div><label style="font-size:10px;color:var(--fg2);display:block;margin-bottom:3px">Walmart Threshold</label><select class="inp" onchange="S.household.walmartThreshold=this.value;saveHousehold()">${Object.entries(WALMART_LABELS).map(([v,l])=>`<option value="${v}" ${hh.walmartThreshold===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>`:''}
