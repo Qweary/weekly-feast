@@ -700,6 +700,255 @@ const todayStr=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `${
 // Blocks javascript:/data: XSS via a pasted recipe source_url before it reaches href.
 const safeUrl=u=>{if(u==null)return '';const t=String(u).trim();return /^(https?:|mailto:)/i.test(t)?t:'';};
 const esc=s=>s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 RFZ-SAME-SENTENCE — the S61b cure for an uncooked-refreeze permission whose conditions are not in
+// its own sentence. Ruled app-side with the prompt template left unchanged (the household reads what is
+// RENDERED, on every model); the predicate carries the S61b security review's conditions C1–C10 and the
+// food-safety re-rulings that amended them; every household line below is the signed text, byte for byte.
+// WHAT IT DOES. At RENDER time only, every model-authored text field the household reads is run through
+// a predicate. A sentence that grants a raw refreeze without BOTH a fridge thaw AND an upper-bounded
+// 2-hour limit in the same sentence (or with an inverted condition, or on cold-water/microwave food)
+// FIRES, and the app's own signed condition line is printed directly after it. The model's words are
+// never edited, suppressed or reordered, and nothing is written back to the plan or to storage (C2.4).
+// ⛔ FIRE DIRECTION IS BINDING (C9): every ambiguity resolves toward FIRE. A change that REDUCES firing
+//    (dropping a lexicon entry, widening a guard, loosening a condition) is a change to a load-bearing
+//    control and needs a security review and new fixtures before it lands. A change that only adds firing
+//    does not, with ONE exception: a change that makes this predicate fire on any of the eight directives of
+//    the P-FLOOR check at the foot of this script. That directive would then stay amber through this
+//    predicate whatever its class does, so deleting its class would go unseen again: a silent kill of a floor
+//    pole. That is a change to a control's membership and needs the same review as a reduction.
+// ⛔ COST IS BOUNDED (availability). A unit with more than RFZ_OCC_MAX refreeze occurrences fires WITHOUT
+//    per-occurrence analysis (fire direction kept), so the per-occurrence scans can never multiply into a
+//    quadratic cost on a crafted or corrupt backup. Real plans carry at most 2 per unit.
+// ⛔ FAIL CLOSED (C1): a throw means the field was never judged. The field still renders, the condition
+//    line is appended, the ⏱ note is held amber, and console.error says so. Nothing here may escape into
+//    render(): that would drop the whole plan, every safety chip included, to the recovery panel.
+// ⛔ RFZ IS NOT A CLASS. It is not a CLASS_RE entry and it copies no CLASS_RE regex (a second class-regex
+//    site disarms the first-match softener; see the F-K2B comment in renderMealCards). Classification,
+//    coverage and carrier credit keep running on the model's ORIGINAL note; the inserted line is display.
+// ⛔ The inserted lines are APP CONSTANTS with no interpolation of any model value (C8.1), escaped like
+//    everything else, and model text never enters an attribute.
+const RFZ_LONG='Before refreezing: raw food may go back in the freezer uncooked only if it thawed in the refrigerator no more than 2 days ago and was out of the refrigerator no more than 2 hours in total (1 hour if the air was over 90 °F). If it thawed in cold water or the microwave, cook it first. If it was out longer than that, throw it out.';
+const RFZ_SHORT='Refreeze raw food only if it thawed in the fridge no more than 2 days ago and was out of the fridge no more than 2 hours in total (1 hour over 90 °F). Thawed in cold water or the microwave: cook it first. Out longer: throw it out.';
+const RFZ_VISIBLE="An AI wrote this plan, and AI can occasionally get a detail wrong or leave a condition out. The 🧊 and 🍳 reminders, and any bold safety line this app adds to a note, are this app's own words. If a food-safety note disagrees with them or looks incomplete, follow the more cautious one, or the standard rules below. If the plan itself looks wrong before you shop, you can re-run it: generate the prompt again and paste it into a new chat.";
+const RFZ_DIGEST_SUMMARY='Standard food-safety rules';
+const RFZ_DIGEST=[
+  'Keep raw meat, poultry and fish in the refrigerator. Cook poultry, ground meat and fish within 1 to 2 days, and beef, pork and lamb steaks, chops and roasts within 3 to 5 days.',
+  'Thaw only in the refrigerator, in a sealed bag in cold water changed every 30 minutes, or in the microwave. Cook cold-water- or microwave-thawed food right away.',
+  'Refreeze raw food only if it thawed in the refrigerator no more than 2 days ago and was out of the refrigerator no more than 2 hours in total (1 hour if the air was over 90 °F).',
+  'Refrigerate leftovers within 2 hours of cooking (1 hour if the air is over 90 °F) and eat them within 4 days.',
+];
+// C2.1: ONE coercion, shared by the predicate and the display. Stored plans and restored backups load raw,
+// so a field may be an array, number or object; esc() shows String(v), so RFZ must judge String(v).
+const rfzText=v=>v==null?'':String(v);
+const RFZ=(()=>{
+  const W="[\\w'-]+";
+  // C3 fold — judge what the household READS. Applied to the predicate's input only; display bytes are untouched.
+  // HTML entities are deliberately NOT decoded: esc() shows "&#114;efreeze" literally, so nobody reads "refreeze".
+  // Homoglyphs are NOT folded (accepted residual, C3.7).
+  const INVIS=/[\u00AD\u034F\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+  // Dash variant: a dash written WITHOUT spaces ("toss it\u2014refreeze it") is a clause break just as a spaced
+  // one is. When a field contains one, the field is ALSO judged with every such dash spaced out to " - ".
+  // That is a second variant in the union (it only adds firing); the plain variant still runs, so a dash
+  // inside a word ("re\u2013freeze") still reads as the word. The choice is made ONCE PER FIELD and the
+  // same choice is passed to every per-segment judgment, or placement double-counts (see rfzRender).
+  const DASH=/[\u2013\u2014\u2015]|--/, DASH_ALL=/[\u2013\u2014\u2015]|--/g;
+  function dashy(v){
+    let s=rfzText(v);
+    try{s=s.normalize('NFKC');}catch(e){}
+    return DASH.test(s)||DASH.test(s.replace(INVIS,''));}
+  function fold(v,zw,dk){
+    let s=rfzText(v);
+    try{s=s.normalize('NFKC');}catch(e){}
+    s=s.replace(INVIS,zw);
+    if(dk)s=s.replace(DASH_ALL,' - ');
+    return s
+      .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g,'-')
+      .replace(/[\u2018\u2019\u201A\u201B\u2032]/g,"'").replace(/[\u201C\u201D\u201E\u201F\u2033]/g,'"')
+      .replace(/[*_`~]+/g,'')
+      .replace(/[^\S\n]+/g,' ');
+  }
+  // C4 unit — a unit ends after a terminator (+ closers) followed by whitespace, an uppercase letter, or the
+  // end. Over-splitting is safe; merging is fail-open. NOT the app's NOTE_SENT splitter (C4.3).
+  function units(s,splitLines){
+    const t=splitLines?s:s.replace(/\n+/g,' ');
+    const marked=t.replace(/([.!?\u3002]+["')\]]*)(?=\s|[A-Z]|$)/g,'$1\u0000');
+    return marked.split(splitLines?/\u0000|\n+/:/\u0000/).map(x=>x.trim()).filter(Boolean);
+  }
+  // C5 — R occurrences (explicit).
+  const R_EXPL=new RegExp([
+    "(?<!')\\bre[- ]?(?:freez|froz)\\w*",                                                          // refreeze, re-freeze, re freeze; never "they're frozen"
+    `\\bback\\s+(?:in|into|to)\\s+(?:(?:the|your|a|my)\\s+)?(?:${W}\\s+){0,2}?(?:freezer|deep[- ]?freez\\w*|frozen\\s+storage)\\b`,
+    `\\breturn\\w*\\b[^.!?;:]{0,40}?\\b(?:in|into|to)\\s+(?:(?:the|your|a|my)\\s+)?(?:${W}\\s+){0,2}?freezer\\b`,
+    "\\b(?:in|into|to)\\s+(?:(?:the|your)\\s+)?freezer\\s+(?:again|once\\s+more|a\\s+second\\s+time)\\b",
+    "\\b(?:freez(?:e|es|ing)|frozen|froze)\\b[^.!?;:]{0,40}?\\b(?:again|once\\s+more|a\\s+second\\s+time|twice)\\b",
+    "\\bsecond\\s+freez\\w*",
+    "\\bfreezer\\s+(?:it|them)\\b",
+  ].join('|'),'gi');
+  // C5f/g — R occurrences (implicit): "thawed … freeze/frozen/put … in the freezer", and the reverse order
+  // (freeze verb or placement phrase … thawed; never "frozen … thawed", the bought-frozen false fire).
+  const MOVE=`(?:put|place|stash|stick|pop|move|toss|store|transfer|slip|throw)\\w*\\b[^.!?;:]{0,40}?\\b(?:in|into)\\s+(?:(?:the|your|a)\\s+)?(?:${W}\\s+){0,1}?freezer\\b`;
+  const LOC=`(?:in|into)\\s+(?:(?:the|your|a)\\s+)?(?:${W}\\s+){0,1}?freezer\\b`;
+  const R_IMPL=new RegExp(`\\b(?:thawed|defrosted)\\b[^.!?]{0,120}?(?:\\b(?:freez(?:e|es|ing)|frozen)\\b|\\b${MOVE}|\\b${LOC})|(?:\\bfreez(?:e|es|ing)\\b|\\b${MOVE})[^.!?]{0,120}?\\b(?:thawed|defrosted)\\b`,'gi');
+  const IMPL_ANCHOR=/\b(?:freez\w*|frozen|put|place|stash|stick|pop|move|toss|store|transfer|slip|throw|in|into)\b/i;
+  // C5h — non-English refreeze stems fire unconditionally (the English condition test cannot read them).
+  const FOREIGN=/\b(?:recongel\w*|re-?congel\w*|volver\s+a\s+congelar|vuelva\s+a\s+congelar|wieder\s+einfrier\w*|erneut\s+einfrier\w*|nochmal\s+einfrier\w*|ricongel\w*|opnieuw\s+(?:in)?vriez\w*)/i;
+  // C6 — the negation guard. An occurrence is exempt as negated ONLY if every limb below holds.
+  const NEG="(?:never|not|don't|dont|do\\s+not|doesn't|does\\s+not|cannot|can't|can\\s+not|mustn't|must\\s+not|shouldn't|should\\s+not|won't|will\\s+not|avoid)";
+  const NEG_BEFORE=new RegExp(`\\b${NEG}\\b((?:\\s+${W}){0,4}?)\\s*$`,'i');                          // C6.2: ≤ 4 words
+  const NO_ADJ=/\bno\s*$/i;                                                                          // C6.1: bare "no" only when adjacent
+  const NEG_SAFE=/(?:\b(?:not|never)\s+(?:safe|ok|okay|a\s+good\s+idea)|(?<!\bnot\s)(?<!n't\s)\bunsafe|\b(?:isn't|aren't)\s+(?:safe|ok|okay))\s+to\s*$/i;  // C6.6
+  const BREAK=/[,;:()"]|(?:^|\s)-(?:\s|$)|\b(?:but|or|if|unless|otherwise|then|just|instead|so|and)\b/i;                  // C6.3
+  const LICENSOR=/\b(?:problem|problems|need|needs|reason|reasons|worry|worries|hesitate|wrong|risk|harm|issue|issues|trouble|only|matter|afraid|fear|doubt|bad|have|longer|unsafe)\b/i;  // C6.4
+  const NEG_ANY=new RegExp(`\\b(?:${NEG}|no|nothing|nobody|none)\\b`,'gi');                           // C6.5
+  // C6.7 post-qualifier + food-safety re-ruling FS-1: a prohibition restricted by count, window or TIME/TEMPERATURE OUT
+  // implies a grant and is NOT exempt. A restriction by thaw METHOD ("thawed on the counter") stays exempt.
+  const POSTQ=/\b(?:unless|except|until|more\s+than\s+once|twice|a\s+second\s+time|after\s+(?:\d+|one|two|three|four|five|a\s+day|a\s+few)|beyond|past\s+(?:\d|day)|later\s+than)\b/i;
+  const POST_TIMEOUT=/\b(?:sat|sit|sits|sitting|left|was|were|been|is|are|stayed|kept)\s+(?:[\w'-]+\s+){0,2}?out\b|\b(?:more|longer)\s+than\s+(?:an?\s+|one\s+|two\s+|\d+(?:\.\d+)?\s*)?(?:hours?|hrs?)\b|\b(?:above|over)\s+(?:40|90)\s*°?\s*F\b|(?<!\b(?:thaw\w*|defrost\w*)\s+)\b(?:on\s+the\s+counter|at\s+room\s+temp\w*)/i;
+  const COOKFIRST=/\b(?:cook\w*\b[^.!?]{0,40}?\b(?:first|before)|(?:must|should|need\s+to|has\s+to|have\s+to)\s+be\s+cooked|without\s+cooking\b[^.!?]{0,30}?\bfirst|(?:after|once|until)\s+(?:it\s+is\s+|they\s+are\s+|it's\s+|being\s+|fully\s+)?cooked|cooked\s+(?:first|before))/i;
+  // Conditions (ruling §3.5 + C7) — in the SAME unit.
+  const F_RE=/\b(?:(?:thaw\w*|defrost\w*)\b[^.!?]{0,60}?\b(?:in|inside)\s+(?:the\s+|your\s+|a\s+)?(?:refrigerator|fridge)\b|(?:refrigerator|fridge)[- ](?:thaw\w*|defrost\w*)|(?:in|inside)\s+(?:the\s+|your\s+)?(?:refrigerator|fridge)\b[^.!?]{0,40}?\b(?:thaw\w*|defrost\w*))/gi;
+  const F_NEG=/(?:\b(?:not|never|without|unless|didn't|wasn't|weren't)|n't)\s+(?:\w+\s+){0,1}$/i;    // C7.2
+  const H2="(?:2|two)[ -]hours?\\b";                                                                  // fold() has already turned NBSP into a space (copy review F1)
+  const T_UP=new RegExp(`\\b(?:(?:no|not)\\s+(?:more|longer)\\s+than|(?:less|fewer|shorter)\\s+than|under|at\\s+most|up\\s+to|max(?:imum)?(?:\\s+of)?)\\s+${H2}|(?:\\b(?:nothing|never|not|no)\\b|n't\\b)[^.!?;]{0,40}?\\b(?:more|longer)\\s+than\\s+${H2}`,'gi');  // C7.1 upper bound only
+  const T_OPEN=/^\s*(?:in\s+total\s+)?(?:or\s+(?:more|longer|over)|plus|\+)/i;
+  const T_CUE=/\b(?:out\s+of\s+(?:the\s+)?(?:refrigerator|fridge)|outside\s+(?:the\s+)?(?:refrigerator|fridge)|(?:sat|left|sitting|been|was|were|is|are|stayed)\s+out\b|room\s+temperature|on\s+the\s+counter|counter\s+time|above\s+40\s*°?\s*F)/i;
+  // §3.6(1) + C7.4 — inversion / wrong-condition tokens fire even when F and T are present.
+  const INV=/\b(?:even\s+(?:if|when|after|though)|although|though|despite|in\s+spite\s+of|regardless|no\s+matter|whether|irrespective\s+of|doesn't\s+matter|does\s+not\s+matter|anyway|anyhow|either\s+way|in\s+any\s+case|(?:can|may|could|will)\s+still\s+(?:be\s+)?(?:go|put|placed?|popped|returned|refr\w*|re-?fr\w*|froz\w*|freez\w*)|or\s+(?:if|when|whenever|otherwise|else|just|anytime)|counter[- ]thaw\w*|without\s+a\s+fridge\s+thaw)\b|\b(?:thaw\w*|defrost\w*)\b[^.!?]{0,30}?\b(?:on\s+the\s+counter|at\s+room\s+temp\w*|in\s+(?:hot|warm)\s+water|in\s+the\s+sink|outside|in\s+the\s+sun)\b/i;
+  const CW=/\b(?:cold[- ]water|microwave\w*)\b/i;
+  // Re-ruling FS-3: a question naming a non-fridge thaw, followed by a unit with a live grant, fires.
+  const qThawRe=/\b(?:thaw\w*|defrost\w*)\b/i, qNonFridgeRe=/\b(?:cold[- ]water|microwave\w*|hot\s+water|warm\s+water|counter|room\s+temp\w*|sink|sun)\b/i;
+  const RFZ_OCC_MAX=24;                                             // 12x the most any real plan has put in one unit
+  // null = more than RFZ_OCC_MAX occurrences: the caller fires without per-occurrence analysis.
+  function occ(s){
+    const o=[];let m;R_EXPL.lastIndex=0;
+    while((m=R_EXPL.exec(s))){o.push({i:m.index,e:m.index+m[0].length});if(o.length>RFZ_OCC_MAX)return null;if(!m[0].length)R_EXPL.lastIndex++;}
+    const ex=o.slice();R_IMPL.lastIndex=0;
+    while((m=R_IMPL.exec(s))){
+      if(!m[0].length){R_IMPL.lastIndex++;continue;}
+      const a=m.index,b=a+m[0].length;
+      if(ex.some(x=>x.i<b&&x.e>a))continue;                       // an explicit occurrence already covers this span: one, not two
+      let i=a;const lead=/^(?:thawed|defrosted)/i.exec(m[0]);       // anchor the guards at the first verb/location AFTER "thawed"
+      if(lead){const t=IMPL_ANCHOR.exec(m[0].slice(lead[0].length));if(t)i=a+lead[0].length+t.index;}
+      o.push({i,e:b});if(o.length>RFZ_OCC_MAX)return null;}
+    return o;}
+  function negated(s,o){
+    const post=s.slice(o.i);
+    if(POSTQ.test(post)||POST_TIMEOUT.test(post))return false;
+    const pre=s.slice(Math.max(0,o.i-100),o.i);
+    if((pre.split(/\s+/).slice(-9).join(' ').match(NEG_ANY)||[]).length>=2)return false;   // double negation never exempts
+    if(NEG_SAFE.test(pre)||NO_ADJ.test(pre))return true;
+    const m=pre.match(NEG_BEFORE);if(!m)return false;
+    const between=m[1]||'';
+    return !(BREAK.test(between)||LICENSOR.test(between));}
+  function cookFirstGoverns(s,o){const m=s.match(COOKFIRST);if(!m)return false;
+    const a=Math.min(m.index,o.i),b=Math.max(m.index+m[0].length,o.i);return !/\bor\b|;/i.test(s.slice(a,b));}
+  function fIn(s){F_RE.lastIndex=0;let m;const out=[];while((m=F_RE.exec(s))){if(!F_NEG.test(s.slice(Math.max(0,m.index-30),m.index)))out.push(m);}return out;}
+  function tIn(s){if(!T_CUE.test(s))return [];T_UP.lastIndex=0;let m;const out=[];while((m=T_UP.exec(s))){if(!T_OPEN.test(s.slice(m.index+m[0].length)))out.push(m);}return out;}
+  // One unit → {why, live}. why '' = does not fire.
+  function analyze(s){
+    if(FOREIGN.test(s))return{why:'FOREIGN',live:true};
+    const oc=occ(s);if(oc===null)return{why:'OCC-CAP',live:true};if(!oc.length)return{why:'',live:false};
+    const live=oc.filter(o=>!negated(s,o)&&!cookFirstGoverns(s,o));
+    if(!live.length)return{why:'',live:false};
+    if(INV.test(s))return{why:'INV',live:true};
+    if(CW.test(s)&&!oc.some(o=>negated(s,o))&&!COOKFIRST.test(s))return{why:'CW',live:true};
+    const f=fIn(s),t=tIn(s);
+    if(!f.length||!t.length)return{why:'MISSING'+(f.length?'':' F')+(t.length?'':' T'),live:true};
+    const t0=t[0].index,fb=f.filter(x=>x.index<t0),fn=fb.length?fb[fb.length-1]:f[0];       // the F nearest the T bound (C7.3)
+    if(/\bor\b/i.test(s.slice(Math.min(fn.index,t0),Math.max(fn.index,t0))))return{why:'F-OR-T',live:true};
+    // Re-ruling FS-2 proviso: conditions that FOLLOW a live grant across an "or" govern the other branch.
+    const c0=Math.min(f[0].index,t0);
+    if(live.some(o=>o.e<=c0&&/\bor\b/i.test(s.slice(o.e,c0))))return{why:'OR-BRANCH',live:true};
+    return{why:'',live:true};}
+  // C3.2 + C4.2: a field's hits are the UNION over {invisibles deleted, invisibles → space} × {split on line
+  // breaks, line breaks → space}, and also over the dash variant when dk is true. dk omitted = decided from v.
+  // Each hit is {u: the folded unit, why}.
+  function hits(v,dk){
+    const out=[];
+    if(dk===undefined)dk=dashy(v);
+    for(const zw of ['',' '])for(const d of (dk?[false,true]:[false]))for(const sl of [true,false]){
+      const us=units(fold(v,zw,d),sl);
+      for(let k=0;k<us.length;k++){const a=analyze(us[k]);let why=a.why;
+        if(!why&&a.live&&k>0&&/\?["')\]]*$/.test(us[k-1])&&qThawRe.test(us[k-1])&&qNonFridgeRe.test(us[k-1]))why='QUESTION-PRIOR';
+        if(why)out.push({u:us[k],why});}}
+    return out;}
+  return{fold,units,analyze,hits,dashy};
+})();
+// C8.2 — display segmentation of the RAW text: [{t:unit, s:separator}], so that join(t+s) === raw and every
+// piece is escaped separately; positions are never mapped across escaping.
+function rfzSegs(raw){
+  const out=[],re=/([.!?\u3002\u2026\uFF01\uFF1F]+["'\u2019\u201D)\]]*)(\s+|(?=[A-Z])|$)|([^\S\n]*\n\s*)/g;let last=0,m;
+  while((m=re.exec(raw))){
+    if(!m[0].length){re.lastIndex++;continue;}
+    const end=m[1]!==undefined?m.index+m[1].length:m.index;
+    out.push({t:raw.slice(last,end),s:raw.slice(end,m.index+m[0].length)});last=m.index+m[0].length;}
+  if(last<raw.length||!out.length)out.push({t:raw.slice(last),s:''});
+  return out;}
+// No-break space between a number and its unit ("2 hours", "1 hour", "2 days", "30 minutes", "90 °F") so a unit never
+// wraps away from its number. Display only, on ALREADY-ESCAPED app constants: the predicate never reads its output.
+const rfzNb=s=>s.replace(/(\d) (hours?\b|days?\b|minutes?\b|°F)/g,'$1&nbsp;$2');
+const rfzLineHtml=(text)=>`<strong class="rfz-line" style="display:block;font-weight:600;color:var(--amber);margin-top:2px;margin-bottom:2px"><span aria-hidden="true">↳</span> ${rfzNb(esc(text))}</strong>`;
+// Render one model field. post runs on the ESCAPED model text only (stepBreaks on ⏱, the date no-wrap on
+// shop notes, \n→<br> on the narrative) before any line is inserted (C8.3). short: every line is the
+// short form (shop notes). Returns {html, fired, threw}; fired is true on a throw (C1). NEVER throws.
+function rfzRender(v,post,short){
+  if(typeof post!=='function')post=(x=>x);
+  const raw=rfzText(v);
+  let segs=null,after=null,atEnd=false,fired=false,threw=false;
+  try{
+    const dk=RFZ.dashy(raw),fh=RFZ.hits(raw,dk);           // one dash choice for the whole field
+    if(fh.length){
+      fired=true;segs=rfzSegs(raw);
+      if(segs.map(x=>x.t+x.s).join('')!==raw){atEnd=true;segs=null;}               // no round trip ⇒ whole field + one line at the end
+      else{
+        // Place each line after the display unit that carries the firing sentence. A field hit that no single
+        // display unit reproduces (a sentence wrapped across a line break, a split the two splitters disagree
+        // on) cannot be placed, so the line ALSO goes at the end of the field: fail toward firing.
+        const cnt=new Map();for(const h of fh)cnt.set(h.u,(cnt.get(h.u)||0)+1);
+        after=new Set();
+        for(let k=0;k<segs.length;k++){
+          const own=RFZ.hits(segs[k].t,dk);
+          const ctx=k>0?RFZ.hits(segs[k-1].t+segs[k-1].s+segs[k].t,dk).filter(h=>h.why==='QUESTION-PRIOR'):[];
+          const got=own.concat(ctx);
+          if(got.length)after.add(k);
+          for(const h of got)if(cnt.has(h.u))cnt.set(h.u,cnt.get(h.u)-1);}
+        for(const n of cnt.values())if(n>0)atEnd=true;}}
+  }catch(e){threw=true;fired=true;atEnd=true;segs=null;
+    try{console.error('[weekly-feast] RFZ FAILED — this field was NOT judged, so the refreeze rule is attached and any ⏱ note is held: '+(e&&e.message||e));}catch(_){}}
+  try{
+    const MARK='<rfz>';                                    // a raw "<" never survives esc(), so the marker cannot collide with model text
+    let s='';
+    if(segs&&after){
+      // Re-ruling: one line per firing sentence; consecutive firing sentences share one line after the last of the run.
+      for(let k=0;k<segs.length;k++){
+        let next=k+1;while(next<segs.length&&!segs[next].t.trim())next++;
+        const share=after.has(k)&&next<segs.length&&after.has(next);
+        s+=esc(segs[k].t)+(after.has(k)&&!share?MARK:'')+esc(segs[k].s);}
+    }else s=esc(raw);
+    if(atEnd&&!s.endsWith(MARK))s+=MARK;
+    s=post(s);
+    let n=0;
+    s=s.replace(/<rfz>((?:[^\S\n]|&nbsp;)*<br>)?/g,(m0,br)=>(br||'')+rfzLineHtml(short||n++>0?RFZ_SHORT:RFZ_LONG));
+    return{html:s,fired,threw};
+  }catch(e){
+    try{console.error('[weekly-feast] RFZ RENDER FAILED — field shown escaped with the refreeze rule attached: '+(e&&e.message||e));}catch(_){}
+    return{html:esc(raw)+rfzLineHtml(short?RFZ_SHORT:RFZ_LONG),fired:true,threw:true};}
+}
+// The line alone, for a field whose own markup cannot take an inserted block (the dinner title link, the
+// narrative teaser): '' if nothing fired, else the line, placed by the caller directly after the field.
+function rfzLine(v,short){const r=rfzRender(v,null,short);return r.fired?rfzLineHtml(short?RFZ_SHORT:RFZ_LONG):'';}
+// True iff the field fires, or the predicate threw (C1) — the plain-text export's test and the ⏱ HOLD's. quiet: the
+// caller also renders the field through rfzRender, whose own catch reports the same throw once.
+function rfzFires(v,quiet){
+  try{return RFZ.hits(rfzText(v)).length>0;}
+  catch(e){if(!quiet){try{console.error('[weekly-feast] RFZ FAILED in export — the refreeze rule is attached: '+(e&&e.message||e));}catch(_){}}return true;}}
+// The once-per-plan line and the standard-rules digest (copy (c), signed texts). Grey, never amber, no
+// glyph, not dismissible; it sits directly under the plan header.
+function rfzNotice(){
+  return `<div style="font-size:11px;color:var(--fg2);line-height:1.5;max-width:72ch;margin:-4px 0 4px">${esc(RFZ_VISIBLE)}</div>`
+    +`<details style="font-size:11px;color:var(--fg2);line-height:1.5;max-width:72ch;margin:0 0 12px"><summary style="color:var(--fg2);text-decoration:underline;cursor:pointer;min-height:44px;box-sizing:border-box;padding:13px 0">${esc(RFZ_DIGEST_SUMMARY)}</summary><ul style="margin:0 0 4px 18px;padding:0">${RFZ_DIGEST.map(x=>`<li style="margin-bottom:4px">${rfzNb(esc(x))}</li>`).join('')}</ul></details>`;}
 const n2=(n)=>{const x=toNum(n);return x==null?'?':x.toFixed(2);};
 
 // ── Pantry normalization (S4 depletion data-model) ──────────────────────────
@@ -2487,6 +2736,7 @@ function renderDashboard(){
   const conf=md.stores_confirmed||[],est=md.stores_estimated||[];
 
   let h=`<div class="section-title flex justify-between items-center flex-wrap gap-8"><div><h2>This Week's Meal Plan</h2><div class="sub">Plan for ${esc(md.plan_date||'this week')} · ${esc(md.household_size||'?')} people · ${esc(md.plan_days||7)} days</div></div>${reentryBtn()}</div>`;
+  h+=rfzNotice();
   // Re-openable explainer (via "How this works") also surfaces on the populated dashboard.
   if(S.showOnboarding)h+=renderOnboardingExplainer();
 
@@ -2494,7 +2744,7 @@ function renderDashboard(){
   if(md.confidence==='low') h+=`<div class="card" style="border-color:#92400e;background:#1c1206"><div class="flex gap-10" style="align-items:flex-start"><span style="font-size:18px">⚠</span><div><div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:4px">LOW CONFIDENCE PLAN</div><div style="font-size:11px;color:#fde68a;line-height:1.5">This plan relies heavily on estimated pricing because current ad data was limited. Verify prices before shopping.</div></div></div></div>`;
 
   // Pantry alerts
-  if(pa.length) h+=`<div class="card" style="border-color:#854d0e;background:#1a1506"><div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:8px">⚠ PANTRY ALERTS</div>${pa.map(a=>`<div class="flex gap-8" style="font-size:12px;margin-bottom:6px;line-height:1.5"><span style="color:#f59e0b;font-weight:700;white-space:nowrap;flex-shrink:0">${esc(a.item)}:</span><span style="color:var(--fg)">${esc(a.concern)}</span></div>`).join('')}</div>`;
+  if(pa.length) h+=`<div class="card" style="border-color:#854d0e;background:#1a1506"><div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:8px">⚠ PANTRY ALERTS</div>${pa.map(a=>`<div class="flex gap-8" style="font-size:12px;margin-bottom:6px;line-height:1.5"><span style="color:#f59e0b;font-weight:700;white-space:nowrap;flex-shrink:0">${esc(a.item)}:</span><span style="color:var(--fg)">${rfzRender(a.concern).html}</span></div>`).join('')}</div>`;
 
   // Cost summary. An estimated store is already labelled "Estimated:" in text, so it stays in the footer's grey, like an estimated price on the shopping list.
   h+=`<div class="card flex gap-24 items-center flex-wrap">
@@ -2513,8 +2763,8 @@ function renderDashboard(){
     if(ns.seafood_servings!=null)bits.push('Seafood: '+esc(String(ns.seafood_servings))+'/wk');
     bits.push('Produce ~half the plate: '+(ns.produce_half_plate?'yes':'no'));
     const sf=Array.isArray(ns.shortfalls)?ns.shortfalls.filter(x=>x!=null&&String(x).trim()):[];
-    const sfHtml=sf.length?`<div style="color:var(--amber);font-weight:600;margin-top:6px">⚠ Nutrition shortfalls this week:</div>${sf.map(x=>`<div style="color:#fde68a;margin-top:2px">• ${esc(String(x))}</div>`).join('')}`:'';
-    h+=`<div class="card" style="padding:12px 16px"><div style="font-size:11px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Weekly nutrition (MyPlate frame — general guidance)</div><div style="font-size:11px;color:var(--fg2);line-height:1.6">${bits.join(' · ')}${sfHtml}${ns.notes?`<div style="color:var(--fg2);margin-top:3px">${esc(ns.notes)}</div>`:''}</div></div>`;
+    const sfHtml=sf.length?`<div style="color:var(--amber);font-weight:600;margin-top:6px">⚠ Nutrition shortfalls this week:</div>${sf.map(x=>`<div style="color:#fde68a;margin-top:2px">• ${rfzRender(String(x)).html}</div>`).join('')}`:'';
+    h+=`<div class="card" style="padding:12px 16px"><div style="font-size:11px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Weekly nutrition (MyPlate frame — general guidance)</div><div style="font-size:11px;color:var(--fg2);line-height:1.6">${bits.join(' · ')}${sfHtml}${ns.notes?`<div style="color:var(--fg2);margin-top:3px">${rfzRender(ns.notes).html}</div>`:''}</div></div>`;
   }
 
   // Meal plan FIRST, then the shopping list — in DOM ORDER, never CSS `order:`. The meal plan's safety
@@ -2554,10 +2804,11 @@ function renderWhyPlanCard(plan){
   const firstLine=(text.split(/\r?\n/).find(l=>l.trim())||'').trim();
   const teaser=firstLine.length>90?firstLine.slice(0,90).replace(/\s+$/,'')+'…':firstLine;
   const teaserHtml=open?'':`<span id="whyplan-teaser">${esc(teaser)}</span>`;
+  const teaserRfz=open?'':rfzLine(teaser);
   let body='';
   if(open){
     const paras=text.split(/\n\s*\n/).map(p=>p.trim()).filter(Boolean);
-    const inner=paras.map((p,idx)=>`<p style="color:var(--fg2);font-size:12px;line-height:1.6;margin-bottom:${idx===paras.length-1?'0':'8px'}">${esc(p).replace(/\r?\n/g,'<br>')}</p>`).join('');
+    const inner=paras.map((p,idx)=>`<p style="color:var(--fg2);font-size:12px;line-height:1.6;margin-bottom:${idx===paras.length-1?'0':'8px'}">${rfzRender(p,s=>s.replace(/\r?\n/g,'<br>')).html}</p>`).join('');
     body=`<div style="max-width:640px;margin-top:10px">${inner}</div>`;
   }
   return `<div class="card" style="border-color:var(--border)">
@@ -2566,6 +2817,7 @@ function renderWhyPlanCard(plan){
       <span style="color:var(--fg2);font-size:12px;font-weight:600;flex-shrink:0">Why this plan</span>
       ${teaserHtml}
     </div>
+    ${teaserRfz?`<div style="font-size:12px;line-height:1.5">${teaserRfz}</div>`:''}
     ${body}
   </div>`;
 }
@@ -3366,13 +3618,13 @@ function renderMealCards(mp){
     if(isNoCook){
       // Non-cook: title in --fg (blue is reserved for real recipe links), category pill replaces the metadata line.
       const p=noCookPill(d.name);
-      dinnerBlock=`<div style="font-weight:600;color:var(--fg);font-size:13px">${esc(d.name)}</div>
+      dinnerBlock=`<div style="font-weight:600;color:var(--fg);font-size:13px">${esc(d.name)}</div>${rfzLine(d.name)}
         <div style="margin-top:2px"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;padding:2px 8px;border-radius:10px;background:#94a3b81a;color:var(--fg2)">${p.glyph} ${esc(p.text)}</span></div>`;
     }else{
       // Cook night: unchanged — blue recipe link (if URL) + source · cost · servings metadata line.
       const su=safeUrl(d.source_url);
       const link=su?`<a href="${esc(su)}" target="_blank" rel="noopener">${esc(d.name)} ↗</a>`:esc(d.name);
-      dinnerBlock=`<div style="font-weight:600;color:var(--blue);font-size:13px">${link}</div>
+      dinnerBlock=`<div style="font-weight:600;color:var(--blue);font-size:13px">${link}</div>${rfzLine(d.name)}
         <div style="font-size:11px;color:var(--fg2);margin-top:2px">${esc(d.source_site)} · $${n2(d.cost_per_serving)}/serving · ${esc(String(d.servings))} servings</div>`;
     }
     // 🔴 COMMIT-2 CARRIER HOIST. The ⏱-note gate (below) demotes only when every safety class the note
@@ -3384,8 +3636,8 @@ function renderMealCards(mp){
     let comeoutChip={html:'',classes:new Set()}, freeze1Chip={html:'',classes:new Set()}, plateChip={html:'',classes:new Set()}, pfChip={html:'',classes:new Set()};
     return `<div class="card" style="padding:14px">
       <div class="flex justify-between" style="margin-bottom:8px"><span style="font-weight:700;color:#f1f5f9">Day ${esc(String(day.day))}</span><span style="font-size:11px;color:var(--fg2)">${esc(day.date)}</span></div>
-      <div style="font-size:12px;color:var(--fg);margin-bottom:3px"><span style="font-size:11px;color:var(--fg2)">B:</span> ${esc(day.breakfast)}</div>
-      <div style="font-size:12px;color:var(--fg);margin-bottom:6px"><span style="font-size:11px;color:var(--fg2)">L:</span> ${esc(day.lunch)}</div>
+      <div style="font-size:12px;color:var(--fg);margin-bottom:3px"><span style="font-size:11px;color:var(--fg2)">B:</span> ${rfzRender(day.breakfast).html}</div>
+      <div style="font-size:12px;color:var(--fg);margin-bottom:6px"><span style="font-size:11px;color:var(--fg2)">L:</span> ${rfzRender(day.lunch).html}</div>
       <div style="border-top:1px solid var(--border);padding-top:6px">
         ${dinnerBlock}
         ${/* DESIGN-L4. THE THAW-DAY CHIP. Across all 35 day-cards of the five live runs, ZERO chips
@@ -3735,8 +3987,11 @@ function renderMealCards(mp){
           // DEMOTE iff no orphan hold AND every matched class is covered. matched=∅ (pure narration) ⇒
           // every() is vacuously true ⇒ DEMOTE — that is the amber-wall drain; do NOT guard on matched.length>0
           // (that would HOLD pure narration amber, re-erecting the wall). HOLD iff some matched class uncovered.
-          const demote = !planHasOrphan && matched.every(covered);
-          return `<div style="${demote?'font-size:12px;color:var(--fg2)':'font-size:13px;color:var(--amber)'};line-height:1.5;margin-top:3px">⏱ ${stepBreaks(esc(note))}</div>`;})()}
+          // 🔴 RFZ (S61b). Judged on the model's own note; the inserted line is display only and is never fed to
+          // CLASS_RE, coverage or F-K2B. A fire OR a throw forces HOLD (demote is false); RFZ can never set demote true.
+          // rfzFires is quiet here because rfzRender below reports the same throw once.
+          const demote = !rfzFires(note,true) && !planHasOrphan && matched.every(covered);
+          return `<div style="${demote?'font-size:12px;color:var(--fg2)':'font-size:13px;color:var(--amber)'};line-height:1.5;margin-top:3px">⏱ ${rfzRender(note,stepBreaks).html}</div>`;})()}
         ${/* 🔴 P1. WAS 10px `--fg3` = 3.71:1 (I recomputed it: #64748b on #161822), BELOW the
               4.5:1 WCAG 2.1 AA 1.4.3 floor. This chip carries the FRESH-protein pathogen deadline — 11 raw
               rows across the five real runs, against the frozen fish's 5 — and it was rendered MORE FAINTLY
@@ -3855,7 +4110,7 @@ function renderMealCards(mp){
         ${plateChip.html}
         ${pfChip.html}
         ${(()=>{const un=(d.ingredients||[]).filter(x=>x&&!x.cook_by&&!x.freeze_by&&!pfCoherent(x)&&(x.protein_state==='fresh'||x.shelf_life_tier===0||x.shelf_life_tier===1)).map(x=>x.item);const pl=un.length>1;return un.length?`<div style="font-size:13px;color:var(--red);line-height:1.5;margin-top:3px">⚠ no cook-by or freeze-by date on ${pl?'highly perishable items':'a highly perishable item'} (${esc(un.join(', '))}) — cook ${pl?'them':'it'} within 2 days of shopping, or freeze ${pl?'them':'it'} the day you buy ${pl?'them':'it'}</div>`:'';})()}
-        ${d.quality_note?`<div style="font-size:12px;color:var(--fg2);line-height:1.5;margin-top:3px">★ ${esc(d.quality_note)}</div>`:''}
+        ${d.quality_note?`<div style="font-size:12px;color:var(--fg2);line-height:1.5;margin-top:3px">★ ${rfzRender(d.quality_note).html}</div>`:''}
       </div></div>`}).join('')}</div>`;
 }
 
@@ -3995,7 +4250,7 @@ function renderShoppingSection(sl,byStore,cc){
         <input type="checkbox" ${chk?'checked':''} tabindex="-1" aria-hidden="true">
         <div class="shop-main">
           <span class="shop-name" style="font-size:12px">${esc(item.item)}${item.meals_spanned!=null?` <span style="font-size:11px;color:var(--fg2)">·&nbsp;feeds&nbsp;${esc(item.meals_spanned)}&nbsp;meal${item.meals_spanned===1?'':'s'}</span>`:''}</span>
-          ${item.notes?`<div class="shop-note">${esc(item.notes).replace(/\b(\d{4}-\d{2}-\d{2})\b/g,'<span style="white-space:nowrap">$1</span>')}</div>`:''}
+          ${item.notes?`<div class="shop-note">${rfzRender(item.notes,s=>s.replace(/\b(\d{4}-\d{2}-\d{2})\b/g,'<span style="white-space:nowrap">$1</span>'),true).html}</div>`:''}
         </div>
         <span class="cat-badge" style="background:${ci.color}18;color:${ci.color}">${ci.label}</span>
         <span class="shop-qty" style="font-size:11px;color:var(--fg2);min-width:50px;text-align:right">${esc(item.quantity).replace(/(\d)\s+(?=(?:fl\.?\s?oz|oz|lbs?|kg|g|ml|l|qt|pt|gal)\b)/gi,'$1&nbsp;').replace(/\b(fl\.?)\s+(oz)\b/gi,'$1&nbsp;$2')}</span>
@@ -4509,6 +4764,7 @@ function exportShoppingList(){
       if(item.category==='restock')line+=' (restock)';
       if(item.notes)line+=` — ${item.notes}`;
       txt+=line+'\n';
+      if(item.notes&&rfzFires(item.notes))txt+='    '+RFZ_SHORT+'\n';
     });
   });
   // The outcome is said ON THE CONTROL, not in the toast. On a phone the toast is a fixed bar
@@ -4661,6 +4917,60 @@ render();
 restoreShoppingPlace();
 if(_pendingUpgradeToast){showToast(_pendingUpgradeToast);_pendingUpgradeToast=null;}
 
+/* ── RFZ FLOOR CHECK — the fresh clone's one mechanical check on the refreeze-condition predicate (RFZ, near
+   the top of this script). It is SEPARATE from the P-FLOOR check below on purpose: that check holds one
+   directive per safety class and reads each class's deletion off the colour, and RFZ is not a class. Adding
+   its specimen there would break that check's one-directive-per-class pairing.
+
+   WHAT IT DOES. One synthetic plan, driven through the app's OWN renderMealCards, twice, on the same card. That
+   card carries a chip covering every class both notes match, for the food both notes name, so the class gate
+   ALONE would demote either note to grey.
+   (a) SPECIMEN: an uncooked-refreeze permission with its fridge-thaw condition missing. RFZ must fire on it,
+       so the note must render amber WITH EXACTLY ONE inserted condition line.
+   (b) CONTROL: a prohibition with the same class set, which RFZ exempts. It must render grey with NO line.
+       If it does not, the card no longer demotes without RFZ (an orphan hold, a chip that stopped firing, a
+       coverage change), and (a) being amber would prove nothing about RFZ. That is reported as a check that
+       CANNOT DISCRIMINATE, never read as a pass.
+   It goes RED (console.error) if RFZ stops holding the note, stops inserting its line, or stops firing.
+
+   IT HAS NO TEETH, the same design as the P-FLOOR check: it runs after render(), writes no DOM and no storage,
+   reads no household data, and a throw is reported and swallowed. It holds no copy of RFZ and none of the
+   class gate; it reads the render. Its two notes are specimens it runs on, never shown to a household. */
+try{
+  const _rzDay=(n,day,date,ings)=>({day:day,date:date,breakfast:'oats',lunch:'soup',
+    dinner:{name:'Dinner',ingredients:ings,cost_per_serving:3,servings:4,
+            source_site:'x',source_url:null,perishability_note:n}});
+  const _rzItem={item:'salmon fillets',quantity:'1 lb',protein_state:'purchased_frozen',shelf_life_tier:3};
+  const _rzPlan=(n)=>[_rzDay(null,2,'2026-01-06',[]),_rzDay(n,3,'2026-01-07',[_rzItem])];
+  // The specimen and the control both name the food by its FULL name: coverage credits a chip only for a
+  // food the note resolves to, and "the salmon" does not resolve to "salmon fillets".
+  const _rzSpecimen='If plans changed you may refreeze the salmon fillets uncooked — but only if they came out on their planned day and nothing sat out more than two hours.';
+  const _rzControl='Do not refreeze the salmon fillets uncooked.';
+  const _rzRead=(n)=>{
+    const m=[...renderMealCards(_rzPlan(n)).matchAll(/<div style="([^"]*)">⏱ ([\s\S]*?)<\/div>/g)];
+    const x=m.length?m[m.length-1]:null;
+    return x?{amber:/color:var\(--amber\)/.test(x[1]),lines:(x[2].match(/class="rfz-line"/g)||[]).length}:null;};
+  const _rzS=_rzRead(_rzSpecimen), _rzC=_rzRead(_rzControl), _rzBad=[];
+  if(_rzS===null)_rzBad.push('the specimen renders NO ⏱ note at all');
+  else{
+    if(!_rzS.amber)_rzBad.push('the specimen, a refreeze permission missing its fridge-thaw condition, is DEMOTED to grey: RFZ no longer holds it');
+    if(_rzS.lines!==1)_rzBad.push('the specimen carries '+_rzS.lines+' condition lines, not exactly 1: RFZ no longer prints exactly one line after it');}
+  if(_rzBad.length){
+    console.error('[weekly-feast] RFZ CHECK FAILED — '+_rzBad.length+' of 3 expectations on the refreeze-condition specimen failed.');
+    for(const b of _rzBad)console.error('[weekly-feast]   '+b+'.\n'+
+      '                 If you just edited the refreeze-condition predicate or the ⏱-note gate, this is your edit.');}
+  // Only RFZ inserts a condition line, so a control that carries one means RFZ fired on a prohibition it must exempt
+  // (the negation exemption broke). That is a FAILURE of RFZ, not a card that stopped demoting: say so.
+  if(_rzC!==null&&_rzC.lines>0)
+    console.error("[weekly-feast] RFZ CHECK FAILED — its control note, a plain refreeze prohibition, carries "+_rzC.lines+" condition line(s): RFZ now fires on a prohibition it must exempt. The added line is still true, but the other floor check's refreeze prohibition may now be held by RFZ instead of by its class.");
+  else if(_rzC===null||_rzC.amber)
+    console.error('[weekly-feast] RFZ CHECK CANNOT DISCRIMINATE — its control note '+(_rzC===null?'renders no ⏱ note':'renders '+(_rzC.amber?'amber':'grey')+' with '+_rzC.lines+' condition line(s)')+
+      ', not grey with none, so this card no longer demotes without RFZ and the result above proves nothing about RFZ.');
+}catch(_rzErr){
+  // A check that fails to RUN is a check whose silence is indistinguishable from a pass. Say so, then swallow.
+  console.error('[weekly-feast] RFZ CHECK DID NOT RUN — the refreeze-condition predicate is UNCHECKED in this build, not verified.',_rzErr);
+}
+
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════
    P-FLOOR ASSERTION — the fresh clone's one MECHANICAL check at the ⏱-note gate (S38 fresh-clone
    ruling §7, designed S41). Runs ONCE, here, after the household's first paint has already been
@@ -4747,8 +5057,8 @@ try{
      carries:'the day-0 freezer interlock — the move that keeps a day-3 protein safe to cook'},
     {plan:_pfBare,    note:'Move the turkey to the refrigerator today so it thaws for Sunday.',
      carries:'the come-out imperative — a household that misses it finds a solid bird at 5pm'},
-    {plan:_pfBare,    note:'If plans changed you may refreeze it uncooked — but only if it came out on its planned day and nothing sat out more than two hours.',
-     carries:'the refreeze permission WITH the scope that makes it safe — stated bare it authorizes what FSIS forbids'},
+    {plan:_pfBare,    note:'Do not refreeze it uncooked.',
+     carries:'the refreeze prohibition that names no thaw — freezing does not kill bacteria, so whatever grew while raw food thawed comes back out of the freezer with it'},
     {plan:_pfBare,    note:'This is its last safe day.',
      carries:'the untokened keep-window deadline (CF1) — a use-by stated with no keep(s)-token, which before CF1 went sole-channel on a bare card'},
     {plan:_pfBare,    note:'Do not leave the pork shoulder out of the fridge for more than 2 hours.',
