@@ -696,10 +696,21 @@ const genId=()=>Math.random().toString(36).slice(2,10);
 // early every Pacific evening). Feeds user-facing dates: startDate, logo sub, backup
 // filename. Record timestamps elsewhere intentionally stay UTC via toISOString().
 const todayStr=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;};
+// One coercion for every piece of plan text the app shows, and it can never throw (F5-2). A restored backup or a
+// stored plan is loaded exactly as it was saved, so a field can be a list, a number or an object, and an object can
+// be one that cannot be turned into text at all. Such a field shows WF_UNREADABLE instead of stopping the whole
+// screen. The refreeze check treats it as a field it could not judge: its rule line is added and a timing note
+// stays amber. esc() and safeUrl() go through it, so no text surface can throw on a value it cannot coerce.
+const WF_UNREADABLE='(this part of the plan could not be read)';
+function wfText(v){if(v==null)return '';if(typeof v==='string')return v;try{return String(v);}catch(e){return WF_UNREADABLE;}}
+// A plan list or section that is not the expected shape reads as empty, never as a crash (F5-2). Read-only: the
+// plan itself is never rewritten.
+const wfArr=v=>Array.isArray(v)?v:[];
+const wfObj=v=>v&&typeof v==='object'?v:{};
 // Return u only if its scheme is http(s)/mailto (case-insensitive, trimmed); else ''.
 // Blocks javascript:/data: XSS via a pasted recipe source_url before it reaches href.
-const safeUrl=u=>{if(u==null)return '';const t=String(u).trim();return /^(https?:|mailto:)/i.test(t)?t:'';};
-const esc=s=>s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const safeUrl=u=>{if(u==null)return '';const t=wfText(u).trim();return /^(https?:|mailto:)/i.test(t)?t:'';};
+const esc=s=>s==null?'':wfText(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔴 RFZ-SAME-SENTENCE — the S61b cure for an uncooked-refreeze permission whose conditions are not in
@@ -740,8 +751,19 @@ const RFZ_DIGEST=[
   'Refrigerate leftovers within 2 hours of cooking (1 hour if the air is over 90 °F) and eat them within 4 days.',
 ];
 // C2.1: ONE coercion, shared by the predicate and the display. Stored plans and restored backups load raw,
-// so a field may be an array, number or object; esc() shows String(v), so RFZ must judge String(v).
-const rfzText=v=>v==null?'':String(v);
+// so a field may be an array, number or object; esc() shows wfText(v), so RFZ must judge wfText(v). F5-2: it is the
+// app-wide wfText, which cannot throw; a field it cannot read comes back as WF_UNREADABLE and is never judged.
+const rfzText=v=>wfText(v);
+// ⛔ COST IS ALSO BOUNDED PER PAINT (F5-3). RFZ_OCC_MAX bounds one sentence, but a crafted backup can fill every
+//    field of a week with sentences just under it, and one screen then took seconds to draw. So each paint carries a
+//    work budget, counted in analyze (sentence length for every sentence judged, times the refreeze occurrences
+//    when it has any). Once it is spent nothing more is judged in full, in the fire direction: a sentence is judged
+//    only by RFZ_COARSE, a screen for any refreeze word at all, which every pattern below contains, so it can only
+//    fire more often than the full check; and a later field gets its line at its end whenever RFZ_COARSE finds one.
+//    Real plans use a small fraction of the budget. RFZ_PAINT is null outside a paint, so a direct call is judged
+//    in full, exactly as before.
+const RFZ_PAINT_MAX=20e6, RFZ_COARSE=/fr[eo]|congel|einfrier|vriez/i;
+let RFZ_PAINT=null;
 const RFZ=(()=>{
   const W="[\\w'-]+";
   // C3 fold — judge what the household READS. Applied to the predicate's input only; display bytes are untouched.
@@ -848,8 +870,10 @@ const RFZ=(()=>{
   function tIn(s){if(!T_CUE.test(s))return [];T_UP.lastIndex=0;let m;const out=[];while((m=T_UP.exec(s))){if(!T_OPEN.test(s.slice(m.index+m[0].length)))out.push(m);}return out;}
   // One unit → {why, live}. why '' = does not fire.
   function analyze(s){
+    if(RFZ_PAINT&&(RFZ_PAINT.work+=s.length+64)>RFZ_PAINT_MAX)return RFZ_COARSE.test(s)?{why:'OCC-CAP',live:true}:{why:'',live:false};   // F5-3
     if(FOREIGN.test(s))return{why:'FOREIGN',live:true};
     const oc=occ(s);if(oc===null)return{why:'OCC-CAP',live:true};if(!oc.length)return{why:'',live:false};
+    if(RFZ_PAINT&&(RFZ_PAINT.work+=oc.length*(s.length+64))>RFZ_PAINT_MAX)return{why:'OCC-CAP',live:true};   // F5-3: budget spent here: fire
     const live=oc.filter(o=>!negated(s,o)&&!cookFirstGoverns(s,o));
     if(!live.length)return{why:'',live:false};
     if(INV.test(s))return{why:'INV',live:true};
@@ -876,6 +900,11 @@ const RFZ=(()=>{
     return out;}
   return{fold,units,analyze,hits,dashy};
 })();
+// F5-3: true once this paint's budget is spent.
+const rfzSpent=()=>RFZ_PAINT!==null&&RFZ_PAINT.work>RFZ_PAINT_MAX;
+// F5-3 coarse screen, used only after the budget is spent: is there any refreeze word in the folded field at all?
+// Every R pattern and every FOREIGN stem above contains one of these, so it can only fire more often than the full check.
+const rfzCoarse=t=>RFZ_COARSE.test(RFZ.fold(t,'',false));
 // C8.2 — display segmentation of the RAW text: [{t:unit, s:separator}], so that join(t+s) === raw and every
 // piece is escaped separately; positions are never mapped across escaping.
 function rfzSegs(raw){
@@ -895,13 +924,16 @@ const rfzLineHtml=(text)=>`<strong class="rfz-line" style="display:block;font-we
 // short form (shop notes). Returns {html, fired, threw}; fired is true on a throw (C1). NEVER throws.
 function rfzRender(v,post,short){
   if(typeof post!=='function')post=(x=>x);
-  const raw=rfzText(v);
-  let segs=null,after=null,atEnd=false,fired=false,threw=false;
+  let raw=WF_UNREADABLE,segs=null,after=null,atEnd=false,fired=false,threw=false;
   try{
+    raw=rfzText(v);                                        // F5-2: coerced inside the try (and the coercion cannot throw)
+    if(raw===WF_UNREADABLE){fired=true;atEnd=true;}          // F5-2: a field that could not be read is not judged; its line goes at the end
+    else if(rfzSpent()){if(rfzCoarse(raw)){fired=true;atEnd=true;}}       // F5-3: budget spent, coarse screen only
+    else{
     const dk=RFZ.dashy(raw),fh=RFZ.hits(raw,dk);           // one dash choice for the whole field
     if(fh.length){
       fired=true;segs=rfzSegs(raw);
-      if(segs.map(x=>x.t+x.s).join('')!==raw){atEnd=true;segs=null;}               // no round trip ⇒ whole field + one line at the end
+      if(segs.map(x=>x.t+x.s).join('')!==raw||rfzSpent()){atEnd=true;segs=null;}   // F5-3: or the budget ran out in this field; no round trip ⇒ whole field + one line at the end
       else{
         // Place each line after the display unit that carries the firing sentence. A field hit that no single
         // display unit reproduces (a sentence wrapped across a line break, a split the two splitters disagree
@@ -914,7 +946,7 @@ function rfzRender(v,post,short){
           const got=own.concat(ctx);
           if(got.length)after.add(k);
           for(const h of got)if(cnt.has(h.u))cnt.set(h.u,cnt.get(h.u)-1);}
-        for(const n of cnt.values())if(n>0)atEnd=true;}}
+        for(const n of cnt.values())if(n>0)atEnd=true;}}}
   }catch(e){threw=true;fired=true;atEnd=true;segs=null;
     try{console.error('[weekly-feast] RFZ FAILED — this field was NOT judged, so the refreeze rule is attached and any ⏱ note is held: '+(e&&e.message||e));}catch(_){}}
   try{
@@ -942,7 +974,7 @@ function rfzLine(v,short){const r=rfzRender(v,null,short);return r.fired?rfzLine
 // True iff the field fires, or the predicate threw (C1) — the plain-text export's test and the ⏱ HOLD's. quiet: the
 // caller also renders the field through rfzRender, whose own catch reports the same throw once.
 function rfzFires(v,quiet){
-  try{return RFZ.hits(rfzText(v)).length>0;}
+  try{const t=rfzText(v);if(t===WF_UNREADABLE)return true;if(rfzSpent())return rfzCoarse(t);return RFZ.hits(t).length>0;}
   catch(e){if(!quiet){try{console.error('[weekly-feast] RFZ FAILED in export — the refreeze rule is attached: '+(e&&e.message||e));}catch(_){}}return true;}}
 // The once-per-plan line and the standard-rules digest (copy (c), signed texts). Grey, never amber, no
 // glyph, not dismissible; it sits directly under the plan header.
@@ -2554,6 +2586,7 @@ function safetyNoticeBanner(){
 // On any exception in a screen renderer, show an in-UI recovery panel (never a white
 // screen) that explains the data couldn't be rendered and offers the scoped reset.
 function render(){
+  const rfzPrev=RFZ_PAINT;RFZ_PAINT={work:0};             // F5-3: one refreeze-check budget per paint
   try{
     renderNav();
     const main=document.getElementById('main');
@@ -2572,7 +2605,7 @@ function render(){
   }catch(err){
     try{console.error('render failed',err);}catch(e){}
     renderRecoveryPanel(err);
-  }
+  }finally{RFZ_PAINT=rfzPrev;}
 }
 
 // In-UI recovery panel shown when a screen renderer throws. Reuses the app's amber ⚠
@@ -2730,8 +2763,9 @@ function renderDashboard(){
       <div class="flex gap-10" style="flex-wrap:wrap;justify-content:center"><button class="btn btn-primary" data-nav="review">Start Weekly Review</button><button class="btn btn-default" onclick="loadMock();nav('import')">Load Sample Plan</button></div></div>`;
     return h;
   }
-  const{meal_plan:mp=[],shopping_list:sl=[],cost_summary:cs={},metadata:md={},pantry_alerts:pa=[],nutrition_summary:ns=null}=plan;
-  const byStore={};sl.forEach((item,i)=>{const s=item.store||'Other';if(!byStore[s])byStore[s]=[];byStore[s].push({...item,_gi:i})});
+  const{meal_plan:mp0,shopping_list:sl0,cost_summary:cs0,metadata:md0,pantry_alerts:pa0,nutrition_summary:ns=null}=plan;
+  const mp=wfArr(mp0),sl=wfArr(sl0),pa=wfArr(pa0),cs=wfObj(cs0),md=wfObj(md0);   // F5-2: a section of the wrong shape reads as empty
+  const byStore=Object.create(null);sl.forEach((item,i)=>{const s=wfText(item.store)||'Other';if(!byStore[s])byStore[s]=[];byStore[s].push({...item,_gi:i})});
   const cc=Object.values(S.checkedItems).filter(Boolean).length;
   const conf=md.stores_confirmed||[],est=md.stores_estimated||[];
 
@@ -2762,8 +2796,8 @@ function renderDashboard(){
     if(Array.isArray(ns.veg_subgroups)&&ns.veg_subgroups.length)bits.push('Veg groups: '+esc(ns.veg_subgroups.join(', ')));
     if(ns.seafood_servings!=null)bits.push('Seafood: '+esc(String(ns.seafood_servings))+'/wk');
     bits.push('Produce ~half the plate: '+(ns.produce_half_plate?'yes':'no'));
-    const sf=Array.isArray(ns.shortfalls)?ns.shortfalls.filter(x=>x!=null&&String(x).trim()):[];
-    const sfHtml=sf.length?`<div style="color:var(--amber);font-weight:600;margin-top:6px">⚠ Nutrition shortfalls this week:</div>${sf.map(x=>`<div style="color:#fde68a;margin-top:2px">• ${rfzRender(String(x)).html}</div>`).join('')}`:'';
+    const sf=Array.isArray(ns.shortfalls)?ns.shortfalls.filter(x=>x!=null&&wfText(x).trim()):[];
+    const sfHtml=sf.length?`<div style="color:var(--amber);font-weight:600;margin-top:6px">⚠ Nutrition shortfalls this week:</div>${sf.map(x=>`<div style="color:#fde68a;margin-top:2px">• ${rfzRender(x).html}</div>`).join('')}`:'';
     h+=`<div class="card" style="padding:12px 16px"><div style="font-size:11px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Weekly nutrition (MyPlate frame — general guidance)</div><div style="font-size:11px;color:var(--fg2);line-height:1.6">${bits.join(' · ')}${sfHtml}${ns.notes?`<div style="color:var(--fg2);margin-top:3px">${rfzRender(ns.notes).html}</div>`:''}</div></div>`;
   }
 
@@ -2797,7 +2831,7 @@ function renderDashboard(){
 // HTML conversion; no Markdown, no raw HTML injection (same as every other free-text field).
 function renderWhyPlanCard(plan){
   if(!plan.why_plan)return '';
-  const text=String(plan.why_plan);
+  const text=wfText(plan.why_plan);
   const open=!!S.whyPlanOpen;
   const chev=open?'▾':'▸';
   // Teaser: first non-empty line (or first ~90 chars) — a taste, not the whole thing.
@@ -3584,6 +3618,7 @@ function stepBreaks(escaped){
   return s.replace(/(\s)(\(\d+\))/g,'$1<br>$2');            // break AFTER the existing space
 }
 function renderMealCards(mp){
+  mp=wfArr(mp);                                            // F5-2: days that are not a list draw no cards, never a crash
   // 🔴 COMMIT-2. Carrier chips return {html, classes:Set<string>}. `norm` tolerates a bare-string
   // return so the goldCHIP freeze (which reverts chip COPY to a pre-class base commit) still renders:
   // a string ⇒ empty class set ⇒ no coverage credit ⇒ fail-toward-hold. At HEAD every carrier returns
@@ -3734,7 +3769,7 @@ function renderMealCards(mp){
               render slots below. Kept as inline ${…} expressions — NOT hoisted const statements — so
               goldCHIP's structural chip-parser reads them the same way it reads the inline come-out/freeze1
               chips (a hoisted const desyncs that parser; the render output is identical either way). */''}
-        ${(plateChip=norm((()=>{const fbs=(d.ingredients||[]).filter(x=>x&&x.freeze_by&&isRawProtein(x)).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);if(!fbs.length)return'';return {html:`<div style="font-size:13px;font-weight:600;color:var(--amber);line-height:1.5;margin-top:3px">🧊 ${esc(freezeText(fbs))}. If this food never went in the freezer and sat out, do not cook it. If it thawed in the refrigerator as planned and your plans changed, it may go back in the freezer uncooked — but ${SAT_OUT_RULE}. If it did go in the freezer and is still frozen at dinner, thaw it fast in COLD water — sealed in a leak-proof bag, fully submerged, with fresh cold water every 30 minutes (about 30 minutes per pound) — then cook it right away, and don't refreeze it uncooked. Never thaw on the counter or in warm or hot water.</div>`, classes:new Set(['FREEZE','DNC','PROHIB','REFREEZE']), foods:new Set(fbs.map(x=>x.i))};})()),'')/* plate: NEVER THAW/KEEPWIN */}
+        ${(plateChip=norm((()=>{const fbs=wfArr(d.ingredients).filter(x=>x&&x.freeze_by&&isRawProtein(x)).map(x=>({i:x.item,d:x.freeze_by})).sort((a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0);if(!fbs.length)return'';return {html:`<div style="font-size:13px;font-weight:600;color:var(--amber);line-height:1.5;margin-top:3px">🧊 ${esc(freezeText(fbs))}. If this food never went in the freezer and sat out, do not cook it. If it thawed in the refrigerator as planned and your plans changed, it may go back in the freezer uncooked — but ${SAT_OUT_RULE}. If it did go in the freezer and is still frozen at dinner, thaw it fast in COLD water — sealed in a leak-proof bag, fully submerged, with fresh cold water every 30 minutes (about 30 minutes per pound) — then cook it right away, and don't refreeze it uncooked. Never thaw on the counter or in warm or hot water.</div>`, classes:new Set(['FREEZE','DNC','PROHIB','REFREEZE']), foods:new Set(fbs.map(x=>x.i))};})()),'')/* plate: NEVER THAW/KEEPWIN */}
         ${(pfChip=norm((()=>{
           /* The lead is the one act that is true on this card in every thaw state. Usually the
              take-it-out chip fired the day before, so "keep it frozen" is already past here; but this
@@ -3748,7 +3783,7 @@ function renderMealCards(mp){
              does must stay amber.
              Keep the chip FLAT (no inner tag):
              the weight is on the div, as on the other freezer chips. */
-          const pf=(d.ingredients||[]).filter(pfCoherent).map(x=>x.item);const pl=pf.length>1;return pf.length?{html:`<div style="font-size:13px;font-weight:600;color:var(--amber);line-height:1.5;margin-top:3px">🧊 NEVER ON THE COUNTER, NEVER IN HOT WATER — bought frozen (${esc(pf.join(', '))}): keep ${pl?'them':'it'} frozen until ${pl?'their':'its'} thaw day, then thaw in the refrigerator. Once thawed ${pl?'they keep':'it keeps'} 1–2 days. If plans change, ${pl?'they':'it'}${GRANT_TAIL}</div>`, classes:new Set(['FREEZE','PROHIB','KEEPWIN','REFREEZE']), foods:new Set(pf)}:'';})()),'')/* pf: NEVER THAW */}
+          const pf=wfArr(d.ingredients).filter(pfCoherent).map(x=>x.item);const pl=pf.length>1;return pf.length?{html:`<div style="font-size:13px;font-weight:600;color:var(--amber);line-height:1.5;margin-top:3px">🧊 NEVER ON THE COUNTER, NEVER IN HOT WATER — bought frozen (${esc(pf.join(', '))}): keep ${pl?'them':'it'} frozen until ${pl?'their':'its'} thaw day, then thaw in the refrigerator. Once thawed ${pl?'they keep':'it keeps'} 1–2 days. If plans change, ${pl?'they':'it'}${GRANT_TAIL}</div>`, classes:new Set(['FREEZE','PROHIB','KEEPWIN','REFREEZE']), foods:new Set(pf)}:'';})()),'')/* pf: NEVER THAW */}
         ${/* ══ THE ⏱-NOTE GATE — CLASS-WISE COVERAGE (commit 2). THIS COMMENT IS THE SAFETY CONTROL. ══
               This repo ships as 3 files with NO in-repo harness. A fresh clone's guard at this gate is the
               P-FLOOR assertion at the foot of this script plus THIS comment — and a FALSE comment blocks the
@@ -3894,7 +3929,7 @@ function renderMealCards(mp){
               so a come-out-day note that names the thawing food (a food on a LATER card, not in this card's
               ingredients) still resolves and still drains. */''}
         ${(()=>{if(!d.perishability_note)return'';
-          const note=d.perishability_note;
+          const note=wfText(d.perishability_note);          // F5-2: coerced once, before the class gate or the refreeze check reads it
           // 8-CLASS SAFETY MAP (regexes = the FLOOR tokens partitioned by act + CFF/KEEPWIN/REFREEZE + the cold-holding clock; single-sourced).
           // The cold-holding clock is the 2-hour (1-hour when hot) limit out of the fridge, plus cooling, ice and marinade.
           // Each of its co-occurrence windows is bounded and stays inside one sentence, so no pattern can scan a whole note.
@@ -4004,7 +4039,7 @@ function renderMealCards(mp){
               `--fg2` = 6.89:1 (narration). Both clear AA.
               And it named NO ITEM AT ALL: one card in run A carries THREE items with a cook_by and rendered
               a single bare date. It now names every item it speaks for. */''}
-        ${(()=>{const all=(d.ingredients||[]).filter(x=>x&&x.cook_by);
+        ${(()=>{const all=wfArr(d.ingredients).filter(x=>x&&x.cook_by);
           const mk=x=>({i:x.item,d:x.cook_by});
           const byDate=(a,b)=>String(a.d)<String(b.d)?-1:String(a.d)>String(b.d)?1:0;
           // COOKED FOODS CARRIED FORWARD (rte_cooked, template version 12). A raw animal protein and a cooked
@@ -4109,7 +4144,7 @@ function renderMealCards(mp){
                    co-occurrence card prints two "this food"s with different referents (copy review §2). */''}
         ${plateChip.html}
         ${pfChip.html}
-        ${(()=>{const un=(d.ingredients||[]).filter(x=>x&&!x.cook_by&&!x.freeze_by&&!pfCoherent(x)&&(x.protein_state==='fresh'||x.shelf_life_tier===0||x.shelf_life_tier===1)).map(x=>x.item);const pl=un.length>1;return un.length?`<div style="font-size:13px;color:var(--red);line-height:1.5;margin-top:3px">⚠ no cook-by or freeze-by date on ${pl?'highly perishable items':'a highly perishable item'} (${esc(un.join(', '))}) — cook ${pl?'them':'it'} within 2 days of shopping, or freeze ${pl?'them':'it'} the day you buy ${pl?'them':'it'}</div>`:'';})()}
+        ${(()=>{const un=wfArr(d.ingredients).filter(x=>x&&!x.cook_by&&!x.freeze_by&&!pfCoherent(x)&&(x.protein_state==='fresh'||x.shelf_life_tier===0||x.shelf_life_tier===1)).map(x=>x.item);const pl=un.length>1;return un.length?`<div style="font-size:13px;color:var(--red);line-height:1.5;margin-top:3px">⚠ no cook-by or freeze-by date on ${pl?'highly perishable items':'a highly perishable item'} (${esc(un.join(', '))}) — cook ${pl?'them':'it'} within 2 days of shopping, or freeze ${pl?'them':'it'} the day you buy ${pl?'them':'it'}</div>`:'';})()}
         ${d.quality_note?`<div style="font-size:12px;color:var(--fg2);line-height:1.5;margin-top:3px">★ ${rfzRender(d.quality_note).html}</div>`:''}
       </div></div>`}).join('')}</div>`;
 }
@@ -4746,9 +4781,11 @@ function restoreShoppingPlace(){
 
 function exportShoppingList(){
   const plan=S.currentPlan;if(!plan)return;
-  const{shopping_list:sl=[],cost_summary:cs={},metadata:md={}}=plan;
-  const byStore={};sl.forEach(item=>{const s=item.store||'Other';if(!byStore[s])byStore[s]=[];byStore[s].push(item)});
-  let txt=`Shopping List — Week of ${md.plan_date||todayStr()}\nTotal: $${n2(cs.total_estimated)} ($${n2(cs.per_person_per_day)}/person/day)\n`;
+  const{shopping_list:sl0,cost_summary:cs0,metadata:md0}=plan;
+  // F5-2: the copied list reads the plan through the same guards as the screen; an item that is not an object is left out.
+  const sl=wfArr(sl0).filter(x=>x&&typeof x==='object'),cs=wfObj(cs0),md=wfObj(md0);
+  const byStore=Object.create(null);sl.forEach(item=>{const s=wfText(item.store)||'Other';if(!byStore[s])byStore[s]=[];byStore[s].push(item)});
+  let txt=`Shopping List — Week of ${wfText(md.plan_date)||todayStr()}\nTotal: $${n2(cs.total_estimated)} ($${n2(cs.per_person_per_day)}/person/day)\n`;
   // 🧊 The freezer checklist leads the copied list too: a household that shops from a pasted list
   // never sees the app's amber, so the capital ACT phrase leading each line is the only emphasis left.
   // Lines are "* ", not "[ ]": they are not tick items. Plain text, so NOT escaped (see freezerChecklist).
@@ -4757,12 +4794,12 @@ function exportShoppingList(){
   Object.entries(byStore).forEach(([store,items])=>{
     txt+=`\n── ${store} ──\n`;
     items.forEach(item=>{
-      let line=`[ ] ${item.item}`;
-      if(item.quantity)line+=` — ${item.quantity}`;
+      let line=`[ ] ${wfText(item.item)}`;
+      if(item.quantity)line+=` — ${wfText(item.quantity)}`;
       line+=` — $${n2(item.price)}`;
       if(item.price_type==='estimated')line+=' (est.)';
       if(item.category==='restock')line+=' (restock)';
-      if(item.notes)line+=` — ${item.notes}`;
+      if(item.notes)line+=` — ${wfText(item.notes)}`;
       txt+=line+'\n';
       if(item.notes&&rfzFires(item.notes))txt+='    '+RFZ_SHORT+'\n';
     });
@@ -4864,6 +4901,28 @@ function exportAllData(){
   showToast('Backup exported!');
 }
 
+// F5-1: before a backup replaces anything, draw the meal plan screen from it, in both states of the plan's
+// narrative, into a string that is thrown away. The backup's sections are assembled as the restore below would
+// write them (the same normalisers, the plan exactly as stored); every field of S is put back afterwards and
+// nothing is saved. Returns the error if the screen could not be drawn, else null. The plan is checked, never
+// rewritten: an accepted plan is still stored exactly as the backup holds it.
+function restoreDryRun(data){
+  const keep=Object.assign({},S),had=new Set(Object.keys(S)),paint=RFZ_PAINT;
+  try{
+    if(data.pantry)S.pantry=normalizePantry(data.pantry);
+    if(isPlainObj(data.preferences))S.prefs=normalizePrefs(data.preferences);
+    if(isPlainObj(data.household))S.household=normalizeHousehold(data.household);
+    if('currentPlan' in data)S.currentPlan=data.currentPlan;
+    if(data.planHistory)S.planHistory=data.planHistory;
+    S.checkedItems=isPlainObj(data.checkedItems)?data.checkedItems:{};
+    if(data.wasteLog&&typeof data.wasteLog==='object')S.wasteLog=normalizeWasteLog(data.wasteLog);
+    S.removedShoppingItems=[];S.showRemovedItems=false;
+    for(const open of [false,true]){S.whyPlanOpen=open;RFZ_PAINT={work:0};renderDashboard();}
+    return null;
+  }catch(err){return err||new Error('the plan could not be drawn');}
+  finally{RFZ_PAINT=paint;for(const k of Object.keys(S))if(!had.has(k))delete S[k];Object.assign(S,keep);}
+}
+
 function importAllData(event){
   const file=event.target.files[0];
   if(!file)return;
@@ -4875,6 +4934,8 @@ function importAllData(event){
       const required=['pantry','preferences','household'];
       const missing=required.filter(k=>!(k in data));
       if(missing.length){showToast('Invalid backup: missing '+missing.join(', '));return}
+      // F5-1: nothing below runs unless the backup's meal plan can be drawn; a refused restore changes nothing.
+      if(restoreDryRun(data)){showToast("This backup was not restored: its meal plan couldn't be shown. Nothing was changed.");return}
       if(!confirm('This will replace ALL current data (pantry, preferences, plans, history) with the backup. Continue?'))return;
       // Restore state
       if(data.pantry){S.pantry=normalizePantry(data.pantry);savePantry()}
