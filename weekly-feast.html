@@ -714,13 +714,13 @@ const esc=s=>s==null?'':wfText(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔴 RFZ-SAME-SENTENCE — the cure for an uncooked-refreeze permission whose conditions are not in
-// its own sentence. Ruled app-side with the prompt template left unchanged (the household reads what is
+// its own sentence. Fixed app-side, with the prompt template left unchanged (the household reads what is
 // RENDERED, on every model); the predicate carries security conditions C1–C10, stated where cited, and the
-// food-safety re-rulings that amended them; every household line below is the signed text, byte for byte.
+// food-safety corrections that amended them; every household line below is the canonical text, byte for byte.
 // WHAT IT DOES. At RENDER time only, every model-authored text field the household reads is run through
 // a predicate. A sentence that grants a raw refreeze without BOTH a fridge thaw AND an upper-bounded
 // 2-hour limit in the same sentence (or with an inverted condition, or on cold-water/microwave food)
-// FIRES, and the app's own signed condition line is printed directly after it. The model's words are
+// FIRES, and the app's own canonical condition line is printed directly after it. The model's words are
 // never edited, suppressed or reordered, and nothing is written back to the plan or to storage (C2.4).
 // ⛔ FIRE DIRECTION IS BINDING (C9): every ambiguity resolves toward FIRE. A change that REDUCES firing
 //    (dropping a lexicon entry, widening a guard, loosening a condition) is a change to a load-bearing
@@ -824,22 +824,22 @@ const RFZ=(()=>{
   const BREAK=/[,;:()"]|(?:^|\s)-(?:\s|$)|\b(?:but|or|if|unless|otherwise|then|just|instead|so|and)\b/i;                  // C6.3
   const LICENSOR=/\b(?:problem|problems|need|needs|reason|reasons|worry|worries|hesitate|wrong|risk|harm|issue|issues|trouble|only|matter|afraid|fear|doubt|bad|have|longer|unsafe)\b/i;  // C6.4
   const NEG_ANY=new RegExp(`\\b(?:${NEG}|no|nothing|nobody|none)\\b`,'gi');                           // C6.5
-  // C6.7 post-qualifier + food-safety re-ruling FS-1: a prohibition restricted by count, window or TIME/TEMPERATURE OUT
+  // C6.7 post-qualifier + food-safety rule FS-1: a prohibition restricted by count, window or TIME/TEMPERATURE OUT
   // implies a grant and is NOT exempt. A restriction by thaw METHOD ("thawed on the counter") stays exempt.
   const POSTQ=/\b(?:unless|except|until|more\s+than\s+once|twice|a\s+second\s+time|after\s+(?:\d+|one|two|three|four|five|a\s+day|a\s+few)|beyond|past\s+(?:\d|day)|later\s+than)\b/i;
   const POST_TIMEOUT=/\b(?:sat|sit|sits|sitting|left|was|were|been|is|are|stayed|kept)\s+(?:[\w'-]+\s+){0,2}?out\b|\b(?:more|longer)\s+than\s+(?:an?\s+|one\s+|two\s+|\d+(?:\.\d+)?\s*)?(?:hours?|hrs?)\b|\b(?:above|over)\s+(?:40|90)\s*°?\s*F\b|(?<!\b(?:thaw\w*|defrost\w*)\s+)\b(?:on\s+the\s+counter|at\s+room\s+temp\w*)/i;
   const COOKFIRST=/\b(?:cook\w*\b[^.!?]{0,40}?\b(?:first|before)|(?:must|should|need\s+to|has\s+to|have\s+to)\s+be\s+cooked|without\s+cooking\b[^.!?]{0,30}?\bfirst|(?:after|once|until)\s+(?:it\s+is\s+|they\s+are\s+|it's\s+|being\s+|fully\s+)?cooked|cooked\s+(?:first|before))/i;
-  // Conditions (ruling §3.5 + C7) — in the SAME unit.
+  // Conditions (§3.5 + C7) — in the SAME unit.
   const F_RE=/\b(?:(?:thaw\w*|defrost\w*)\b[^.!?]{0,60}?\b(?:in|inside)\s+(?:the\s+|your\s+|a\s+)?(?:refrigerator|fridge)\b|(?:refrigerator|fridge)[- ](?:thaw\w*|defrost\w*)|(?:in|inside)\s+(?:the\s+|your\s+)?(?:refrigerator|fridge)\b[^.!?]{0,40}?\b(?:thaw\w*|defrost\w*))/gi;
   const F_NEG=/(?:\b(?:not|never|without|unless|didn't|wasn't|weren't)|n't)\s+(?:\w+\s+){0,1}$/i;    // C7.2
-  const H2="(?:2|two)[ -]hours?\\b";                                                                  // fold() has already turned NBSP into a space (copy review F1)
+  const H2="(?:2|two)[ -]hours?\\b";                                                                  // fold() has already turned NBSP into a space (F1)
   const T_UP=new RegExp(`\\b(?:(?:no|not)\\s+(?:more|longer)\\s+than|(?:less|fewer|shorter)\\s+than|under|at\\s+most|up\\s+to|max(?:imum)?(?:\\s+of)?)\\s+${H2}|(?:\\b(?:nothing|never|not|no)\\b|n't\\b)[^.!?;]{0,40}?\\b(?:more|longer)\\s+than\\s+${H2}`,'gi');  // C7.1 upper bound only
   const T_OPEN=/^\s*(?:in\s+total\s+)?(?:or\s+(?:more|longer|over)|plus|\+)/i;
   const T_CUE=/\b(?:out\s+of\s+(?:the\s+)?(?:refrigerator|fridge)|outside\s+(?:the\s+)?(?:refrigerator|fridge)|(?:sat|left|sitting|been|was|were|is|are|stayed)\s+out\b|room\s+temperature|on\s+the\s+counter|counter\s+time|above\s+40\s*°?\s*F)/i;
   // §3.6(1) + C7.4 — inversion / wrong-condition tokens fire even when F and T are present.
   const INV=/\b(?:even\s+(?:if|when|after|though)|although|though|despite|in\s+spite\s+of|regardless|no\s+matter|whether|irrespective\s+of|doesn't\s+matter|does\s+not\s+matter|anyway|anyhow|either\s+way|in\s+any\s+case|(?:can|may|could|will)\s+still\s+(?:be\s+)?(?:go|put|placed?|popped|returned|refr\w*|re-?fr\w*|froz\w*|freez\w*)|or\s+(?:if|when|whenever|otherwise|else|just|anytime)|counter[- ]thaw\w*|without\s+a\s+fridge\s+thaw)\b|\b(?:thaw\w*|defrost\w*)\b[^.!?]{0,30}?\b(?:on\s+the\s+counter|at\s+room\s+temp\w*|in\s+(?:hot|warm)\s+water|in\s+the\s+sink|outside|in\s+the\s+sun)\b/i;
   const CW=/\b(?:cold[- ]water|microwave\w*)\b/i;
-  // Re-ruling FS-3: a question naming a non-fridge thaw, followed by a unit with a live grant, fires.
+  // Rule FS-3: a question naming a non-fridge thaw, followed by a unit with a live grant, fires.
   const qThawRe=/\b(?:thaw\w*|defrost\w*)\b/i, qNonFridgeRe=/\b(?:cold[- ]water|microwave\w*|hot\s+water|warm\s+water|counter|room\s+temp\w*|sink|sun)\b/i;
   const RFZ_OCC_MAX=24;                                             // 12x the most any real plan has put in one unit
   // null = more than RFZ_OCC_MAX occurrences: the caller fires without per-occurrence analysis.
@@ -882,7 +882,7 @@ const RFZ=(()=>{
     if(!f.length||!t.length)return{why:'MISSING'+(f.length?'':' F')+(t.length?'':' T'),live:true};
     const t0=t[0].index,fb=f.filter(x=>x.index<t0),fn=fb.length?fb[fb.length-1]:f[0];       // the F nearest the T bound (C7.3)
     if(/\bor\b/i.test(s.slice(Math.min(fn.index,t0),Math.max(fn.index,t0))))return{why:'F-OR-T',live:true};
-    // Re-ruling FS-2 proviso: conditions that FOLLOW a live grant across an "or" govern the other branch.
+    // Rule FS-2 proviso: conditions that FOLLOW a live grant across an "or" govern the other branch.
     const c0=Math.min(f[0].index,t0);
     if(live.some(o=>o.e<=c0&&/\bor\b/i.test(s.slice(o.e,c0))))return{why:'OR-BRANCH',live:true};
     return{why:'',live:true};}
@@ -953,7 +953,7 @@ function rfzRender(v,post,short){
     const MARK='<rfz>';                                    // a raw "<" never survives esc(), so the marker cannot collide with model text
     let s='';
     if(segs&&after){
-      // Re-ruling: one line per firing sentence; consecutive firing sentences share one line after the last of the run.
+      // Rule: one line per firing sentence; consecutive firing sentences share one line after the last of the run.
       for(let k=0;k<segs.length;k++){
         let next=k+1;while(next<segs.length&&!segs[next].t.trim())next++;
         const share=after.has(k)&&next<segs.length&&after.has(next);
@@ -976,14 +976,14 @@ function rfzLine(v,short){const r=rfzRender(v,null,short);return r.fired?rfzLine
 function rfzFires(v,quiet){
   try{const t=rfzText(v);if(t===WF_UNREADABLE)return true;if(rfzSpent())return rfzCoarse(t);return RFZ.hits(t).length>0;}
   catch(e){if(!quiet){try{console.error('[weekly-feast] RFZ FAILED in export — the refreeze rule is attached: '+(e&&e.message||e));}catch(_){}}return true;}}
-// The once-per-plan line and the standard-rules digest (copy (c), signed texts). Grey, never amber, no
+// The once-per-plan line and the standard-rules digest (copy (c), canonical texts). Grey, never amber, no
 // glyph, not dismissible; it sits directly under the plan header.
 function rfzNotice(){
   return `<div style="font-size:11px;color:var(--fg2);line-height:1.5;max-width:72ch;margin:-4px 0 4px">${esc(RFZ_VISIBLE)}</div>`
     +`<details style="font-size:11px;color:var(--fg2);line-height:1.5;max-width:72ch;margin:0 0 12px"><summary style="color:var(--fg2);text-decoration:underline;cursor:pointer;min-height:44px;box-sizing:border-box;padding:13px 0">${esc(RFZ_DIGEST_SUMMARY)}</summary><ul style="margin:0 0 4px 18px;padding:0">${RFZ_DIGEST.map(x=>`<li style="margin-bottom:4px">${rfzNb(esc(x))}</li>`).join('')}</ul></details>`;}
 const n2=(n)=>{const x=toNum(n);return x==null?'?':x.toFixed(2);};
 
-// ── Pantry normalization (S4 depletion data-model) ──────────────────────────
+// ── Pantry normalization (depletion data-model) ──────────────────────────
 // Fill new optional on-hand/par/unit/openedAt fields with SAFE, NON-FABRICATING
 // defaults. Never throws. Idempotent (safe on already-normalized data). The one
 // domain-critical rule: absent numeric on-hand stays ABSENT (undefined) — never
@@ -1068,7 +1068,7 @@ function normalizePrefs(p){
 }
 const isPlainObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 
-// ── Waste-log normalization (E2-1 CAPTURE) ───────────────
+// ── Waste-log normalization (waste CAPTURE) ───────────────
 // House idiom (reuses num0 L545 + str L549): never throws, never fabricates,
 // idempotent. Degrades a hand-edited / truncated / wrong-typed value to a
 // weaker-but-honest record, and COLLAPSES any record carrying neither an
@@ -1096,7 +1096,7 @@ function normalizeWasteRecord(r){
   return out;
 }
 // Defensive SHELL for the per-item shape. Each line is a SNAPSHOT of its
-// shopping_list source (N2 binding ruling): name/price/price_type/store are
+// shopping_list source (N2, binding): name/price/price_type/store are
 // COPIED in, so the $ never re-looks-up the plan. Floor: an item with no
 // identity is dropped (never fabricated); price passes through num0 so
 // NaN/negative/null are dropped and a BLANK price stays ABSENT (never coerced
@@ -1117,7 +1117,7 @@ function normalizeWasteItem(it){
   const f=num0(it.fraction); if(f!==undefined&&f>0&&f<=1) out.fraction=f;          // D3 quantum; ≤1 ⇒ waste_$ ≤ price
   return out;
 }
-// Dismiss-marker normalization (E2-1) —
+// Dismiss-marker normalization (waste-capture) —
 // UI-suppression, structurally SEPARATE from wasteLog. A hand-edited/garbage
 // value degrades to {}; keeps only string week-date keys with a truthy value
 // (coerced to the stored ISO string, else `true`). Never throws; never seeds a key.
@@ -1255,7 +1255,7 @@ function parseCandidate(str){
 
 function normalizeIngredient(ing){
   if(ing==null)return null;
-  // 🔴 S39 — NO `protein_state` KEY HERE, AND THAT IS THE POINT. A bare string ingredient asserts
+  // 🔴 NO `protein_state` KEY HERE, AND THAT IS THE POINT. A bare string ingredient asserts
   // NOTHING: the model supplied no object at all. Stamping `protein_state:null` here would claim the
   // model ASSERTED "not a protein" when it said nothing — the same laundering as :847, one path over.
   // Same property, stated by OMISSION: normalized-object-owns-key ⟺ model-asserted-key. R-D1 quantifies
@@ -1276,14 +1276,14 @@ function normalizeIngredient(ing){
     price_estimate: toNum(ing.price_estimate),
     shelf_life_tier: ([0,1,2,3].includes(ing.shelf_life_tier))?ing.shelf_life_tier:null,
     freezable: (typeof ing.freezable==='boolean')?ing.freezable:null,
-    // S33 v11 — protein_state MUST be carried here. normalizeIngredient constructs a fresh object with
+    // v11 — protein_state MUST be carried here. normalizeIngredient constructs a fresh object with
     // a fixed key set, so a field absent from this literal is SILENTLY DROPPED on import: the model would
     // emit protein_state, the importer would discard it, every item would be null, the ⚠ gate below would
-    // reduce to v10 and every invariant would pass VACUOUSLY (schema note H2/T16 — "parsed, stored, never
+    // reduce to v10 and every invariant would pass VACUOUSLY (invariant H2/T16 — "parsed, stored, never
     // rendered"). Strict allow-list, mirroring freezable/shelf_life_tier: anything that is not exactly
     // 'fresh' or 'purchased_frozen' normalizes to null ⇒ v10 semantics, byte-for-byte.
     //
-    // 🔴 S39 — THE KEY IS STAMPED IF AND ONLY IF THE MODEL ASSERTED IT. DO NOT COLLAPSE THIS BACK.
+    // 🔴 THE KEY IS STAMPED IF AND ONLY IF THE MODEL ASSERTED IT. DO NOT COLLAPSE THIS BACK.
     // 🔴 THE PROPERTY THAT MUST HOLD: normalized-object-owns-key ⟺ model-asserted-key.
     // This importer holds the RAW model payload, so HERE — and nowhere downstream — `undefined` (the
     // model was SILENT) and `null` (the model asserted "not a protein") are still DISTINGUISHABLE.
@@ -1322,7 +1322,7 @@ function normalizeIngredient(ing){
     //   failure — lands in C, reads as "the model asserted not-a-protein", and buys TOTAL silence on a
     //   freezer-routed raw protein. A model that TRIED to comply and got the case wrong ends up WORSE
     //   OFF than one that said nothing at all. An earlier draft of THIS comment claimed "the model can
-    //   obtain silence ONLY by emitting an explicit null" — inherited from the S38 record, and FALSE.
+    //   obtain silence ONLY by emitting an explicit null" — inherited from an earlier note, and FALSE.
     //   The allow-list's exactness is a FILED question; it is not this line's and it is not closed here.
     // Real v11 data emits the key 303/303 — a MEASURED CORPUS FACT, not a guarantee — so this costs
     // current data NOTHING (byte-identical render AND stored bytes on 5/5 real runs).
@@ -1539,7 +1539,7 @@ let _pendingUpgradeToast=null;
   }catch(e){/* migration is best-effort */}
 })();
 
-// ── One-time template migration v3 → v4 (S4 depletion-reconciled template) ──
+// ── One-time template migration v3 → v4 (depletion-reconciled template) ──
 // Mirrors migrateTemplateV3's structure (one-time DONE guard, key transition, best-effort
 // try/catch), but the replace-vs-preserve TEST is exact-equality against the pristine v3
 // default, delivered via a djb2 content hash so the 18KB v3 template is not duplicated in
@@ -1573,7 +1573,7 @@ function _djb2(str){let x=5381;for(let i=0;i<str.length;i++){x=((x<<5)+x+str.cha
   }catch(e){/* migration is best-effort */}
 })();
 
-// ── One-time template migration v4 → v5 (S5 STEP 3.5 weekly-nutrition-balance pass) ──
+// ── One-time template migration v4 → v5 (STEP 3.5 weekly-nutrition-balance pass) ──
 // Same contract as migrateTemplateV4: exact-equality test against the pristine v4 default via djb2.
 // A non-customizing user (stored v4 === pristine v4 default) is force-upgraded to the STEP 3.5
 // template; a user who hand-edited their template is carried forward untouched under the new key and
@@ -1602,13 +1602,13 @@ const PREV_TEMPLATE_V4_HASH=2342717482; // djb2 of the pristine v4 DEFAULT_PROMP
   }catch(e){/* migration is best-effort */}
 })();
 
-// ── One-time template migration v5 → v6 (S6 "why this plan" narrative-capture template) ──
+// ── One-time template migration v5 → v6 ("why this plan" narrative-capture template) ──
 // Same contract as migrateTemplateV5: exact-equality test against the pristine v5 default via djb2.
 // A non-customizing user (stored v5 === pristine v5 default) is force-upgraded to the v6 PART B
 // ("why this plan" narrative) template; a user who hand-edited their template is carried forward
 // untouched under the new key and can re-pull via the editor. The hash test can only ever
 // false-PRESERVE (a drifted/edited template is kept), never false-REPLACE.
-const PREV_TEMPLATE_V5_HASH=2002962832; // djb2 of the pristine v5 DEFAULT_PROMPT_TEMPLATE (pre-S6)
+const PREV_TEMPLATE_V5_HASH=2002962832; // djb2 of the pristine v5 DEFAULT_PROMPT_TEMPLATE (pre-narrative-capture)
 (function migrateTemplateV6(){
   try{
     const DONE='mp:migrated-template-v6';
@@ -1632,7 +1632,7 @@ const PREV_TEMPLATE_V5_HASH=2002962832; // djb2 of the pristine v5 DEFAULT_PROMP
   }catch(e){/* migration is best-effort */}
 })();
 
-// ── One-time template migration v6 → v7 (S6 configurable store list + decoupled Walmart block) ──
+// ── One-time template migration v6 → v7 (configurable store list + decoupled Walmart block) ──
 // Same contract as migrateTemplateV6: exact-equality test against the pristine v6 default via djb2.
 // A non-customizing user (stored v6 === pristine v6 default) is force-upgraded to the v7 STORE
 // CONFIGURATION default ({{STORES}} + generalized backend hint + {{WALMART_BLOCK}}); a user who
@@ -1663,7 +1663,7 @@ const PREV_TEMPLATE_V6_HASH=1247868438; // djb2 of the pristine v6 DEFAULT_PROMP
   }catch(e){/* migration is best-effort */}
 })();
 
-// ── One-time template migration v7 → v8 (E1-S7 freezable-protein signal) ──
+// ── One-time template migration v7 → v8 (freezable-protein signal) ──
 // Same contract as migrateTemplateV7: exact-equality test against the pristine v7 default via djb2.
 // A non-customizing user (stored v7 === pristine v7 default) is force-upgraded to the v8 FREEZABLE
 // default (STEP-3 now requests a per-ingredient `freezable` boolean); a user who hand-edited their
@@ -1724,7 +1724,7 @@ const PREV_TEMPLATE_V8_HASH=3481872628; // djb2 of the pristine v8 DEFAULT_PROMP
   }catch(e){/* migration is best-effort */}
 })();
 
-// ── One-time template migration v9 → v10 (S30 shelf-life tier correction — SAFETY) ──
+// ── One-time template migration v9 → v10 (shelf-life tier correction — SAFETY) ──
 // Same contract as migrateTemplateV9: exact-equality test against the pristine v9 default via
 // djb2. A non-customizing user (stored v9 === pristine v9 default) is force-upgraded to the v10
 // TIER-CORRECTION default (fresh poultry and raw sausage are Tier 0 at any size; leftovers capped
@@ -1762,7 +1762,7 @@ const PREV_TEMPLATE_V9_HASH=3166374987; // djb2 of the pristine v9 DEFAULT_PROMP
   }catch(e){/* migration is best-effort */}
 })();
 
-// ── One-time template migration v10 → v11 (S33 purchased-frozen schema — SAFETY) ──
+// ── One-time template migration v10 → v11 (purchased-frozen schema — SAFETY) ──
 // Same contract as migrateTemplateV10: exact-equality test against the pristine v10 default via djb2.
 // A non-customizing user (stored v10 === pristine v10 default) is force-upgraded to the v11
 // PURCHASED-FROZEN default (a protein bought already frozen is the ONE legitimate both-null raw
@@ -1870,9 +1870,9 @@ function isRetiredDefault(t){
   }catch(e){/* best-effort, like the migrations above */}
 })();
 
-// S30 SAFETY PROBE. Content-derived, NOT migration-derived: it asks "does the user's effective
+// SAFETY PROBE. Content-derived, NOT migration-derived: it asks "does the user's effective
 // template carry the corrected shelf-life rule?", not "which key did their data arrive in?" — so it
-// also catches the one population no migration can ever reach: a user who restored a pre-S30 backup
+// also catches the one population no migration can ever reach: a user who restored a pre-v10 backup
 // (the restore path writes a sentinel-bearing v9 template straight into the current key, and the v10
 // DONE flag is already set, so no migration will ever inspect it again).
 // ASYMMETRY (mirrors the djb2 rule): this probe may only ever false-WARN (nag a user whose template
@@ -1880,19 +1880,19 @@ function isRetiredDefault(t){
 // the marker ⇒ warn. It writes NO domain data and destroys nothing; its worst case is a dismissible
 // banner shown to someone who did not need it.
 const TEMPLATE_SAFETY_MARKER_V10='Fresh poultry and raw sausage are Tier 0';
-const TEMPLATE_SAFETY_MARKER_V11='no clock while it is frozen';   // S33 — matched with indexOf against the
+const TEMPLATE_SAFETY_MARKER_V11='no clock while it is frozen';   // matched with indexOf against the
 // RAW template string, newlines included. It must stay CONTIGUOUS on one line inside the template: a hard
 // wrap inside the phrase means the marker never matches its own default, and EVERY user gets the safety
-// banner forever (schema note T18; caught in an early draft and fixed).
+// banner forever (invariant T18; caught in an early draft and fixed).
 // The v12 marker lives in the conditioned refreeze sentence of the REFREEZING WORDING RULE, the rule an older
 // template gets wrong rather than leaves out. Same indexOf match, same one-line contiguity requirement.
 const TEMPLATE_SAFETY_MARKER_V12='only if it thawed in the refrigerator and was out of the refrigerator';
 function templateIsSafetyCorrected(t){return missingSafetyRules(t).length===0;}   // now means "fully current"
-// S33 — returns the list of safety rules the user's EFFECTIVE template is MISSING. TWO independent probes,
+// Returns the list of safety rules the user's EFFECTIVE template is MISSING. TWO independent probes,
 // not one: a user on a hand-edited v9 lacks BOTH rules, while a user on a hand-edited v10 has the poultry
 // rule and lacks only the purchased-frozen rule. A single v11-marker probe would tell that second user
 // their poultry rule is missing — a false accusation, and a banner that lies once is a banner nobody reads
-// twice. ASYMMETRY, unchanged from S30: this probe may only ever false-WARN, NEVER false-CLEAR. Absence of
+// twice. ASYMMETRY, unchanged from the v10 probe: this probe may only ever false-WARN, NEVER false-CLEAR. Absence of
 // a marker ⇒ warn about THAT rule. Version 12 adds a third probe; a hand-edited v11 lacks only that one.
 function missingSafetyRules(t){
   const out=[];
@@ -1903,7 +1903,7 @@ function missingSafetyRules(t){
   return out;
 }
 
-// Store-list helpers (S6 P1-6). Ordered, comma-separated, empty-entry-filtered — feeds both the
+// Store-list helpers (P1-6). Ordered, comma-separated, empty-entry-filtered — feeds both the
 // Prefs Stores field and the {{STORES}}/{{WALMART_BLOCK}} template placeholders. filter(Boolean)
 // drops empty entries so a trailing/double comma cannot leak a blank store into the prompt.
 function storesList(hh){return String((hh&&hh.stores)||'').split(',').map(s=>s.trim()).filter(Boolean);}
@@ -1914,12 +1914,12 @@ const S={
   screen:'dashboard',
   pantry:normalizePantry(load(KEYS.pantry,DEFAULT_PANTRY)),
   prefs:normalizePrefs(load(KEYS.preferences,DEFAULT_PREFERENCES)),
-  household:normalizeHousehold(load(KEYS.household,{})), // merge defaults under stored (S6 P1-6): injects `stores` for pre-existing households, future-proofs later scalar fields
-  // 🔴🔴 S37 LANDMINE — THE MISSING `normalizePlan(...)` HERE IS LOAD-BEARING. DO NOT "FIX" IT.
+  household:normalizeHousehold(load(KEYS.household,{})), // merge defaults under stored (P1-6): injects `stores` for pre-existing households, future-proofs later scalar fields
+  // 🔴🔴 LANDMINE — THE MISSING `normalizePlan(...)` HERE IS LOAD-BEARING. DO NOT "FIX" IT.
   // `pantry` and `wasteLog` above/below are normalized on load; `currentPlan`/`planHistory` are loaded
   // RAW. That asymmetry LOOKS like an oversight and is the only thing that preserves the LEGACY TELL.
   // `normalizeIngredient` writes `protein_state` IFF THE MODEL EMITTED IT, so the stored bytes
-  // record THE MODEL'S EMISSION. 🔴 S39 — this comment used to say they "carry the stamp of whichever app
+  // record THE MODEL'S EMISSION. 🔴 this comment used to say they "carry the stamp of whichever app
   // version imported them"; that is FALSE, and so was the equality that followed it. `isRawProtein`
   // reads that key's ABSENCE as UNKNOWN ⇒ chip it — and ABSENCE IS A DISJUNCTION, NOT AN
   // EQUALITY: "this plan predates the field" OR "a current model failed to emit it". This comment
@@ -1932,7 +1932,7 @@ const S={
   // UNDETECTABLE — while looking exactly like a tidy-up. There is also no plan migration to hang a
   // backfill on, and a backfill would have to GUESS protein-ness and write the guess into the user's
   // stored data, which is irreversible and violates the hard rule that no code path rewrites a saved
-  // plan (schema note S30 H3 / S33 §6.1). The render layer already knows the answer. Do not persist a guess.
+  // plan (hazard H3 / §6.1). The render layer already knows the answer. Do not persist a guess.
   // 🔴 THE PROPERTY THAT MUST HOLD: `protein_state` KEY-ABSENCE SURVIVES THIS LOAD. G-LEGACY-6 + T-LEG1 in
   // the legacy suite pin it — but that suite is NOT IN THIS REPO (see the ⏱ floor predicate at :3017), so
   // in a fresh clone this line has NO mechanical guard at all and this comment is the whole of it.
@@ -1942,9 +1942,9 @@ const S={
   anchorRecipes:(a=>typeof a==='string'?a:'')(load(KEYS.anchorRecipes,'')),
   checkedItems:load(KEYS.checkedItems,{}),
   removedShoppingItems:load(KEYS.removedShoppingItems,[]),
-  wasteLog:normalizeWasteLog(load(KEYS.wasteLog,{})),          // E2-1 waste-capture store (normalize-on-load, like pantry L1080)
-  wasteDismissed:normalizeWasteDismissed(load(KEYS.wasteDismissed,{})), // E2-1 UI-suppression map (NOT domain data, NOT in the backup)
-  safetyNoticeDismissed:load(KEYS.safetyNoticeV12,false), // S33 UI-suppression flag — a NEW key for each safety version (v12 now). An old
+  wasteLog:normalizeWasteLog(load(KEYS.wasteLog,{})),          // Waste-capture store (normalize-on-load, like pantry L1080)
+  wasteDismissed:normalizeWasteDismissed(load(KEYS.wasteDismissed,{})), // UI-suppression map (NOT domain data, NOT in the backup)
+  safetyNoticeDismissed:load(KEYS.safetyNoticeV12,false), // UI-suppression flag — a NEW key for each safety version (v12 now). An old
   // dismissal must NEVER silence a NEW hazard: a user who dismissed the v10 banner has not been told
   // anything about purchased-frozen protein. The v10 key is simply abandoned in storage (harmless, no
   // cleanup). This re-nags every hand-editor once per safety version — that cost is one tap, and the
@@ -1983,8 +1983,8 @@ function saveSpecialInstructions(){save(KEYS.specialInstructions,S.specialInstru
 function saveStartDate(){save(KEYS.startDate,S.startDate)}
 function saveImportRaw(){save(KEYS.importRaw,S.importRaw)}
 function saveRemovedItems(){save(KEYS.removedShoppingItems,S.removedShoppingItems)}
-function saveWasteLog(){save(KEYS.wasteLog,S.wasteLog)}                   // E2-1 (mirrors saveCheckedItems)
-function saveWasteDismissed(){save(KEYS.wasteDismissed,S.wasteDismissed)} // E2-1 UI-suppression store
+function saveWasteLog(){save(KEYS.wasteLog,S.wasteLog)}                   // Waste log (mirrors saveCheckedItems)
+function saveWasteDismissed(){save(KEYS.wasteDismissed,S.wasteDismissed)} // UI-suppression store
 // Live-update the "N of M items checked" header in place (checkbox toggle skips full render for scroll preservation).
 function updateShopCounter(){
   const el=document.getElementById('shop-counter');
@@ -2022,7 +2022,7 @@ function nav(screen){S.screen=screen;render()}
 // esc() before insertion (names are untrusted pasted-Claude JSON).
 // Mass/plural-invariant grocery nouns that slip past the ss/us/is guards and must
 // NOT singularize (would false-merge onto a different item). Intentionally tight;
-// extend by one line when a real field collision is observed. (E1-S3)
+// extend by one line when a real field collision is observed. (name-fold)
 const PW_PLURAL_STOP = new Set(['greens','molasses']);
 
 // Regular English -is plurals to RECOVER (kiwi→kiwis): a tiny, closed, preserve-biased
@@ -2036,7 +2036,7 @@ const PW_PLURAL_STOP = new Set(['greens','molasses']);
 // recovers → this set can NEVER false-merge an unknown -is word by construction. Ships with ONE
 // entry; extend by one vetted line only when a real regular -is plural is seen fragmenting in the
 // field, never a guess (padding = the over-merge risk). Hard-coded code allowlist like
-// PW_PAREN_NOISE/PW_LEADING_CANON — NOT a persisted/user-editable map. (DC-3 / E1-S3-N1)
+// PW_PAREN_NOISE/PW_LEADING_CANON — NOT a persisted/user-editable map. (DC-3 / FOLD-N1)
 const PW_IS_RECOVER = new Set(['kiwis']);
 
 // Trailing-paren NOISE tokens: pure packaging-FORM descriptors that name how the
@@ -2061,18 +2061,18 @@ const PW_PAREN_NOISE = new Set(['loose','bagged','bag']);
 // or user-editable alias map — no reload-surviving state, no djb2/schema. (DC-2)
 const PW_LEADING_CANON = new Map([['yellow onion', 'onion']]);
 
-// DC-4 / S4-N1: UNAMBIGUOUS shelf-stable FORM words (USDA-FSIS shelf-stable =
+// DC-4 / CAT-N1: UNAMBIGUOUS shelf-stable FORM words (USDA-FSIS shelf-stable =
 // moisture-removed OR hermetically sealed). Ambiguous preservation (smoked/cured/pickled/
 // fermented) is EXCLUDED — those span refrigerated grocery forms. Growth bar (WATCH): an added
 // word must denote shelf-stable with NO refrigerated grocery form.
 const PW_KEEPS_FORM = new Set(['canned','tinned','dried','dry','dehydrated','powdered','instant','jarred','bottled']);
 // Inherently-shelf-stable pantry STAPLE base-nouns (bare noun ⟹ shelf-stable with certainty).
-// Stored in pwNorm-CANONICAL (singularized) form. Seeded with EXACTLY the S13 designated-close
+// Stored in pwNorm-CANONICAL (singularized) form. Seeded with EXACTLY the designated closed
 // set (Rice/Flour/Sugar/Pasta/Oats). Growth bar (WATCH DC-4-N1): the bare grocery noun must never
-// denote a fresh/perishable item — a mis-add RE-OPENS S4-N1, so add only on observed fragmentation.
+// denote a fresh/perishable item — a mis-add RE-OPENS CAT-N1, so add only on observed fragmentation.
 const PW_KEEPS_STAPLE = new Set(['rice','flour','sugar','pasta','oat']);
 
-// E1-S5 store-aware typical thresholds (F4). A "structural store gap" is a
+// Store-aware typical thresholds (F4). A "structural store gap" is a
 // PERSISTENT price difference between stores (a store effect), not week-to-week noise:
 // real staple price gaps across store types (warehouse/discount vs conventional) run
 // ~10-30% and persist; within-store non-sale noise is a few %. STORE_GAP_PCT separates them.
@@ -2081,14 +2081,14 @@ const PW_STORE_GAP_PCT = 0.08;   // between-store typical spread (÷ pooled medi
 const PW_STOCKUP_DEPTH = 0.18;   // min discount below typical for the stock-up IMPERATIVE (F3a)
 const PW_FREEZE_DEPTH  = 0.30;   // min discount below typical for the BUY-AND-FREEZE imperative (F3c) — its OWN constant, > PW_STOCKUP_DEPTH
 
-// E1-S8 reader outlier/sanity clamp (F2 8a). A confirmed price more than a
+// Reader outlier/sanity clamp (F2 8a). A confirmed price more than a
 // factor of 5 off its item's OWN robust median is a data-entry error (extra-digit / missing-
 // decimal), not a real shelf event — a real single-item price lives within ~[0.25x,3x] of its
 // typical, a decimal-slip is ~10x. 5 sits in the gap (2x log-margin each edge); §1.2 grounding.
 const PW_OUTLIER_HI = 5;      // confirmed price > 5x own robust median ⇒ data-entry error (extra digit); F2 §1.2
 const PW_OUTLIER_LO = 0.2;    // NON-SALE confirmed price < 1/5 own robust median ⇒ data-entry error (missing decimal); §1.2
 
-// Name-fold (E1-S3): trim+lowercase, then (A) FACET-AWARE trailing-paren handling (DC-1) —
+// Name-fold: trim+lowercase, then (A) FACET-AWARE trailing-paren handling (DC-1) —
 // default PRESERVE the paren as identity (apple (gala) ≠ apple (fuji)), stripping ONLY a
 // size / known pure-form noise / empty paren onto the head; then (B) singularize-lite —
 // drop ONE trailing 's' from the LAST token, guarded so it never false-merges (greens↛green,
@@ -2096,7 +2096,7 @@ const PW_OUTLIER_LO = 0.2;    // NON-SALE confirmed price < 1/5 own robust media
 // then (C) leading-modifier phrase-canon (DC-2, PW_LEADING_CANON) — collapse an allowlisted
 // redundant leading modifier onto its canonical base ("yellow onion"→"onion"). Feeds BOTH the
 // Price-Watch grouping key and the recipe tier-join key. Size parens are KEPT on purpose —
-// that leaves the tuna cross-list reconciliation to S4 (its [PENDING-E1] guard stays pending).
+// that leaves the tuna cross-list reconciliation to the depletion work (its [PENDING] guard stays pending).
 // Read-path only; no schema.
 function pwNorm(s){
   let x = String(s==null?'':s).trim().toLowerCase();
@@ -2112,7 +2112,7 @@ function pwNorm(s){
     const head  = pm[1].trim();
     const hasSize = /\d/.test(inner) ||
       /\b(oz|ozs|ounce|ounces|lb|lbs|pound|pounds|g|gram|grams|kg|kgs|ml|l|liter|liters|litre|litres|ct|count|pk|pack|packs|pkg|dozen|dz|qt|quart|quarts|pt|pint|pints|gal|gallon|gallons)\b/.test(inner);
-    // KEEP WHOLE a size paren (distinct sizes never pool — S12; also handles (2 lb gala)).
+    // KEEP WHOLE a size paren (distinct sizes never pool — the size-distinct rule; also handles (2 lb gala)).
     // STRIP only an empty paren or a known pure-form noise word, and only if a non-empty
     // head remains (never manufacture an empty key). PRESERVE everything else as a facet.
     if(!hasSize && head && (inner === '' || PW_PAREN_NOISE.has(inner))) x = head;
@@ -2137,11 +2137,11 @@ function pwNorm(s){
   return x;
 }
 
-// Join-only derived key (E1-S4): strip a trailing SIZE paren from an
+// Join-only derived key: strip a trailing SIZE paren from an
 // already-pwNorm'd key and re-normalize the exposed head, so a recipe tier key that
 // carries a size paren (canned tuna (5 oz)) can reconcile onto a bare shopping group
 // key (canned tuna) WITHOUT ever loosening pwNorm (which would re-merge tuna 5oz/12oz
-// in the GROUPING key — S12's size-distinct guard). Uses pwNorm's OWN size test so it
+// in the GROUPING key — the size-distinct guard). Uses pwNorm's OWN size test so it
 // removes ONLY what pwNorm chose to keep. Read-path only.
 function pwBaseKey(k){
   const m = String(k==null?'':k).match(/^(.*?)\s*\(([^()]*)\)\s*$/);
@@ -2155,7 +2155,7 @@ function pwBaseKey(k){
   return k;                                      // no trailing size paren → base == k
 }
 
-// Shelf-stable AFFIRMATION for the DC-4 / S4-N1 category-agreement guard. Answers ONE
+// Shelf-stable AFFIRMATION for the DC-4 / CAT-N1 category-agreement guard. Answers ONE
 // question: does the bare shopping item's OWN NAME affirm it is shelf-stable ("keeps"), so a
 // recipe-derived tier-3 may be inherited across the base-fallback? TRUE only on an UNAMBIGUOUS
 // signal in the name itself — a shelf-stable FORM word (canned/dried/…) OR a certified pantry
@@ -2207,12 +2207,12 @@ function pwDelta(latest,min,max,median,band){
   return {color:'var(--fg)',caret:'–',phrase:'right around your typical',mag:''};
 }
 
-// Stock-up gate (Ruling 3, verbatim): fire iff at the recorded floor AND
+// Stock-up gate (rule 3, verbatim): fire iff at the recorded floor AND
 // provably shelf-stable (tier===3). meals_spanned/category NEVER enter the gate;
 // unknown/absent tier → suppress (the Number.isInteger guard).
 function pwStockUp(latest,min,tier){return (latest<=min+0.005)&&Number.isInteger(tier)&&tier===3;}
 
-// Store-aware typical classifier (E1-S5 / F4): given a group's points, the LATEST
+// Store-aware typical classifier (F4): given a group's points, the LATEST
 // observation's store, and the pooled non-sale median, decide whether the stores are
 // STRUCTURALLY different (a persistent gap, not noise) and, if so, return the latest store's
 // OWN cut-line + floor operands. Pure; no writes. Returns one of:
@@ -2286,13 +2286,13 @@ function pwBuildModel(){
         if(!ing||typeof ing!=='object')continue;
         const t=ing.shelf_life_tier;
         if(Number.isInteger(t)&&t>=0&&t<=3){const k=pwNorm(ing.item);if(k&&!(k in tierMap))tierMap[k]=t;}
-        const fz=ing.freezable;                                                    // NEW (E1-S7): strict-boolean, most-recent-non-null wins, exact-key only
+        const fz=ing.freezable;                                                    // NEW (freezable signal): strict-boolean, most-recent-non-null wins, exact-key only
         if(typeof fz==='boolean'){const k=pwNorm(ing.item);if(k&&!(k in freezableMap))freezableMap[k]=fz;}
       }
     }
   }
-  // Base-fallback (E1-S4): reconcile a size-paren-only difference on the SAME base item.
-  // Built DOWNSTREAM of tierMap, so Ruling-3 most-recent-non-null-wins is already applied
+  // Base-fallback (join-key): reconcile a size-paren-only difference on the SAME base item.
+  // Built DOWNSTREAM of tierMap, so rule-3 most-recent-non-null-wins is already applied
   // per exact key (composes; never re-opens tier-drift). Two sizes → DIFFERENT tiers → suppress.
   const tierMapBase={}, baseConflict={};
   for(const ek of Object.keys(tierMap)){
@@ -2325,7 +2325,7 @@ function pwBuildModel(){
   const ranked=[],building=[];
   for(const key of Object.keys(groups)){
     const g=groups[key];
-    // E1-S8 (F2 8a): domain-plausibility clamp — drop confirmed-but-IMPLAUSIBLE
+    // Outlier clamp (F2 8a): domain-plausibility clamp — drop confirmed-but-IMPLAUSIBLE
     // prices (fat-finger $299 / missing-decimal $0.29) BEFORE any stat, so they can neither
     // set the floor, saturate the F6b band, nor false-rank. Robust center = median over ALL
     // raw points (survives one outlier at ≥3 weeks). Sale-tagged points are EXEMPT from the
@@ -2352,30 +2352,30 @@ function pwBuildModel(){
       const disp=(Math.max(...anchorArr)-Math.min(...anchorArr))/median;
       const taper=Math.max(0,Math.min(1,(5-weeks)/2));
       const band=Math.min(0.35,0.02+taper*0.6*disp);
-      const smWi=Math.min(...pts.map(p=>p.wi)); // smallest (newest) ADMITTED week index — recomputed over admitted (outlier-latest safety; E1-S8)
+      const smWi=Math.min(...pts.map(p=>p.wi)); // smallest (newest) ADMITTED week index — recomputed over admitted (outlier-latest safety)
       const latestPts=pts.filter(p=>p.wi===smWi);   // ← pts (admitted), was g.points
       const latest=Math.min(...latestPts.map(p=>p.price)); // best price that week
-      let sLatest=''; for(const p of latestPts){if(p.price===latest){sLatest=p.store||'';break;}} // store of the latest point (E1-S5)
+      let sLatest=''; for(const p of latestPts){if(p.price===latest){sLatest=p.store||'';break;}} // store of the latest point (store-aware)
       let lowStore='',lowWi=Infinity;
       for(const p of pts){if(p.price===min&&p.wi<lowWi){lowWi=p.wi;lowStore=p.store;}} // most-recent low's store  ← pts (admitted), was g.points
       let tier=tierMap[key];                                    // EXACT match wins — unchanged
       if(tier===undefined && pwBaseKey(key)===key){             // exact miss AND shopping key is SIZE-FREE (the gate)
         const bt=tierMapBase[key];                              // key === its own base here
-        // DC-4 / S4-N1 category-agreement guard (Option B): a tier-3 "keeps" may be inherited
+        // DC-4 / CAT-N1 category-agreement guard (Option B): a tier-3 "keeps" may be inherited
         // across the base-fallback ONLY when the bare shopping item's OWN NAME affirms shelf-stable
         // (pwKeeps) — else the inheritance is SUPPRESSED to inert (under-merge on ambiguity closes the
         // false "it keeps" on a possibly-fresh item). Non-tier-3 inheritance is the conservative/
         // perishable direction (drives at most freshNote) and is UNGUARDED. The EXACT path above is the
-        // recipe's own ground-truth tier (F5) and is never guarded — S4-N1 is a cross-item
+        // recipe's own ground-truth tier (F5) and is never guarded — CAT-N1 is a cross-item
         // base-inheritance defect only.
         if(bt!==undefined && (bt!==3 || pwKeeps(key))) tier=bt;  // reconcile; undefined/ambiguous-keeps → stays inert
       }
-      // E1-S5 store-aware typical (F4): when stores are STRUCTURALLY different (a persistent
+      // Store-aware typical (F4): when stores are STRUCTURALLY different (a persistent
       // gap, not week-to-week noise), de-pool the typical CUT-LINE + its dead-band onto the latest
       // observation's OWN store, and judge the stock-up/freshNote trough against that store's OWN floor —
       // never the pooled floor, which IS the cheap store's baseline. The pooled min/max (GREEN/steady +
       // record) stay POOLED (pooling boundary). Single store / same-price / thin per-store ⇒ 'pooled' ⇒
-      // every value below is byte-identical to pre-S5 (see spec §4).
+      // every value below is byte-identical to pre-store-aware (see spec §4).
       const st=pwStoreAware(pts,sLatest,median);   // ← pts (admitted), was g.points
       let dTypical=median, dBand=band, troughMin=min, troughMax=max;
       if(st.mode==='perstore'){
@@ -2385,9 +2385,9 @@ function pwBuildModel(){
         troughMin=st.sMin; troughMax=st.sMax;        // own-store trough, not the pooled floor
       }
       let delta=(st.mode==='suppress')
-        ? {color:'var(--fg)',caret:'–',phrase:'prices vary by store',mag:''}  // NON-VERDICT; phrase = AC-L1-S5 (§9)
+        ? {color:'var(--fg)',caret:'–',phrase:'prices vary by store',mag:''}  // NON-VERDICT; phrase = AC-L1-SA (§9)
         : pwDelta(latest,min,max,dTypical,dBand);    // min/max POOLED (green/steady unchanged); typical/band per-store when perstore
-      // AC-L2-S5 (green-neutralize on the flat cheap-store baseline — §9): at the pooled floor
+      // AC-L2-SA (green-neutralize on the flat cheap-store baseline — §9): at the pooled floor
       // BUT the latest store's OWN baseline is flat (troughMax/troughMin are the own-store floor in
       // perstore) ⇒ a PLACE signal, not a TIME deal ⇒ neutralize the pooled-floor green to the honest
       // per-store neutral. Complement of the stock-up gate (which needs spread>0.005); a genuine sale
@@ -2428,7 +2428,7 @@ function pwBuildModel(){
         freshNote:(st.mode!=='suppress') && (latest<=troughMin+0.005)&&Number.isInteger(tier)&&tier<3&&(troughMax-troughMin>0.005),
         storeMode:st.mode,
         storeTypical:(st.mode==='perstore'?st.typical:null),
-        storeWeeks:(st.mode==='perstore'?st.sWeeks:null),   // AC-L4-S5: own-store n backing the typical (closes S5-N1)
+        storeWeeks:(st.mode==='perstore'?st.sWeeks:null),   // AC-L4-SA: own-store n backing the typical (closes STORE-N1)
         storeLatest:(st.mode!=='pooled'?sLatest:''),
         storeMedians:(st.mode!=='pooled'?st.medians:null)});
     }else{ // 1-2 confirmed weeks — building history: NEVER a band/colour/trend
@@ -2545,11 +2545,11 @@ function renderPriceWatch(){
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RENDERING
-// S30 persistent safety banner — Notice B. Shown to any user whose EFFECTIVE template still lacks
+// Persistent safety banner — Notice B. Shown to any user whose EFFECTIVE template still lacks
 // the corrected shelf-life rule, regardless of how it got there (hand-edited, carried forward from
-// an old key by an earlier migration's one-hop write, or restored from a pre-S30 backup). Reuses the
+// an old key by an earlier migration's one-hop write, or restored from a pre-v10 backup). Reuses the
 // wasteDismissed UI-suppression idiom. Self-healing: fixing the template clears it with no dismissal.
-// S33 — the bullets are now derived from missingSafetyRules(), so a user is told about EXACTLY the rules
+// The bullets are now derived from missingSafetyRules(), so a user is told about EXACTLY the rules
 // their template lacks and no others. A v10 hand-editor sees only the purchased-frozen bullet; a v9
 // hand-editor sees both. Telling a v10 user their poultry rule is missing would be a false accusation.
 // The trigger only reads the template's content, so the copy only claims something about the content: it
@@ -2789,7 +2789,7 @@ function renderDashboard(){
   </div>`;
 
   // Weekly nutrition — plain informational line (MyPlate weekly frame). Minimal by
-  // design: a designed affect-bearing quality strip is a deferred, Marshaling-gated item.
+  // design: a designed quality strip is deliberately deferred — a visual-design judgement, not a data question.
   if(ns){
     const bits=[];
     if(Array.isArray(ns.protein_sources)&&ns.protein_sources.length)bits.push('Proteins: '+esc(ns.protein_sources.join(', ')));
@@ -2817,7 +2817,7 @@ function renderDashboard(){
   // top (five real plans). Ticking does not move the page.
   h+=renderMealCards(mp);
   h+=renderShoppingSection(sl,byStore,cc);
-  // Reflective epilogue — the loop you close after the week (E2-1 waste capture) + the
+  // Reflective epilogue — the loop you close after the week (waste capture) + the
   // "why" you read after the "what". Both below the plan and the shopping list; the plan renders first, on top.
   h+=renderWasteCard();
   h+=renderWhyPlanCard(plan);
@@ -2857,13 +2857,13 @@ function renderWhyPlanCard(plan){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WASTE CAPTURE (E2-1) — the first new write-path since S1. Reflective-epilogue
+// WASTE CAPTURE — the first new write-path since the original build. Reflective-epilogue
 // dashboard card keyed to the just-closed week (planHistory[1]). Classifier +
 // UI-visibility predicate + write contracts + surface.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Domain tri-state classifier (N3). Reads S.wasteLog ONLY — NEVER the
-// dismiss map. The sole classifier E2-2/E2-3 use. Only an affirmative
+// dismiss map. The sole classifier the retrospective and feed-back use. Only an affirmative
 // zeroWaste===true is ever 'zero'; absence (incl. a dismissed week) is 'absent'.
 function wasteStateFor(d){
   const rec=S.wasteLog[d];
@@ -2893,9 +2893,9 @@ function dismissWaste(weekDate){              // "not now" → UI-suppression ON
   S.wasteDismissed[weekDate]=new Date().toISOString();
   saveWasteDismissed();
 }
-function dismissSafetyNotice(){              // S30 Notice B → UI-suppression ONLY; writes NO domain data (mirrors dismissWaste)
+function dismissSafetyNotice(){              // Notice B → UI-suppression ONLY; writes NO domain data (mirrors dismissWaste)
   S.safetyNoticeDismissed=true;
-  save(KEYS.safetyNoticeV12,true);   // S33 — new key; an old dismissal must never silence a new hazard
+  save(KEYS.safetyNoticeV12,true);   // New key; an old dismissal must never silence a new hazard
 }
 
 // D3 $ realization: waste_$ = SNAPSHOTTED line price × fraction (default
@@ -2916,7 +2916,7 @@ function wasteDollars(rec){
 
 // Perishability ordering (D2): shopping_list items carry no shelf_life_tier
 // (it lives on meal_plan ingredients), so join the closing week's OWN meal_plan by
-// normalized name (pwNorm — the S13 fold) to fetch the tier; 0/1 (fresh) sort FIRST.
+// normalized name (pwNorm — the name fold) to fetch the tier; 0/1 (fresh) sort FIRST.
 // Unknown-tier items sort LAST. Ordering, NEVER exclusion (D2.2); no price-floor (D2.3).
 function wasteTierMap(plan){
   const map={};
@@ -3063,7 +3063,7 @@ function editWaste(d){    // reopen capture over an already-recorded week (user 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// E2-2 SURFACE — the cross-week WASTE RETROSPECTIVE (the History / consumption view).
+// SURFACE — the cross-week WASTE RETROSPECTIVE (the History / consumption view).
 // READ-PATH ONLY (Q3/constraint-12): no new KEY, no planHistory shape change,
 // no normalizer touch, promptTemplate byte-frozen. Reads S.wasteLog + the resident
 // S.planHistory window. Every honest floor from D1–D8 lives in wasteAggregate;
@@ -3088,7 +3088,7 @@ function wasteWeeksAgo(dateISO){
   const wk=Math.floor((Date.now()-t)/(7*24*3600*1000));
   return wk>=0?wk:null;
 }
-// Cross-week perishability tier map: merge wasteTierMap (the pwNorm S13 fold) over every
+// Cross-week perishability tier map: merge wasteTierMap (the pwNorm name fold) over every
 // resident week, newest-first / first-seen-wins (the pwBuildModel L1476 idiom). Feeds the
 // repeat-offender FRESH-FIRST ordering (U4) — reusing wasteChips' tier source, not a new one.
 function wasteAggTierMap(hist){
@@ -3263,13 +3263,13 @@ function noCookPill(name){
 // household gets the warning — exactly as it did in v10. Monotonicity is now a property of the
 // CODE, not a property of the corpus.
 function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.shelf_life_tier===3; }
-// 🔴 S37 (AMB-1 / NR1). RAW-PROTEIN PREDICATE — one field-keyed source of truth for every chip that
+// 🔴 AMB-1 / NR1. RAW-PROTEIN PREDICATE — one field-keyed source of truth for every chip that
 // speaks raw-protein pathogen doctrine (thaw / do-not-cook / cold-water rescue / freeze-to-stay-safe).
 // A frozen VEGETABLE (freeze_by set, protein_state null) is a quality/waste choice, NOT a pathogen
 // control — firing a come-out / freeze-today / plate-day 🧊 chip on it is a false-authority safety
-// directive on a non-hazard (food-safety ruling §5.1 + NR1 addendum; copy review Defect-2 + NR1: "a banner that lies once
+// directive on a non-hazard (food-safety rule §5.1 + NR1; bug 2 + NR1: "a banner that lies once
 // is a banner nobody reads twice"). Guards THREE chips — come-out, freeze-today, plate-day (each named
-// by its 🧊 literal) — and is ALSO the orphan-hold scope (S37 gate §4): one predicate, four uses.
+// by its 🧊 literal) — and is ALSO the orphan-hold scope (gate §4): one predicate, four uses.
 //
 // 🔴🔴 DO NOT "SIMPLIFY" THIS BACK TO `x.protein_state != null`. THAT IS A FALSE-CLEAR, AND IT SHIPPED
 // FOR EXACTLY ONE UNCOMMITTED AFTERNOON. The predicate has TWO branches; the SCHEMA HAS THREE STATES:
@@ -3283,8 +3283,8 @@ function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.
 // allow-list did not recognize as a protein state. ABSENT means nobody ever put a protein_state on this
 // item at all.
 //
-// 🔴🔴 S39 — WHAT KEY-PRESENCE RECORDS. THIS PARAGRAPH REPLACES A FALSE ONE. READ THE CORRECTION.
-// Until S39 this comment read: "KEY PRESENCE RECORDS WHICH NORMALIZER WROTE THE OBJECT — it is stamped
+// 🔴🔴 WHAT KEY-PRESENCE RECORDS. THIS PARAGRAPH REPLACES A FALSE ONE. READ THE CORRECTION.
+// This comment used to read: "KEY PRESENCE RECORDS WHICH NORMALIZER WROTE THE OBJECT — it is stamped
 // by THIS APP'S OWN IMPORTER, not by the model … not a prediction about model behaviour: it has no
 // critical limit to validate", and called the split "482 ingredients, perfect separation, STRUCTURAL
 // rather than statistical". EVERY LOAD-BEARING SENTENCE OF THAT IS NOW FALSE. `normalizeIngredient` no
@@ -3313,7 +3313,7 @@ function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.
 //   (2) DIRECTION. The model's reachable effect on this field is a CLOSED 3-CELL PARTITION — closed BY
 //       CONSTRUCTION (the allow-list is a total function with two outcomes; `hasOwnProperty` a total
 //       predicate with two states), NOT by enumerating examples. See `normalizeIngredient`'s object path
-//       for the cells. Of the three, the S39 importer fix moved EXACTLY ONE — cell A, "the model did not
+//       for the cells. Of the three, the importer fix moved EXACTLY ONE — cell A, "the model did not
 //       emit the field" — out of cell C's behaviour. Nothing else moved. The one capability it hands the
 //       model points AWAY from suppression.
 //
@@ -3342,20 +3342,20 @@ function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.
 // WHY THIS BRANCH EXISTS AT ALL — legacy plans are REACHABLE, and there is no migration that can reach
 // them back. `KEYS.currentPlan` is 'mp:current-plan-v1' and has NEVER been versioned across v3→v12;
 // all ten migrations are `migrateTemplateV3…V12` and touch the TEMPLATE, never a saved plan (schema
-// note S30 hazard H3: "the migration fixes the TEMPLATE, not the PLAN already on the dashboard"). The `currentPlan:load(...)` landmine
+// note hazard H3: "the migration fixes the TEMPLATE, not the PLAN already on the dashboard"). The `currentPlan:load(...)` landmine
 // loads it RAW, and `importAllData` (:3660) restores a backup RAW — a backup file has no expiry.
 // Without this branch, a real v10 plan sitting in localStorage — opened with NO import and NO paste —
 // loses 11 amber chips across 3 real saved plans, EVERY ONE on a real raw protein (shrimp, chicken
 // drumsticks ×2, salmon), and on 4 real cards the protein is then named by ZERO channels. The red ⚠
 // (:3103) cannot catch them: it requires BOTH dates null, and a freezer-routed protein HAS a
 // `freeze_by` — the item goes silent precisely BECAUSE the plan handled it correctly. That is the
-// Class-1 sole-channel freeze hazard T-F7, which S36 shipped to close.
+// Class-1 sole-channel freeze hazard T-F7, which the day-1 freeze chip closes.
 //
 // WHY UNKNOWN FAILS TOWARD THE CHIP: over-warning caps at signal dilution and is recomputed on every
 // render (reversible for every household by editing this line); under-warning bottoms out at "the
 // household is never told" and has no floor — you cannot un-poison someone with a later fix. You do
-// not clear a lot because nobody tested it (DOMAIN-GATE §1.3).
-// 🔴 S39 — IT CAN FIRE ON v11 DATA, AND THAT IS THE POINT. This sentence used to read "It CANNOT fire on
+// not clear a lot because nobody tested it (acceptance spec §1.3).
+// 🔴 IT CAN FIRE ON v11 DATA, AND THAT IS THE POINT. This sentence used to read "It CANNOT fire on
 // v11 data at all, because the key is always present" — FALSE since `normalizeIngredient` stopped
 // stamping silence. A CURRENT plan, from a CURRENT model, whose protein_state was never emitted, reaches
 // THIS branch and chips. That is ROUTE D; it is INTENDED; it is the live defect this branch was
@@ -3371,19 +3371,19 @@ function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.
 // freeze_by SET — i.e. the NR1 item itself):
 //     A LEGACY NON-PROTEIN CARRYING `freeze_by` RECEIVES THE FULL RAW-PROTEIN CHIP SET — including the
 //     affirmatively FALSE sentence "a fresh raw protein won't keep in the fridge past a day or two",
-//     said about produce. The food-safety gate ranked that HIGH and it is not softened here.
+//     said about produce. That was ranked HIGH on food-safety grounds and it is not softened here.
 //     ⇒ **NR1 IS ENTIRELY INERT ON LEGACY DATA.** Driven: legacy pepper renders the chips; the identical
 //     v11 pepper (key present, value null) renders ZERO. The pepper NR1 exists to silence is silenced
 //     only on current data. On a legacy plan the pepper still gets the liturgy.
-// This is ACCEPTED, not overlooked (domain gate §2.4): it is HEAD's behaviour, not a regression this commit
+// This is ACCEPTED, not overlooked (acceptance spec §2.4): it is HEAD's behaviour, not a regression this commit
 // introduces; N=0 in the real v10 corpus (all 4 freezer-routed items are real proteins); it
 // self-extinguishes ~3 days after a regenerate (route A); and it is UNBOUNDED on backup restore (route
-// B) — named, not softened. The trade is the food-safety authority's and it is RULED: over-warning a pepper caps at a false
+// B) — named, not softened. The trade is a food-safety one and it is SETTLED: over-warning a pepper caps at a false
 // sentence and a wasted pepper; suppressing a chicken's chips removes the first-48 pathogen control.
 //
 // 🔴 ONE THING THIS COMMIT *DOES* CHANGE ON LEGACY DATA, and do NOT reach for the count argument that
-// says otherwise. Domain gate §2.4(1) reads "the fix adds no false chip that is not already rendering" — TRUE
-// about chip COUNTS and FALSIFIED about chip CONTENT (second-key review C2, which I re-drove myself). Driven, legacy
+// says otherwise. Acceptance spec §2.4(1) reads "the fix adds no false chip that is not already rendering" — TRUE
+// about chip COUNTS and FALSIFIED about chip CONTENT (re-driven to confirm). Driven, legacy
 // pepper: HEAD 2 chips / **0** refreeze permissions → under this commit 2 chips / **1** refreeze
 // permission, on an item the app cannot classify. THE COUNT IS UNCHANGED; THE SENTENCES ARE NOT. The
 // permission is warranted anyway — but it is warranted BECAUSE the act it licenses is arresting
@@ -3405,7 +3405,7 @@ function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.
 //
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 // 🔴🔴 INV-1 — CONSERVATIVE-DIRECTIVES-ONLY (BINDING) — THE LOAD-BEARING PREMISE OF THIS GUARD'S
-//   DEFAULT DIRECTION. Ruled BINDING by the food-safety gate, which made stating it IN THE CODE a
+//   DEFAULT DIRECTION. BINDING on food-safety grounds, which made stating it IN THE CODE a
 //   condition of this guard's clearance. It is an INVARIANT, not a preference: it is not yours to trade.
 //   READ THIS BEFORE EDITING ANY CHIP THIS GUARD CONTROLS. It is the reason the UNKNOWN branch above is
 //   allowed to fail TOWARD the chip, and it is the one thing here that can be VOIDED by editing copy in
@@ -3419,18 +3419,18 @@ function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.
 //
 //   🔴 THE TRIGGER: THE MOMENT ANY CHIP CONTROLLED BY `isRawProtein` CARRIES A **PERMISSIVE OR
 //   REASSURING** DIRECTIVE — "this is fine to leave out", "this keeps a week", "no need to freeze it" —
-//   FAIL-TOWARD-CHIP BECOMES FAIL-TOWARD-**HAZARD** AND THE FOOD-SAFETY RULING AUTHORIZING THIS GUARD IS VOID.
+//   FAIL-TOWARD-CHIP BECOMES FAIL-TOWARD-**HAZARD** AND THE FOOD-SAFETY BASIS FOR THIS GUARD IS VOID.
 //   ⇒ ANY edit to the freeze-today / come-out / plate chips MUST RE-RUN THE §2.1 CONSERVATIVE-ACT AUDIT:
 //   render all three at an UNKNOWN item and classify what each one DIRECTS. Not what it says — what it
 //   tells a household to DO. If any directs a non-conservative act, STOP: the default direction above is
 //   no longer justified and this is not a copy question, it is a safety-architecture question.
 //   A conservative-only chip set is NOT a happy accident of the current copy. It is a PRECONDITION.
-//   (Food-safety ruling §2.3, verbatim: "it must be stated in the code rather than left to be rediscovered…
-//   the conservative-only property is mine and it is not negotiable." A COPY REVIEW OWNS WORDING — but this
-//   is NOT a wording question. It is not a copy review's to trade away, and it is not yours.)
+//   (Food-safety rule §2.3, verbatim: "it must be stated in the code rather than left to be rediscovered…
+//   the conservative-only property is not negotiable." WORDING IS A SEPARATE CONCERN — but this
+//   is NOT a wording question. It is not a wording call's to trade away, and it is not yours.)
 //
 //   ★ WHY THE TWO PERMISSIONS THIS COMMIT ADDS DO NOT TRIP IT — the axis distinction, and you need it or
-//   INV-1 reads as tripped by the very commit that ships it (second-key review C1). THERE ARE TWO AXES:
+//   INV-1 reads as tripped by the very commit that ships it. THERE ARE TWO AXES:
 //     · **INV-1 = the ITEM axis** — "is the licensed ACT safe on an item we CANNOT classify?" The act
 //       both new permissions license is *put it back in the freezer*. Freezing ARRESTS; it never
 //       accelerates. On a pepper: a quality loss. On a chicken: FSIS-correct. On a legacy cooked
@@ -3447,16 +3447,16 @@ function pfCoherent(x){ return !!x && x.protein_state==='purchased_frozen' && x.
 //   (it is not) or automatically fine (it is not).
 //
 //   ⚠ INV-1'S FIRST LIVE TEST WAS THE COMMIT THAT SHIPPED IT, AND IT WAS A NEAR-MISS. RECORD, DO NOT
-//   REPEAT: the food-safety authority's own §2.1 as-built audit ran against the PRE-copy-fix tree
+//   REPEAT: the §2.1 as-built check ran against the PRE-copy-fix tree
 //   (78870b7e, +118/−5), where the refreeze permission was **UNQUALIFIED** — at that sha INV-1 was
-//   GENUINELY VOID. That authority caught it itself, ruled its OWN copy BLOCKING, and the 2-hour clause
-//   landed. So INV-1's own re-run trigger fired and nobody re-ran it; TWO FURTHER REVIEWS then each
+//   GENUINELY VOID. It was caught on the food-safety side, its OWN copy called MUST-FIX, and the 2-hour clause
+//   landed. So INV-1's own re-run trigger fired and nobody re-ran it; TWO FURTHER PASSES then each
 //   re-ran it INDEPENDENTLY on the shipped tree
 //   (f3f46488) and it SURVIVES — 11 distinct directives at an UNKNOWN item, 4 prohibitions, 5
 //   imperatives, 2 permissive, both permissives conditional, both licensing only "put it in the freezer."
 //   🔴 IT SURVIVES **ONLY BECAUSE THE 2-HOUR CLAUSE LANDED.** That is how close this is. It is not
-//   decorative, and a render check CANNOT see a missing comment — which is exactly why the audit's
-//   trigger has to live HERE, next to the guard, and not in a ruling file nobody opens.
+//   decorative, and a render check CANNOT see a missing comment — which is exactly why the check's
+//   trigger has to live HERE, next to the guard, and not in a separate file nobody opens.
 //   ⇒ ITS TOOTH IS `G-REQ-2HR` in the copy suite (t-copy-s37.js), which asks the WHOLE rendered chip set
 //   one question at once — including chips it was never told about. It does not know about INV-1's item
 //   axis; it only pins the history axis. AND THAT SUITE IS NOT IN THIS REPO (see :3017) — so in a fresh
@@ -3470,7 +3470,7 @@ function isRawProtein(x){
   return x.protein_state!=null && x.protein_state!=='';
 }
 
-// 🔴 RE-GATE / REVIEW-#4 — THE THAW LADDER, AT THE RENDER LAYER.
+// 🔴 THE THAW LADDER, AT THE RENDER LAYER.
 // My first thaw chip used a FLAT `day+1` lead. No weight. No ladder. Below 4 lb that is correct,
 // so all five real runs greened — and heavy-bird is N=0 in the corpus (heaviest pack 3.00 lb), so
 // nothing could discriminate it. THE SESSION HELD THAT N=0 SCRUPULOUSLY FOR THE LADDER AND THEN
@@ -3568,7 +3568,7 @@ function eatOrFreezeText(p){
 }
 // PARTICIPIAL, not finite: "the chicken thighs — MEANT TO GO in the freezer on DATE", never "…WAS meant".
 // Grammatical number cannot be inferred from a food name, and the entry count is not the noun count, so any
-// finite verb here ("was"/"were") is a coin-flip on every card. The participle is invariant, it keeps the design's
+// finite verb here ("was"/"were") is a coin-flip on every card. The participle is invariant, it keeps the
 // load-bearing "meant to go in the freezer on" wording verbatim (it states the PLAN, never an OBSERVATION —
 // the property R5 exists to hold), and it cannot disagree with its subject.
 function freezeText(p){
@@ -3675,7 +3675,7 @@ function renderMealCards(mp){
       <div style="font-size:12px;color:var(--fg);margin-bottom:6px"><span style="font-size:11px;color:var(--fg2)">L:</span> ${rfzRender(day.lunch).html}</div>
       <div style="border-top:1px solid var(--border);padding-top:6px">
         ${dinnerBlock}
-        ${/* DESIGN-L4. THE THAW-DAY CHIP. Across all 35 day-cards of the five live runs, ZERO chips
+        ${/* THE THAW-DAY CHIP. Across all 35 day-cards of the five live runs, ZERO chips
               rendered on a thaw day: the one day the household must physically DO something was a
               PROSE-ONLY surface — the imperative buried at sentence 1-2 of a 400-970 char 10px amber
               paragraph. The 🧊 chips fired only on the EATING day, where "keep it frozen until its
@@ -3683,10 +3683,10 @@ function renderMealCards(mp){
               (no new model field): if TOMORROW's dinner carries a coherent purchased-frozen protein,
               tonight is the come-out night. It leads the card and it is weight-600, because it is
               the only thing on this card that is an ACTION and not a NARRATION. */''}
-        ${(comeoutChip=norm((()=>{const due=[],hf=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* S37 NR1 — raw-protein only: no thaw imperative for frozen produce (:270) */const isPF=pfCoherent(x);const isHF=!isPF&&!!x.freeze_by;if(!isPF&&!isHF)continue;if(comeOutDay(x,z.day)!==day.day)continue;if(isHF&&!inFreezerOn(x,day.date))continue;(isPF?due:hf).push(x.item);}}if(!due.length&&!hf.length)return'';
+        ${(comeoutChip=norm((()=>{const due=[],hf=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* NR1 — raw-protein only: no thaw imperative for frozen produce (:270) */const isPF=pfCoherent(x);const isHF=!isPF&&!!x.freeze_by;if(!isPF&&!isHF)continue;if(comeOutDay(x,z.day)!==day.day)continue;if(isHF&&!inFreezerOn(x,day.date))continue;(isPF?due:hf).push(x.item);}}if(!due.length&&!hf.length)return'';
           /* A PURCHASED-frozen pack's freezer state is a property of the PRODUCT — the app may assert it.
              A HOME-frozen one is a HOUSEHOLD ACT the app only ever INSTRUCTED, and THE APP CANNOT SEE THE
-             FREEZER (IQ-0256). So the home-frozen items — and ONLY those — carry a conditional qualifier.
+             FREEZER. So the home-frozen items — and ONLY those — carry a conditional qualifier.
              NO PRONOUN, AND NO PARENTHETICAL. Grammatical number CANNOT be inferred from a food name:
              "chicken thighs" is plural, "ground beef" is a mass noun, and the count of ARRAY ENTRIES is not
              the count of the NOUN — my first draft emitted "if the chicken thighs went in the freezer, move
@@ -3697,28 +3697,28 @@ function renderMealCards(mp){
           const obj = (due.length&&hf.length) ? `the ${esc(andList(due))}, and the ${esc(andList(hf))} if frozen as planned,`
                     : due.length              ? `the ${esc(andList(due))}`
                     :                           `the ${esc(andList(hf))}, if frozen as planned,`;
-          /* 🔴 S37 R1/R2 (schema note §6) — the come-out chip now CARRIES the post-thaw keep-window (R1) and the
+          /* 🔴 R1/R2 (schema §6) — the come-out chip now CARRIES the post-thaw keep-window (R1) and the
              method-scoped refreeze allowance (R2), the A4/A5 second-order content no chip carried before.
-             ⚠ COPY OWNERSHIP IS SPLIT, AND THE SPLIT IS THE POINT: the FSIS CONTENT is the food-safety
-             authority's, the WORDING is the copy review's. This string is the copy review's PRIMARY candidate
-             (copy ratification §6), landed VERBATIM; the food-safety authority ratified its content (addendum
-             RL3 §6). DO NOT REWORD IT WITHOUT A COPY REVIEW. DO NOT DROP A CONDITION WITHOUT A FOOD-SAFETY
-             RULING — a reword is a wording question, a dropped condition is a safety question, and the person
+             ⚠ CONTENT AND WORDING ARE SEPARATE CONCERNS HERE, AND THE SPLIT IS THE POINT: the FSIS CONTENT is a
+             food-safety question, the WORDING is a copy question. This exact string is the preferred wording,
+             landed VERBATIM, and its content is FSIS-checked. DO NOT REWORD IT WITHOUT RE-CHECKING THE WORDING
+             CONSTRAINTS BELOW. DO NOT DROP A CONDITION WITHOUT CHECKING FSIS — a reword is a wording question,
+             a dropped condition is a safety question, and the person
              who can answer one cannot answer the other.
-             · NUMBER-INVARIANT BY CONSTRUCTION (copy review R-L1 — BLOCKING, and the earlier draft FAILED it).
+             · NUMBER-INVARIANT BY CONSTRUCTION (wording constraint W1 — MUST-FIX, and the earlier draft FAILED it).
                The first draft said "the ${'${names}'} keep only 1–2 days": `keep` is the PLURAL finite verb,
                HARDCODED, so it rendered "the ground beef KEEP only 1–2 days" — wrong at N=1 on every mass and
-               singular noun, live on response-A, driven. That is DEFECT 3's OWN ERROR CLASS, re-committed by
-               the edit sent to fix Defect 3, eight lines under the :2876 comment that forbids it: Defect 3
+               singular noun, live on response-A, driven. That is BUG 3's OWN ERROR CLASS, re-committed by
+               the edit sent to fix bug 3, eight lines under the :2876 comment that forbids it: bug 3
                inferred number from ARRAY LENGTH, this hardcoded the plural — the same coin-flip, mirrored.
                🔴 THE FIX IS THE GRAMMAR, NOT A SWITCH. NO finite number-sensitive verb may take the item as
                its subject: `keep` is an IMPERATIVE, `may go back` is a MODAL, `a fridge thaw` is a NOMINAL,
                `nothing sat out` is SUBJECT-FREE. All four are number-invariant for any noun.
                ⛔ DO NOT "FIX" THIS WITH `${'${x.length>1?"keep":"keeps"}'}`. An array length does not know a
                   NOUN's number (:2876: "chicken thighs" is plural, "ground beef" is a mass noun) — that switch
-                  is Defect 3's exact mechanism and it is wrong at N=1 for every plural noun. R-L1 bars it by
+                  is bug 3's exact mechanism and it is wrong at N=1 for every plural noun. W1 bars it by
                   name. `G-NUM-INVARIANT` in the copy suite drives all four noun classes and will go RED.
-             · METHOD-scoped IN ITS OWN CLAUSE (copy review R-L2 — BLOCKING). The permission states its own method
+             · METHOD-scoped IN ITS OWN CLAUSE (wording constraint W2 — MUST-FIX). The permission states its own method
                scope behind a HARD binder ("but only after a fridge thaw"). It MUST NOT inherit that scope from
                sentence 1's "move … to the REFRIGERATOR to thaw": the earlier draft did, across two sentence
                boundaries, and its only STATED condition was "if your plans change" — a PLANS condition, in the
@@ -3728,7 +3728,7 @@ function renderMealCards(mp){
                The FSIS refreeze allowance is a TWO-condition rule and the app's own DEFAULT_PROMPT_TEMPLATE
                states both in one FSIS-attributed sentence: "food thawed in the refrigerator can be refrozen
                without cooking … PROVIDED IT WAS NEVER LEFT OUT OF THE REFRIGERATOR FOR MORE THAN 2 HOURS."
-               ⛔ "thawed in the refrigerator" DOES NOT ENTAIL IT — the food-safety authority REFUSED that entailment explicitly.
+               ⛔ "thawed in the refrigerator" DOES NOT ENTAIL IT — that entailment is explicitly REFUSED on food-safety grounds.
                   The method answers HOW IT THAWED; the qualifier answers WHAT HAPPENED SINCE. Fridge-thaw over
                   24h, then 3h on the counter, satisfies the method and violates the rule. "Never on the
                   counter" above prohibits counter THAWING — a different act at a different time.
@@ -3739,8 +3739,8 @@ function renderMealCards(mp){
                survives adjacency with the plate chip on the same card (not a trailing unbound sentence).
                ⛔ DO NOT swap `names` for "this food" to save the third print — that is the PLATE chip's
                   number-invariant device, and on a co-occurrence card it would print two "this food"s, adjacent,
-                  with DIFFERENT REFERENTS (copy review §2). The third print is a register cost the copy review
-                  accepted KNOWINGLY — it is a considered trade, not an oversight to tidy up.
+                  with DIFFERENT REFERENTS (wording note §2). The third print is a register cost accepted
+                  KNOWINGLY — it is a considered trade, not an oversight to tidy up.
              · This is why the commit order is binding: the gate's class map credits `comeout` as a KEEPWIN/
                REFREEZE carrier ONLY because this clause is present — reverting it (harness denominator freeze)
                drops the credit and the gate stops demoting those notes (15/19 vs 12/19). */
@@ -3752,7 +3752,7 @@ function renderMealCards(mp){
              freeze imperative (the T-F7 regression). */
           const r1r2=` Once thawed, keep the ${names} no more than 1–2 days in the fridge. If plans change, the ${names}${GRANT_TAIL}`, r1r2Classes=['KEEPWIN','REFREEZE'];
           return {html:`<div style="font-size:13px;font-weight:600;color:var(--amber);line-height:1.5;margin-top:3px">🧊 TAKE IT OUT TONIGHT — move ${obj} to the REFRIGERATOR to thaw. Never on the counter, never in hot water.${r1r2}</div>`, classes:new Set(['THAW','PROHIB',...r1r2Classes]), foods:new Set([...due,...hf])};})())).html}
-        ${/* 🔴 S36 DAY-1 FREEZE CHIP (DURABLE half of AMB-1). Class-1 sole-channel closure: a
+        ${/* 🔴 DAY-1 FREEZE CHIP (DURABLE half of AMB-1). Class-1 sole-channel closure: a
               home-frozen fresh raw protein's day-0/day-1 FREEZE imperative had NO structured chip — it
               survived only as buried ⏱ prose (hazard-map B3, OBSERVED N=5 on DEFAULT_PANTRY). This gives
               it its own amber home so it stops being the one freeze warning a household never reads.
@@ -3760,7 +3760,7 @@ function renderMealCards(mp){
               come-out chip); collision-free with come-out (:2979 strict >), plate-day (:3101), purchased
               (:3102). Same 13px/w600/--amber action register as the come-out chip. Copy = FSIS first-48,
               plan-not-observation, every-item-named (guards the [0]-drop). No schema field. */''}
-        ${(freeze1Chip=norm((()=>{const fz=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* S37 NR1 — raw-protein only: a frozen vegetable is a quality choice, not a pathogen control (:270) */if(pfCoherent(x)||!x.freeze_by)continue;if(!ISO_DATE.test(String(x.freeze_by))||!ISO_DATE.test(String(day.date)))continue;if(String(day.date)!==String(x.freeze_by))continue;fz.push(x.item);}}
+        ${(freeze1Chip=norm((()=>{const fz=[];for(const z of mp){if(!z||z.day<=day.day)continue;for(const x of (((z.dinner&&z.dinner.ingredients)||[]))){if(!x)continue;if(!isRawProtein(x))continue;/* NR1 — raw-protein only: a frozen vegetable is a quality choice, not a pathogen control (:270) */if(pfCoherent(x)||!x.freeze_by)continue;if(!ISO_DATE.test(String(x.freeze_by))||!ISO_DATE.test(String(day.date)))continue;if(String(day.date)!==String(x.freeze_by))continue;fz.push(x.item);}}
           const items=[...new Set(fz)]; if(!items.length) return '';
           const pl=items.length>1, subj=pl?"They're":"It's", obj=pl?'them':'it', prot=pl?'fresh raw proteins':'a fresh raw protein', din=pl?'dinners':'a dinner';
           return {html:`<div style="font-size:13px;font-weight:600;color:var(--amber);line-height:1.5;margin-top:3px">🧊 PUT IT IN THE FREEZER TODAY — portion and freeze the ${esc(andList(items))} now. ${subj} for ${din} later this week, and ${prot} won't keep in the fridge past a day or two — freezing ${obj} today is what keeps ${obj} safe to cook then.</div>`, classes:new Set(['FREEZE']), foods:new Set(items)};})())).html}
@@ -3794,7 +3794,7 @@ function renderMealCards(mp){
               assertion's own comment states that bound. What it does NOT do: it never blocks or alters what
               the household sees, nothing forces it to run, and it can be deleted in the same edit that
               softens this gate. It catches the OMISSION — a class DELETED by someone who then opens the app
-              — and it stops nobody who means it (S38 fresh-clone ruling §6). This comment states a
+              — and it stops nobody who means it (fresh-clone floor §6). This comment states a
               PROPERTY of the mechanism — the class-regexes below ARE the token enumeration, single-sourced,
               and are not restated here.
 
@@ -3837,7 +3837,7 @@ function renderMealCards(mp){
               sole-channel shape measured above. That fallback is now REMOVED (see `sameFood` below): a
               note that resolves to no food for a class leaves that class UNCOVERED, and the note HOLDS.
 
-              IDENTITY (S45) MOVES THIS PREMISE IN BOTH DIRECTIONS, AND IT IS STILL NOT UNCONDITIONAL.
+              RAW-STRING IDENTITY MOVES THIS PREMISE IN BOTH DIRECTIONS, AND IT IS STILL NOT UNCONDITIONAL.
               Coverage now compares RAW ITEM STRINGS, not folded match keys: `foodKey` still performs the
               MATCH and is no longer what is COUNTED. ALIAS DIRECTION — CLOSED. Under the fold, "X FIRES A
               CHIP" was satisfiable by X's TWIN: a row the producer deliberately distinguished (`chicken
@@ -3887,7 +3887,7 @@ function renderMealCards(mp){
               is not CF2's job. A demote is correct ONLY where a same-food amber chip already carries the
               matched class on this card — the intended redundant-restatement drain.
 
-              SAME-FOOD IS NOW THE PRODUCER'S OWN DISTINCTION (S45, read-path only, no contract bump).
+              SAME-FOOD IS NOW THE PRODUCER'S OWN DISTINCTION (read-path only, no contract bump).
               "The foods it speaks for", "the food it names" and "same-food" above are the RAW ITEM STRING
               as the plan wrote it, NOT the folded match key. `foodKey` is a deliberately LOSSY matching
               normalizer — being lossy is how it makes note text match an ingredient — and it had been
@@ -3956,8 +3956,8 @@ function renderMealCards(mp){
           /* 🔴 F-K2B — CARRIER CREDIT MUST BE CARRIED BY CARRIER COPY. This is the MECHANISM half of
              the prohibition stated in prose above: "credit a class to a chip whose rendered copy does not
              carry it" is one of the TWO WAYS TO VOID IT, BOTH FORBIDDEN. Until this statement existed that
-             prohibition was DISCIPLINE — an adjacent literal and a comment — and nothing executed. For four
-             sessions nothing did.
+             prohibition was DISCIPLINE — an adjacent literal and a comment — and nothing executed. For a long
+             time nothing did.
              WHAT IT DOES. For every chip that FIRED, every class it DECLARES must be matched by this gate's
              OWN class-regex map against that chip's OWN rendered copy. It is GENERIC over
              chipsFired × k.classes and names no chip and no class, so a ninth carrier added later is covered
@@ -4032,7 +4032,7 @@ function renderMealCards(mp){
               rows across the five real runs, against the frozen fish's 5 — and it was rendered MORE FAINTLY
               THAN THE PROSE THAT DESCRIBES IT (amber, 10.59:1), and in the SAME 10px `--fg3` as the price
               line beside it. The deadline for raw chicken and the cost-per-serving were the same colour and
-              the same size. It is the IDENTICAL defect a reviewer found in the shopping list, which S33 fixed
+              the same size. It is the IDENTICAL defect found in the shopping list, which v11 fixed
               there (`.shop-note` → 11px `--fg2`, 6.89:1) AND LEFT STANDING HERE — the fix went to the aisle
               and not to the kitchen. Now SPLIT by whether a missed date is SILENT (below): a raw animal
               protein's deadline renders 13px `--amber` (the act-now rank), every other deadline 12px
@@ -4078,7 +4078,7 @@ function renderMealCards(mp){
           if(rte.length) out+=`<div style="font-size:13px;color:var(--amber);line-height:1.5;margin-top:3px">🍳 ${esc(eatOrFreezeText(rte))}</div>`;
           if(signal.length) out+=`<div style="font-size:12px;color:var(--fg2);line-height:1.5;margin-top:3px">🍳 ${esc(cookByText(signal))}</div>`;
           return out;})()}
-        ${/* 🔴 RE-GATE / DESIGN-L3(a), RULED BLOCKING. THE APP MUST NOT ASSERT A PHYSICAL
+        ${/* 🔴 MUST-FIX. THE APP MUST NOT ASSERT A PHYSICAL
               EVENT IT CANNOT OBSERVE. This chip previously read "🧊 from freezer (frozen 2026-07-13)"
               — stating a past event as ACCOMPLISHED FACT, WITH A DATE — derived from nothing but a
               PLAN-TIME INSTRUCTION. `freeze_by` is what the model TOLD the household to do on shopping
@@ -4086,7 +4086,7 @@ function renderMealCards(mp){
               no-date gate — so a plan whose freeze instruction never landed BOTH silences the alarm AND
               prints a confirmation, to exactly the household that erred. DESIGN NOTE: "they didn't open the app
               to check their memory; they opened it because it IS their memory."
-              Copy below is the design's own wording, verbatim from the L3 fix option (a). */''}
+              Copy below is the chosen wording, verbatim from fix option (a). */''}
         ${/* 🔴 THE UN-OBEYABLE IMPERATIVE IS REMOVED FROM THE PLATE DAY.
               This chip fires on the day the item is EATEN, and it used to say "If it did — thaw it in the
               refrigerator, never on the counter." A refrigerator thaw costs a full day by the app's own
@@ -4095,42 +4095,42 @@ function renderMealCards(mp){
               SENTENCE PROHIBITS. The app handed the household an instruction it was too late to obey, and the
               compliant response to it was the hazard.
               The thaw imperative now lives on the COME-OUT day (the chip above), where it CAN be obeyed. What
-              remains here is what this chip is actually for: a retrospective audit + the do-not-cook, in the design's
-              L3(a) register — it states the PLAN, never an OBSERVATION, because THE APP CANNOT SEE THE FREEZER.
+              remains here is what this chip is actually for: a retrospective check + the do-not-cook, in the chosen
+              register — it states the PLAN, never an OBSERVATION, because THE APP CANNOT SEE THE FREEZER.
               🔴 KNOWN GAP, NAMED NOT BURIED: a household that froze the item but MISSED the come-out chip
               still has a frozen brick at 5pm, and this chip now gives them a PROHIBITION with no alternative.
-              The safe same-day options (cold-water thaw, cook-from-frozen) are FOOD-SAFETY DOCTRINE — the
-              authority, not mine — and I will not invent a kill step on a surface the operator's household
-              eats from. Flagged for food-safety + review. Removing a false instruction is strictly safer than
-              keeping it; filling the hole it leaves requires an authority I do not have. */''}
-        ${/* 🔴 S37 PLATE CHIP — Defect-1c (produce filter) + Defect-2 (two-branch method-scoped refreeze,
-              food-safety ruling §5.3, FSIS-authorized) + Defect-3 (number-neutral, no array-length pronouns).
-              ⚠ COPY OWNERSHIP IS SPLIT: the FSIS content is the food-safety authority's, the wording is the
-              copy review's. The copy review RATIFIED this chip's shape
-              UNCHANGED (copy ratification §8.1) and calls it THE BENCHMARK — its method scope is in-clause
+              The safe same-day options (cold-water thaw, cook-from-frozen) are FOOD-SAFETY DOCTRINE and must come from a
+              food-safety source, not from this code — and I will not invent a kill step on a surface a household
+              eats from. Flagged as an open food-safety question. Removing a false instruction is strictly safer than
+              keeping it; filling the hole it leaves requires food-safety grounding this code does not have. */''}
+        ${/* 🔴 PLATE CHIP — bug 1c (produce filter) + bug 2 (two-branch method-scoped refreeze,
+              food-safety rule §5.3, FSIS-authorized) + bug 3 (number-neutral, no array-length pronouns).
+              ⚠ CONTENT AND WORDING ARE SEPARATE CONCERNS: the FSIS content is a food-safety question, the
+              wording is a copy question. This chip's shape was accepted
+              UNCHANGED and is THE BENCHMARK — its method scope is in-clause
               and LEADING, which is exactly what the come-out chip had to be rewritten to match.
               🔴 DO NOT DISTURB THE METHOD SCOPE OR THE BRANCH SHAPE. Only the 2-hour clause was added (below).
               · produce filter: `isRawProtein(x)` — no do-not-cook / cold-water doctrine on a frozen vegetable
-                (food-safety ruling §5.1 + NR1). Preserves the chip for any REAL protein sharing the same plate day.
+                (food-safety rule §5.1 + NR1). Preserves the chip for any REAL protein sharing the same plate day.
               · two branches, each scoped to its thaw METHOD so the two halves cannot be read apart (this is
-                the live-at-HEAD refreeze contradiction fix — E5 drumsticks): fridge-thawed-as-planned ⇒ may
+                the live-at-HEAD refreeze contradiction fix — the drumsticks run): fridge-thawed-as-planned ⇒ may
                 refreeze uncooked (FSIS :272); still-frozen cold-water rescue ⇒ cook now, do NOT refreeze
                 uncooked (FSIS :274).
               · 🔴 REQ-2HR (BINDING — the clause "but only if nothing sat out more than 2 hours").
-                THIS PERMISSION IS NEW IN S37 — at HEAD f27fa23 this chip granted NO refreeze allowance at all,
+                THIS PERMISSION WAS ADDED LATE — at HEAD f27fa23 this chip granted NO refreeze allowance at all,
                 only the cold-water prohibition — AND IT SHIPPED WITHOUT THE QUALIFIER, 0/5 on the live corpus.
-                The food-safety authority authored the FSIS two-condition rule into DEFAULT_PROMPT_TEMPLATE in S33 ("…can be
+                The FSIS two-condition rule was authored into DEFAULT_PROMPT_TEMPLATE for v11 ("…can be
                 refrozen without cooking … PROVIDED IT WAS NEVER LEFT OUT OF THE REFRIGERATOR FOR MORE THAN
-                2 HOURS") and then certified a ONE-condition version of it into this chip as "FSIS-complete."
-                It was not. The copy review ratified the chip and was right ON ITS OWN AXIS — the omission was a CONTENT
-                question, invisible to a wording review, because the content had been signed off.
-                ⛔ THE METHOD CONDITION DOES NOT ENTAIL THE TEMPERATURE-TIME ONE (the food-safety authority refused it explicitly):
+                2 HOURS") and a ONE-condition version of it then went into this chip as "FSIS-complete."
+                It was not. The chip was accepted on its WORDING, correctly — the omission was a CONTENT
+                question, invisible to a wording check, because the content was assumed settled.
+                ⛔ THE METHOD CONDITION DOES NOT ENTAIL THE TEMPERATURE-TIME ONE (explicitly refused on food-safety grounds):
                    "thawed in the refrigerator as planned" answers HOW IT THAWED; the qualifier answers WHAT
                    HAPPENED SINCE. A fridge thaw followed by 3h on the counter satisfies the first and violates
                    the second. "Never thaw on the counter" below prohibits counter THAWING — another act, another
                    time. Without the qualifier this chip permits refreezing food FSIS says to DISCARD, in FSIS's
-                   name, in amber, weight-600 — and by DOMAIN-GATE §6.3 the household takes the PERMISSIVE
-                   reading, which would be this one. The clause is the copy review's, from its PRIMARY (§6), reused verbatim
+                   name, in amber, weight-600 — and by acceptance spec §6.3 the household takes the PERMISSIVE
+                   reading, which would be this one. The clause is the preferred wording (§6), reused verbatim
                    so both chips state the identical condition when they land adjacent on one card.
                 ⛔ The chip states the whole 2-hour rule: 2 hours, or 1 hour if the air is over 90°F. The template
                    carries both limbs in its refreeze rule, so the chip matches it and does not outrun it. The
@@ -4141,7 +4141,7 @@ function renderMealCards(mp){
                 "ground beef") — grammatical number CANNOT be inferred from a food name (the come-out chip's
                 own rule), so array-length pronouns (pl?'they':'it') are GONE.
                 ⛔ "this food" is THIS chip's device and must stay here: the come-out chip may NOT adopt it, or a
-                   co-occurrence card prints two "this food"s with different referents (copy review §2). */''}
+                   co-occurrence card prints two "this food"s with different referents (wording note §2). */''}
         ${plateChip.html}
         ${pfChip.html}
         ${(()=>{const un=wfArr(d.ingredients).filter(x=>x&&!x.cook_by&&!x.freeze_by&&!pfCoherent(x)&&(x.protein_state==='fresh'||x.shelf_life_tier===0||x.shelf_life_tier===1)).map(x=>x.item);const pl=un.length>1;return un.length?`<div style="font-size:13px;color:var(--red);line-height:1.5;margin-top:3px">⚠ no cook-by or freeze-by date on ${pl?'highly perishable items':'a highly perishable item'} (${esc(un.join(', '))}) — cook ${pl?'them':'it'} within 2 days of shopping, or freeze ${pl?'them':'it'} the day you buy ${pl?'them':'it'}</div>`:'';})()}
@@ -4155,7 +4155,7 @@ function renderMealCards(mp){
 // store's case (1 hour above 90°F) — had no typed-side home on the surface they hold in the store. The 🧊 chips
 // that carry the freezer half sit on a meal-plan day card (the freeze day or the eating day), nothing carried
 // the refrigerator half, and the only copy on the store surface was producer prose in a grey .shop-note.
-// WHY A BLOCK AND NOT AMBER ON THE ROW (refused by the food-safety review, under any name): to amber a
+// WHY A BLOCK AND NOT AMBER ON THE ROW (refused on food-safety grounds, under any name): to amber a
 // row the app must know WHICH row is the protein, i.e. match a shopping row to an ingredient. That match
 // is a join, and measured on the five real plans it resolves 5 of the 6 bought proteins and LOSES the
 // salmon in run D ("wild alaska sockeye salmon frozen" vs "wild sockeye salmon fillets"). A text match
@@ -4193,7 +4193,7 @@ function renderMealCards(mp){
 // REGISTER: 13px --amber, the act phrase at 600 and the rest at 400; NO amber below 13px inside the
 // block. Estimated prices on the rows also render amber (11px); the remedy for that collision is to
 // demote the price, never to promote this block.
-// COPY: the UX review's strings, verbatim, assembled here as plain text and escaped as a WHOLE at render
+// COPY: the chosen UX strings, verbatim, assembled here as plain text and escaped as a WHOLE at render
 // — item, store and freeze_by are pasted model output and untrusted. An unreadable date fails toward the
 // EARLIER freeze. ⚠ One sub-case has no reviewed string: a pantry item whose freeze date AND whose plan
 // day-1 date are both unreadable. It reuses the day-one chip's reviewed imperative "PUT IT IN THE
@@ -4452,8 +4452,8 @@ function serializePantry(){
   return body||'No pantry items tracked.';
 }
 
-// E2-3 FEED-BACK serializer. Reads S.wasteLog + the resident
-// S.planHistory window via the EXISTING E2-2 aggregate — no new projection, no write-path;
+// FEED-BACK serializer. Reads S.wasteLog + the resident
+// S.planHistory window via the EXISTING retrospective aggregate — no new projection, no write-path;
 // promptTemplate is the ONLY new state. Returns the direction-safe recurring-waste OBSERVATION
 // block, or '' when the inclusion floor is unmet (≥2 logged weeks AND ≥1 repeat offender);
 // the slot then vanishes cleanly at the call site. A CONSIDERATION, never a quantitative command
@@ -4740,11 +4740,11 @@ function removePrefsItem(list,idx){S.prefs[list].splice(idx,1);savePrefs();rende
 // phone that reloads the tab mid-trip (a discarded tab, a relaunch) used to send the shopper back through
 // the whole plan. This restore runs ONCE, at page load, and only when every guard below holds. Any guard
 // failing leaves the page where every other load opens: at the top, on the plan. That is the safe
-// direction (the food-safety review): guessing "same trip" wrongly can land a new trip, or the kitchen at
+// direction (on food-safety grounds): guessing "same trip" wrongly can land a new trip, or the kitchen at
 // home, past a directive; guessing "new trip" wrongly costs only scrolling.
 //   · a tick on THIS plan (≥1 ticked row, recorded against this plan's importedAt) — a new plan or a
 //     restored backup clears the record;
-//   · the last tick under 10 minutes ago — a CEILING ruled by the food-safety review, below a typical
+//   · the last tick under 10 minutes ago — a CEILING set on food-safety grounds, below a typical
 //     checkout-plus-drive, so a re-open at home after the trip lands at the top;
 //   · the same LOCAL calendar date as that tick;
 //   · not every row ticked — a finished list opens at the top.
@@ -4889,7 +4889,7 @@ function exportAllData(){
     promptTemplate:S.promptTemplate,anchorRecipes:S.anchorRecipes,
     checkedItems:S.checkedItems,
     specialInstructions:S.specialInstructions,   // typed text that steers every plan → without it a move to another browser silently loses it.
-    wasteLog:S.wasteLog   // E2-1 (N4): enumerated explicitly → MUST be here or a restore silently destroys it.
+    wasteLog:S.wasteLog   // Waste log (N4): enumerated explicitly → MUST be here or a restore silently destroys it.
                           // wasteDismissed is deliberately OMITTED (UI-suppression, not household data — Q4).
   };
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
@@ -4957,8 +4957,8 @@ function importAllData(event){
       if(typeof data.anchorRecipes==='string'){S.anchorRecipes=data.anchorRecipes;saveAnchors()}   // same typeof guard as specialInstructions below
       if(isPlainObj(data.checkedItems)){S.checkedItems=data.checkedItems;saveCheckedItems()}
       else{S.checkedItems={};saveCheckedItems()}
-      // E2-1 (N4): guarded, NON-destructive restore — DEPARTS from checkedItems, FOLLOWS
-      // planHistory. NO destructive else: a pre-E2 backup legitimately lacks wasteLog; clearing it
+      // Waste log (N4): guarded, NON-destructive restore — DEPARTS from checkedItems, FOLLOWS
+      // planHistory. NO destructive else: a pre-waste-capture backup legitimately lacks wasteLog; clearing it
       // would silently destroy irreplaceable longitudinal waste history. Absent-in-backup ⇒ PRESERVE.
       if(data.wasteLog&&typeof data.wasteLog==='object'){S.wasteLog=normalizeWasteLog(data.wasteLog);saveWasteLog()}
       // Same NON-destructive shape as wasteLog: backups made before this field was exported lack it, so
@@ -5033,8 +5033,8 @@ try{
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════
-   P-FLOOR ASSERTION — the fresh clone's one MECHANICAL check at the ⏱-note gate (S38 fresh-clone
-   ruling §7, designed S41). Runs ONCE, here, after the household's first paint has already been
+   P-FLOOR ASSERTION — the fresh clone's one MECHANICAL check at the ⏱-note gate (fresh-clone
+   floor §7). Runs ONCE, here, after the household's first paint has already been
    produced by render() above.
 
    WHAT IT DOES. Eight synthetic plans — one carrying a real food-safety directive of each class the
@@ -5059,7 +5059,7 @@ try{
    NARROWINGS. This check tests ONE specimen per class. A class regex is the set of phrasings it
    matches; this check verifies only that its OWN specimen is still in that set. Shrink the set any way
    that spares the specimen and this check stays SILENT while the class goes blind to every other
-   phrasing a real plan uses. Driven S41: narrowing each of the seven classes until it matches only its
+   phrasing a real plan uses. Driven: narrowing each of the seven classes until it matches only its
    own directive below leaves all seven SILENT — 0 of 7 caught, against 7 of 7 for outright deletion.
    A class can also be too narrow from the START — never edited, and still blind to phrasings a real
    plan uses. This check cannot see that either: its specimen is one of the phrasings that works.
@@ -5067,7 +5067,7 @@ try{
    REPARTITIONS. Widen one class so it ALSO matches a directive below that belongs to another, and that
    directive stops discriminating: deleting its own class no longer demotes it, because the other class
    still matches. This check then stays SILENT while the pole behind it is dead. Nothing in this block
-   changes, and nothing in this block can detect it. Driven S41: widening the counter/hot-water class to
+   changes, and nothing in this block can detect it. Driven: widening the counter/hot-water class to
    also cover "sat out" kills the discard directive's pole outright, with no console output at any
    point. Seven of the eight directives below are isolated by matching exactly ONE class; the last
    cannot be, because every phrasing of it also matches a neighbour, so it is isolated by COVERAGE
@@ -5087,7 +5087,7 @@ try{
    DELETED by someone who then opens the app to look at their own change, without knowing to look) and
    it stops nobody who means it.
 
-   FIXTURE HAZARD — READ BEFORE ADDING OR EDITING A FIXTURE (S41). Seven ride a BARE card: no ingredient
+   FIXTURE HAZARD — READ BEFORE ADDING OR EDITING A FIXTURE. Seven ride a BARE card: no ingredient
    carries freeze_by, cook_by or a bought-frozen mark, so NO chip fires at all and the ⏱ note is the
    card's only safety surface — sole-channel by construction, not by argument. The last cannot be,
    because every English phrasing of that directive also matches a neighbouring class; it is isolated
@@ -5146,7 +5146,7 @@ try{
     for(const b of _pfBad)console.error(
       `[weekly-feast]   "${b.c.note}"\n`+
       `                 ${b.style===null?'renders NO ⏱ note at all.':'is DEMOTED to grey narration.'} No chip on that card carries it. It is ${b.c.carries}.\n`+
-      `                 If you just edited the ⏱-note gate, this is your edit. See the S38 fresh-clone ruling (P-FLOOR).`);
+      `                 If you just edited the ⏱-note gate, this is your edit. See the fresh-clone floor note (P-FLOOR).`);
   }
 }catch(_pfErr){
   // A check that fails to RUN is a check whose silence is indistinguishable from a pass. Say so, then
