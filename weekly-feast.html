@@ -713,9 +713,9 @@ const safeUrl=u=>{if(u==null)return '';const t=wfText(u).trim();return /^(https?
 const esc=s=>s==null?'':wfText(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 RFZ-SAME-SENTENCE — the S61b cure for an uncooked-refreeze permission whose conditions are not in
+// 🔴 RFZ-SAME-SENTENCE — the cure for an uncooked-refreeze permission whose conditions are not in
 // its own sentence. Ruled app-side with the prompt template left unchanged (the household reads what is
-// RENDERED, on every model); the predicate carries the S61b security review's conditions C1–C10 and the
+// RENDERED, on every model); the predicate carries security conditions C1–C10, stated where cited, and the
 // food-safety re-rulings that amended them; every household line below is the signed text, byte for byte.
 // WHAT IT DOES. At RENDER time only, every model-authored text field the household reads is run through
 // a predicate. A sentence that grants a raw refreeze without BOTH a fridge thaw AND an upper-bounded
@@ -4022,7 +4022,7 @@ function renderMealCards(mp){
           // DEMOTE iff no orphan hold AND every matched class is covered. matched=∅ (pure narration) ⇒
           // every() is vacuously true ⇒ DEMOTE — that is the amber-wall drain; do NOT guard on matched.length>0
           // (that would HOLD pure narration amber, re-erecting the wall). HOLD iff some matched class uncovered.
-          // 🔴 RFZ (S61b). Judged on the model's own note; the inserted line is display only and is never fed to
+          // 🔴 RFZ. Judged on the model's own note; the inserted line is display only and is never fed to
           // CLASS_RE, coverage or F-K2B. A fire OR a throw forces HOLD (demote is false); RFZ can never set demote true.
           // rfzFires is quiet here because rfzRender below reports the same throw once.
           const demote = !rfzFires(note,true) && !planHasOrphan && matched.every(covered);
